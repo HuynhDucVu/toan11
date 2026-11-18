@@ -5,7 +5,21 @@
 
 Kho câu hỏi `nganhang.db` nằm cạnh file exe. Cập nhật từ bản cũ: chỉ cần thay file exe, kho giữ nguyên.
 
-## Có gì mới ở bản 0.6.0 – Đề online, Moodle, Word ↔ LaTeX (đợt 2)
+## Có gì mới ở bản 0.7.0 – Sinh câu hỏi số và vẽ hình (đợt 3, 4)
+**🔢 Sinh câu (tab mới)**
+- Từ **một câu mẫu có tham số**, sinh hàng loạt biến thể với số liệu khác nhau. Đáp án và lời giải tự tính theo số mới.
+- Khai báo biến bằng dòng `%@`:
+  - `%@ a = 1..9` (số nguyên), `%@ b = -5..5 khac 0` (loại trừ giá trị), `%@ c = [2,3,5]` (chọn trong danh sách);
+  - `%@ D = b*b-4*a*c` (biểu thức), `%@ dk: D > 0` (điều kiện).
+- Trong câu viết `@{biểu thức}` để chèn giá trị. Có sẵn hàm `frac`, `dec`, `term`, `coef`, `sq`, `C`, `A`…
+- Mỗi biến thể được rà soát (đáp án, lời giải, LaTeX) và loại câu trùng. Có 2 câu mẫu để bắt đầu (trắc nghiệm, trả lời ngắn).
+
+**🎨 Vẽ hình (tab mới)** – sinh mã TikZ, xem trước ngay trong phần mềm
+- **Bảng biến thiên** (`tkz-tab`): nhập hàm số là tự tính đạo hàm, cực trị, giới hạn, tiệm cận đứng (đa thức, phân thức…). Sửa tay được.
+- **Đồ thị hàm số:** chọn khung x, y, lưới, đánh dấu điểm; tự tách nhánh ở chỗ hàm không xác định.
+- **Biểu đồ cột và biểu đồ quạt** từ bảng số liệu.
+
+## Bản 0.6.0 – Đề online, Moodle, Word ↔ LaTeX (đợt 2)
 - **Bài làm online:** mỗi mã đề một file HTML, mở bằng trình duyệt trên máy tính, iPhone hoặc Android.
   - Học sinh nhập tên, làm bài có đồng hồ đếm ngược, bấm *Nộp bài* là được chấm ngay theo thang điểm thi tốt nghiệp.
   - Sau khi nộp: hiện đáp án đúng/sai từng câu và (tuỳ chọn) lời giải. Gửi qua Zalo hoặc email được.

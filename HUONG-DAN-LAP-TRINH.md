@@ -46,6 +46,8 @@ nganhangde/
 ├── htmlconv.py   # LaTeX → HTML (giữ công thức cho MathJax)
 ├── online.py     # bài làm online (HTML tự chấm) và Moodle XML
 ├── wordconv.py   # Word ↔ LaTeX qua pandoc
+├── mathgen.py    # sinh câu hỏi số từ câu mẫu có tham số
+├── drawgen.py    # mã TikZ: bảng biến thiên, đồ thị, biểu đồ cột/quạt
 ├── cli.py        # Bước 7a: dòng lệnh
 ├── gui_qt.py     # Bước 7b: giao diện chính (PySide6/Qt)
 ├── gui.py        #          giao diện dự phòng (Tkinter)
@@ -392,6 +394,59 @@ Phần này dùng **pandoc**.
   Kết quả nên chạy qua **Rà soát** để bắt những câu chưa nhận ra đáp án.
   Đã kiểm thử: xuất kho mẫu ra Word rồi đọc lại khớp 22/22 câu, cả loại câu lẫn đáp án.
 
+## 8d. Sinh câu hỏi số (`mathgen.py`)
+
+**Câu mẫu** là một khối `ex` bình thường, thêm các dòng khai báo `%@`:
+
+| Khai báo | Ý nghĩa |
+|---|---|
+| `%@ a = 1..9` | số nguyên ngẫu nhiên |
+| `%@ b = -5..5 khac 0` | loại trừ giá trị |
+| `%@ c = [2,3,5]` | chọn trong danh sách |
+| `%@ d = 0.5..3 buoc 0.5` | số thực theo bước |
+| `%@ D = b*b-4*a*c` | biểu thức tính từ biến đã có |
+| `%@ dk: D > 0` | điều kiện |
+
+**Cách sinh một biến thể:**
+
+1. `parse_template` tách phần khai báo khỏi thân câu.
+2. `instantiate` rút giá trị cho từng biến theo thứ tự khai báo. Nếu điều kiện sai thì rút lại, tối đa 500 lần.
+3. `substitute` thay mỗi `@{…}` bằng giá trị đã định dạng.
+   * Biểu thức được tính bằng `eval` với **danh sách hàm cho phép** (không có hàm dựng sẵn, chặn `__`, `import`).
+   * Các hàm: `frac` (phân số tối giản), `dec` (thập phân dấu phẩy), `term` (hạng tử có dấu: «+ x», «- 3x», 0 thì bỏ),
+     `coef`, `sq` (căn rút gọn), `C`, `A`, `fact`…
+4. `generate` kiểm tra mỗi biến thể bằng `review_question` và bỏ câu trùng (`fingerprint`).
+
+Kiểm thử thay ngược nghiệm vào tam thức để chắc đáp án đúng về mặt toán học.
+
+## 8e. Vẽ hình (`drawgen.py`)
+
+**Hàm số** được nhập theo cách viết thông dụng: `x^3-3x+1`, `(2x+1)/(x-1)`.
+`to_python` thêm dấu nhân ngầm, `make_func` dịch biểu thức an toàn, chỉ cho phép các hàm `sqrt`, `sin`, `exp`, `ln`…
+
+**Bảng biến thiên** (`variation_table`) tính hoàn toàn bằng số, gồm các bước:
+
+1. Tìm điểm không xác định có giới hạn vô cực (`_poles`): mẫu bằng 0 đúng tại mắt lưới, hoặc đổi dấu kèm giá trị bùng nổ.
+2. Tìm nghiệm của đạo hàm số (đạo hàm sai phân trung tâm), bằng cách quét lưới rồi chia đôi.
+3. Làm tròn nghiệm về phân số đơn giản (`_snap`).
+4. Tính giá trị tại các mốc và giới hạn ở ±∞; xác định chiều biến thiên trên từng khoảng.
+
+Kết quả là các hàng `\tkzTabInit` / `\tkzTabLine` / `\tkzTabVar`. Tiệm cận đứng dùng `d` và `-D+`.
+Số được hiển thị đẹp (`nice`): số nguyên, phân số, $a\sqrt{b}$.
+
+**Đồ thị** (`graph_tikz`): toạ độ điểm được tính sẵn (`plot coordinates`) nên không phụ thuộc pgfmath.
+Đường cong được tách đoạn ở chỗ hàm không xác định hoặc nhảy vọt, ví dụ $y=1/x$ ra 2 nhánh.
+
+**Biểu đồ cột và biểu đồ quạt:** vẽ bằng TikZ thuần.
+
+Giao diện có `PlotView` (QPainter) để **xem trước không cần LaTeX**.
+
+**Đã biên dịch thử bằng pdflatex** (TikZ + tkz-tab), không có lỗi:
+
+* bảng biến thiên của $x^3-3x+1$, $\frac{2x+1}{x-1}$ (có vạch kép tiệm cận), $\frac{x^2+x+1}{x+1}$, $x^4-2x^2$;
+* đồ thị bậc ba và đồ thị $y=1/x$;
+* biểu đồ cột và biểu đồ quạt.
+
 ## 9. Bước 7: giao diện
 
 **Dòng lệnh** (`cli.py`):
@@ -535,8 +590,10 @@ Bảng dưới lập từ tên các thành phần giao diện trong file `MyLT.e
 | Chuyển Word ↔ LaTeX | ✅ qua pandoc (mục 8c) |
 | Đề online (HTML tự chấm), Moodle XML | ✅ (mục 8c) |
 | Xem PDF trong phần mềm | ⏳ chưa có (cần cài LaTeX; hiện có tuỳ chọn biên dịch PDF bằng xelatex) |
-| Vẽ hình TikZ, đồ thị, bảng biến thiên, biểu đồ | ⏳ chưa có (nên làm thành mô-đun riêng) |
-| Sinh câu hỏi bằng AI, sinh số ngẫu nhiên | ⏳ chưa có |
+| Bảng biến thiên, đồ thị hàm số, biểu đồ cột/quạt → TikZ | ✅ (mục 8e) |
+| Sinh số / sinh câu từ câu mẫu | ✅ (mục 8d) |
+| Dựng hình học phẳng từng bước (điểm, đường tròn, giao điểm…) | ⏳ chưa có |
+| Sinh câu hỏi bằng AI (Gemini) | ⏳ chưa có (cần khoá API) |
 
 ## 12. Hướng phát triển thêm
 
