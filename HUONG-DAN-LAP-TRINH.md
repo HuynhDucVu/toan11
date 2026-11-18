@@ -466,7 +466,12 @@ Bảng dưới lập từ tên các thành phần giao diện trong file `MyLT.e
 | Kiểm tra tỉ lệ trùng giữa các đề | ✅ |
 | Đáp án ra bảng Excel (CSV) | ✅ |
 | Công cụ trên file: lọc ID, đổi ID, thêm nguồn, sắp xếp, lấy đáp án, xoá lời giải, trộn đề từ file | ✅ |
-| Đổi một câu trong đề đã sinh | ⏳ chưa có (hiện phải tạo lại với seed khác) |
+| Đổi câu trong đề trước khi trộn | ✅ (`SwapDialog`, `generator.replacement_pool`) |
+| Xếp câu theo mức độ, giới hạn tỉ lệ trùng giữa các đề | ✅ (`MixOptions.sort_by_level`, `make_versions(max_overlap=…)`) |
+| In ma trận đặc tả | ✅ (`exporter.matrix_spec`) |
+| Lịch sử sửa câu, khôi phục câu đã xoá | ✅ (bảng `history`, `Bank.restore`) |
+| Tìm & thay thế, xoá ID, xoá nguồn, lọc theo nguồn, trích TikZ, câu gần trùng | ✅ (`tools.py`, `Bank.replace_text`) |
+| Kiểm tra cập nhật | ✅ (đọc bản phát hành mới nhất trên GitHub) |
 | Đáp án cho phần mềm chấm phiếu (TNMaker) | ✅ file Excel cấu hình được bố cục |
 | Chuẩn đề tốt nghiệp (24 mã, đánh số từng phần, lời dẫn, thang điểm) | ✅ |
 | In phiếu trả lời, mã QR, đề online (Azota, HTML, Moodle XML) | ⏳ chưa có (phiếu dùng mẫu của TNMaker) |

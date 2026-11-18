@@ -74,6 +74,9 @@ def pick_questions(bank: Bank, rules: list[Rule], rng: random.Random,
             counts = dict(bank.con.execute("SELECT id, used_count FROM questions").fetchall())
             pool.sort(key=lambda q: counts.get(q.db_id, 0))  # sort ổn định ⇒ vẫn ngẫu nhiên trong nhóm
         sel = pool[: r.count]
+        ri = rules.index(r)
+        for q in sel:
+            q.rule_index = ri          # nhớ câu thuộc dòng ma trận nào (để «đổi câu»)
         used_ids.update(q.db_id for q in sel)
         chosen[r.qtype].extend(sel)
     if errors:
@@ -139,12 +142,22 @@ class MixOptions:
     shuffle_ds: bool = True         # trộn thứ tự ý câu đúng/sai
     balance: bool = True            # cân bằng số đáp án A/B/C/D trong mỗi đề
     first_original: bool = False    # mã đề đầu tiên giữ nguyên thứ tự gốc (đề gốc)
+    sort_by_level: bool = False     # trong mỗi phần xếp câu từ dễ đến khó (N → H → V → C)
+
+
+LEVEL_ORDER = {"N": 0, "Y": 0, "H": 1, "B": 1, "V": 2, "K": 2, "C": 3, "G": 3}
+
+
+def level_rank(q: Question) -> int:
+    return LEVEL_ORDER.get(q.id_code[3], 9) if len(q.id_code) >= 4 else 9
 
 
 def _mix_section(qs: list[Question], rng: random.Random, opt: MixOptions, keep_order: bool) -> list[Question]:
     qs = list(qs)
     if opt.shuffle_q and not keep_order:
         rng.shuffle(qs)
+    if opt.sort_by_level and not keep_order:
+        qs.sort(key=level_rank)        # sort ổn định ⇒ vẫn ngẫu nhiên trong cùng mức độ
     if keep_order:
         return [copy.deepcopy(q) for q in qs]
     # vị trí đích cho đáp án TN: lặp A,B,C,D rồi xáo ⇒ các chữ cái gần như đều nhau
@@ -189,17 +202,45 @@ def make_versions(bank: Bank, rules: list[Rule], n_versions: int = 4, *,
                   codes: list[str] | None = None, seed: int | None = None,
                   same_questions: bool = True, shuffle_q: bool = True,
                   shuffle_opts: bool = True, prefer_unused: bool = False,
-                  options: MixOptions | None = None) -> list[ExamVersion]:
+                  options: MixOptions | None = None, max_overlap: float | None = None,
+                  sections: dict[str, list[Question]] | None = None) -> list[ExamVersion]:
+    """Sinh các mã đề.
+
+    sections: bộ câu đã chọn sẵn (vd sau khi giáo viên «đổi câu») – bỏ qua bước chọn câu.
+    max_overlap: (khi mỗi mã một bộ câu) tỉ lệ câu trùng tối đa giữa 2 mã đề bất kì, vd 0.3.
+    """
     rng = random.Random(seed)
     if not codes:
         codes = [str(101 + i) for i in range(n_versions)]
     opt = options or MixOptions(shuffle_q=shuffle_q, shuffle_tn=shuffle_opts, shuffle_ds=shuffle_opts)
+    if sections is not None:
+        return mix_versions(sections, codes, rng, opt)
     if same_questions:
         return mix_versions(pick_questions(bank, rules, rng, prefer_unused), codes, rng, opt)
-    out = []
+    out, chosen_sets = [], []
     for code in codes:
-        out += mix_versions(pick_questions(bank, rules, rng, prefer_unused), [code], rng, opt)
+        best, best_ov = None, 2.0
+        for _ in range(60 if max_overlap is not None else 1):
+            picked = pick_questions(bank, rules, rng, prefer_unused)
+            ids = {q.db_id for qs in picked.values() for q in qs}
+            ov = max((len(ids & o) / max(len(ids), 1) for o in chosen_sets), default=0.0)
+            if ov < best_ov:
+                best, best_ov = picked, ov
+            if max_overlap is None or ov <= max_overlap:
+                break
+        if max_overlap is not None and best_ov > max_overlap:
+            raise NotEnoughQuestions(f"Không tạo được mã đề {code} với tỉ lệ trùng ≤ {max_overlap:.0%} "
+                                     f"(thấp nhất đạt {best_ov:.0%}) – kho chưa đủ câu cho ma trận này.")
+        chosen_sets.append({q.db_id for qs in best.values() for q in qs})
+        out += mix_versions(best, [code], rng, opt)
     return out
+
+
+def replacement_pool(bank: Bank, rules: list[Rule], q: Question, used_ids: set[int]) -> list[Question]:
+    """Các câu có thể thay cho q (cùng dòng ma trận, chưa có trong đề)."""
+    r = rules[getattr(q, "rule_index", 0)] if rules else Rule(q.qtype, 1)
+    return [x for x in bank.search(qtype=r.qtype, id_like=r.id, muc_do=r.muc_do, text=r.text)
+            if x.db_id not in used_ids]
 
 
 def make_codes(n: int, start: int = 101, digits: int = 3, randomize: bool = False,

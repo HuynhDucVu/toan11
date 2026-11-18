@@ -36,6 +36,15 @@ CREATE TABLE IF NOT EXISTS questions (
 CREATE INDEX IF NOT EXISTS ix_q_code ON questions(id_code);
 CREATE INDEX IF NOT EXISTS ix_q_filter ON questions(qtype, lop, chuong, muc_do);
 -- Giải nghĩa ID (MapID): '0D2' → 'Chương 2. Bất phương trình', '0D21' → 'Bài 1 ...', '0D21-2' → 'Dạng 2 ...'
+-- Lịch sử sửa/xoá câu: lưu khối LaTeX trước khi đổi để khôi phục
+CREATE TABLE IF NOT EXISTS history (
+    hid         INTEGER PRIMARY KEY AUTOINCREMENT,
+    question_id INTEGER,
+    at          TEXT,
+    action      TEXT,            -- sửa / xoá / thay thế / gán ID
+    old_raw     TEXT
+);
+CREATE INDEX IF NOT EXISTS ix_hist_q ON history(question_id);
 CREATE TABLE IF NOT EXISTS idmap (
     key  TEXT PRIMARY KEY,
     name TEXT NOT NULL
@@ -84,13 +93,42 @@ class Bank:
         self.con.commit()
         return cur.lastrowid
 
-    def update(self, db_id: int, q: Question):
+    def _log(self, db_id: int, action: str):
+        r = self.con.execute("SELECT raw FROM questions WHERE id=?", (db_id,)).fetchone()
+        if r:
+            self.con.execute("INSERT INTO history(question_id, at, action, old_raw) VALUES (?,?,?,?)",
+                             (db_id, datetime.now().isoformat(timespec="seconds"), action, r["raw"]))
+
+    def history(self, db_id: int):
+        return self.con.execute("SELECT hid, at, action, old_raw FROM history WHERE question_id=? "
+                                "ORDER BY hid DESC", (db_id,)).fetchall()
+
+    def restore(self, hid: int) -> int | None:
+        """Khôi phục câu về bản đã lưu trong lịch sử (kể cả câu đã xoá). Trả về id câu."""
+        from .parser import parse_tex
+        r = self.con.execute("SELECT question_id, old_raw FROM history WHERE hid=?", (hid,)).fetchone()
+        if not r:
+            return None
+        qs = parse_tex(r["old_raw"])
+        if not qs:
+            return None
+        q = qs[0]
+        q.raw = r["old_raw"]
+        if self.get(r["question_id"]):
+            self.update(r["question_id"], q, action="khôi phục")
+            return r["question_id"]
+        return self.add(q, "khoi-phuc") or self.find_duplicate(q)
+
+    def update(self, db_id: int, q: Question, action: str = "sửa"):
+        self._log(db_id, action)
         v = self._row_values(q)
         sets = ",".join(f"{k}=?" for k in v)
         self.con.execute(f"UPDATE questions SET {sets} WHERE id=?", [*v.values(), db_id])
         self.con.commit()
 
     def delete(self, ids):
+        for i in ids:
+            self._log(i, "xoá")
         self.con.executemany("DELETE FROM questions WHERE id=?", [(i,) for i in ids])
         self.con.commit()
 
@@ -119,8 +157,32 @@ class Bank:
         r = self.con.execute("SELECT * FROM questions WHERE id=?", (db_id,)).fetchone()
         return self.row_to_question(r) if r else None
 
+    def replace_text(self, find: str, repl: str, ids=None, regex: bool = False,
+                     fields=("stem", "choices", "solution")) -> int:
+        """Tìm và thay thế trong đề bài / phương án / lời giải. Trả về số câu đã đổi."""
+        import re as _re
+        pat = _re.compile(find) if regex else None
+
+        def sub(t):
+            return pat.sub(repl, t) if pat else t.replace(find, repl)
+        n = 0
+        targets = [self.get(i) for i in ids] if ids is not None else self.search()
+        for q in targets:
+            if q is None:
+                continue
+            new_stem = sub(q.stem) if "stem" in fields else q.stem
+            new_ch = [sub(c) for c in q.choices] if "choices" in fields else q.choices
+            new_sol = sub(q.solution) if "solution" in fields else q.solution
+            new_kq = sub(q.short_answer) if "choices" in fields else q.short_answer
+            if (new_stem, new_ch, new_sol, new_kq) != (q.stem, q.choices, q.solution, q.short_answer):
+                q.stem, q.choices, q.solution, q.short_answer = new_stem, new_ch, new_sol, new_kq
+                q.raw = q.to_latex()
+                self.update(q.db_id, q, action="thay thế")
+                n += 1
+        return n
+
     def search(self, qtype=None, lop=None, mon=None, chuong=None, muc_do=None,
-               bai=None, dang=None, id_like=None, text=None, limit=None):
+               bai=None, dang=None, id_like=None, text=None, limit=None, tag=None):
         """Lọc câu hỏi. id_like hỗ trợ kí tự đại diện * và ? (vd 0D2?1-*)."""
         sql, args = "SELECT * FROM questions WHERE 1=1", []
         for col, val in (("qtype", qtype), ("lop", lop), ("mon", mon), ("chuong", chuong),
@@ -134,6 +196,9 @@ class Bank:
         if text:
             sql += " AND (stem LIKE ? OR solution LIKE ? OR tags LIKE ?)"
             args += [f"%{text}%"] * 3
+        if tag:
+            sql += " AND tags LIKE ?"
+            args.append(f"%{tag}%")
         sql += " ORDER BY id_code, id"
         if limit:
             sql += f" LIMIT {int(limit)}"

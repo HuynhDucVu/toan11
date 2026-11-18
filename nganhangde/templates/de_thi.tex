@@ -1,5 +1,7 @@
 % Mẫu đề do phần mềm sinh ra. Thay bằng file mẫu của thầy/cô nếu cần.
-% Các chỗ <<...>> sẽ được phần mềm điền.
+% Các chỗ trống dạng «hai dấu nhỏ hơn + TÊN + hai dấu lớn hơn» sẽ được phần mềm điền
+% (chỗ nào không có thông tin sẽ để trống). Tên dùng được:
+%   SO_GD TRUONG KY_THI MON_THI TEN_DE THOI_GIAN MA_DE GIAO_VIEN NAM_HOC MODE(dethi/loigiai) NOI_DUNG
 \documentclass[12pt,a4paper]{article}
 \usepackage[utf8]{vietnam}
 \usepackage{amsmath,amssymb,tikz,enumitem}
@@ -9,10 +11,19 @@
 \providecommand{\heva}[1]{\left\{\begin{aligned}#1\end{aligned}\right.}
 \providecommand{\hoac}[1]{\left[\begin{aligned}#1\end{aligned}\right.}
 \begin{document}
-\begin{center}
-	\textbf{<<TRUONG>>}\\
+\noindent\begin{minipage}[t]{0.45\textwidth}\centering
+	<<SO_GD>>\\
+	\textbf{<<TRUONG>>}
+\end{minipage}\hfill
+\begin{minipage}[t]{0.53\textwidth}\centering
+	\textbf{<<KY_THI>>}\\
 	\textbf{<<TEN_DE>>}\\
-	Thời gian làm bài: <<THOI_GIAN>> phút\hfill \fbox{Mã đề <<MA_DE>>}
-\end{center}
+	Môn: \textbf{<<MON_THI>>}\quad Năm học: <<NAM_HOC>>\\
+	\textit{Thời gian làm bài: <<THOI_GIAN>> phút, không kể thời gian phát đề}
+\end{minipage}
+\par\medskip
+\noindent Họ và tên thí sinh: \dotfill\quad Số báo danh: \makebox[3cm]{\dotfill}\quad \fbox{\textbf{Mã đề <<MA_DE>>}}
+\par\medskip
 <<NOI_DUNG>>
+\par\medskip\centerline{--- HẾT ---}
 \end{document}

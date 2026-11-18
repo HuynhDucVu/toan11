@@ -343,3 +343,72 @@ def test_thpt2026_options_and_tnmaker(bank, tmp_path):
     files = export_versions(vs, str(tmp_path / "n"), options=ExportOptions(tnmaker_layout="ngang"))
     rows = list(load_workbook(files[-1])["Đáp án"].values)
     assert rows[0][0] == "Mã đề" and rows[1][0] == "0101" and len(rows[0]) == 1 + 12 + 4 + 6
+
+
+def test_batch1_features(bank, tmp_path):
+    from nganhangde import tools
+    from nganhangde.exporter import ExportOptions, matrix_spec
+    from nganhangde.generator import MixOptions, replacement_pool, level_rank, pick_questions
+    import random
+    # xếp câu dễ → khó
+    vs = make_versions(bank, [Rule("TN", 12)], 2, seed=1, options=MixOptions(sort_by_level=True))
+    for v in vs:
+        ranks = [level_rank(q) for q in v.sections["TN"]]
+        assert ranks == sorted(ranks)
+    # giới hạn tỉ lệ trùng khi mỗi mã một bộ câu
+    vs = make_versions(bank, [Rule("TN", 3, "0H9*")], 2, seed=2, same_questions=False, max_overlap=0.34)
+    a, b = ({q.db_id for q in v.all_questions()} for v in vs)
+    assert len(a & b) <= 1
+    with pytest.raises(NotEnoughQuestions):
+        make_versions(bank, [Rule("TN", 6, "0H9*")], 2, seed=2, same_questions=False, max_overlap=0.0)
+    # đổi câu: kho thay thế cùng dòng ma trận, không trùng câu đã chọn
+    rules = [Rule("TN", 2, "0H9*"), Rule("KQ", 2)]
+    picked = pick_questions(bank, rules, random.Random(0))
+    used = {q.db_id for qs in picked.values() for q in qs}
+    q = picked["TN"][0]
+    pool = replacement_pool(bank, rules, q, used)
+    assert pool and all(x.id_code.startswith("0H9") and x.qtype == "TN" and x.db_id not in used for x in pool)
+    sec = {k: list(v) for k, v in picked.items()}
+    sec["TN"][0] = pool[0]
+    vs = make_versions(bank, rules, codes=["1", "2"], sections=sec)
+    assert pool[0].db_id in {x.db_id for x in vs[0].all_questions()}
+    # thông tin đầu đề, in ID, zip, ma trận đặc tả
+    opt = ExportOptions(show_id=True, make_zip=True, header={"KY_THI": "KIỂM TRA CUỐI KÌ II", "MON_THI": "TOÁN 10"})
+    files = export_versions(vs, str(tmp_path / "o"), options=opt, truong="THPT ABC")
+    de, lg = (open(f, encoding="utf-8").read() for f in files[:2])
+    assert "KIỂM TRA CUỐI KÌ II" in de and "TOÁN 10" in de and "<<" not in de
+    assert "\\scriptsize[" in lg and "\\scriptsize[" not in de
+    assert files[-1].endswith(".zip")
+    p = matrix_spec(bank, rules, str(tmp_path / "mt.xlsx"))
+    from openpyxl import load_workbook
+    rows = list(load_workbook(p).active.values)
+    assert rows[1][1] == "0H9*" and rows[-1][4] == 4
+    assert "MA TRẬN" in open(matrix_spec(bank, rules, str(tmp_path / "mt.tex")), encoding="utf-8").read()
+    # lịch sử sửa + khôi phục, thay thế hàng loạt, lọc theo nguồn
+    q = bank.get(1)
+    n = bank.replace_text("tập nghiệm", "TẬP NGHIỆM")
+    assert n == 2 and "TẬP NGHIỆM" in bank.get(1).stem
+    h = bank.history(1)
+    assert h and h[0]["action"] == "thay thế"
+    bank.restore(h[0]["hid"])
+    assert bank.get(1).stem == q.stem
+    bank.delete([2])
+    assert bank.get(2) is None
+    bank.restore(bank.history(2)[0]["hid"])
+    assert bank.search(text="Xét vị trí tương đối")
+    assert len(bank.search(tag="Hoài Nam")) == 22
+    # công cụ file
+    text = open(SAMPLE, encoding="utf-8").read()
+    t2, k = tools.remove_ids_text(text)
+    assert k == 22 and all(not x.id_code for x in parse_tex(t2))
+    t3, k = tools.remove_tag_text(text, "De-chuan-hoa-so-3")
+    assert k == 22 and all("De-chuan-hoa-so-3" not in x.tags for x in parse_tex(t3))
+    t4, k = tools.replace_text(text, "\\dfrac", "\\frac")
+    assert k > 0 and "\\dfrac" not in "".join(x.raw for x in parse_tex(t4))
+    assert tools.filter_by_tag([SAMPLE], "hoài nam", str(tmp_path / "tag.tex")) == 22
+    assert tools.near_duplicates(parse_file(SAMPLE), 0.7)[0][:2] == (0, 4)
+    tz = tmp_path / "tz.tex"
+    tz.write_text("\\begin{ex}%[0H1N1-1]\nHình\n\\begin{tikzpicture}\\draw (0,0)--(1,1);\\end{tikzpicture}\n"
+                  "\\choice{\\True a}{b}{c}{d}\n\\end{ex}\n", encoding="utf-8")
+    fs = tools.extract_tikz([str(tz)], str(tmp_path / "hinh"))
+    assert len(fs) == 1 and "standalone" in open(fs[0], encoding="utf-8").read()

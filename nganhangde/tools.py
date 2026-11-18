@@ -181,3 +181,119 @@ def shuffle_file(path: str, codes: list[str], out_dir: str, *, seed=None, option
     files = export_versions(versions, out_dir, template_path=template_path, ten_de=ten_de,
                             truong=truong, thoi_gian=thoi_gian, options=export_options)
     return versions, files
+
+
+# ---------------------------------------------------------------- đợt bổ sung theo MyLT
+ID_TAG_RE = re.compile(r"%\[([0-9][A-Z][0-9A-Z][A-Z][0-9A-Z](?:-[0-9A-Z]+)?)\]")
+
+
+def _first_line_sub(text: str, fn) -> tuple[str, int]:
+    """Áp fn(dòng_đầu) -> (dòng_mới, số_thay) cho dòng \\begin{ex}/{bt} của mọi câu."""
+    total = 0
+
+    def fix(m):
+        nonlocal total
+        first, sep, rest = m.group(0).partition("\n")
+        new, k = fn(first)
+        total += k
+        return new + sep + rest
+    return ENV_RE.sub(fix, text), total
+
+
+def remove_ids_text(text: str) -> tuple[str, int]:
+    """Xoá nhãn ID %[0D2N1-2] (giữ các nhãn khác như nguồn, tác giả)."""
+    return _first_line_sub(text, lambda line: ID_TAG_RE.subn("", line))
+
+
+def remove_tag_text(text: str, tag: str) -> tuple[str, int]:
+    """Xoá một nhãn %[tag] (vd nguồn đề) khỏi mọi câu."""
+    pat = re.compile(r"%\[" + re.escape(tag) + r"\]")
+    return _first_line_sub(text, lambda line: pat.subn("", line))
+
+
+def replace_text(text: str, find: str, repl: str, regex: bool = False) -> tuple[str, int]:
+    """Tìm và thay thế trong file (chỉ bên trong các khối câu hỏi ex/bt)."""
+    pat = re.compile(find if regex else re.escape(find))
+    total = 0
+
+    def fix(m):
+        nonlocal total
+        new, k = pat.subn(repl if regex else repl.replace("\\", "\\\\"), m.group(0))
+        total += k
+        return new
+    return ENV_RE.sub(fix, text), total
+
+
+def filter_by_tag(paths: list[str], tag: str, out_path: str) -> int:
+    """Lấy các câu có nhãn (nguồn/tác giả) chứa chuỗi tag ra file mới."""
+    blocks = [q.raw for p in paths for q in parse_file(p) if any(tag.lower() in t.lower() for t in q.tags)]
+    with open(out_path, "w", encoding="utf-8") as f:
+        f.write("\n".join(blocks) + ("\n" if blocks else ""))
+    return len(blocks)
+
+
+TIKZ_RE = re.compile(r"\\begin\{tikzpicture\}.*?\\end\{tikzpicture\}", re.S)
+
+
+def extract_tikz(paths: list[str], out_dir: str) -> list[str]:
+    """Trích mọi hình TikZ ra file riêng (biên dịch độc lập được bằng lớp standalone)."""
+    import os
+    os.makedirs(out_dir, exist_ok=True)
+    files = []
+    k = 0
+    for p in paths:
+        for i, q in enumerate(parse_file(p), 1):
+            for pic in TIKZ_RE.findall(q.raw):
+                k += 1
+                name = os.path.join(out_dir, f"hinh_{k:03d}.tex")
+                with open(name, "w", encoding="utf-8") as f:
+                    f.write(f"% Từ {os.path.basename(p)} – câu {i} [{q.id_code}]\n"
+                            "\\documentclass[tikz,border=2pt]{standalone}\n"
+                            "\\usepackage{amsmath,amssymb}\n\\usetikzlibrary{calc,angles,quotes,intersections,"
+                            "patterns,arrows.meta}\n\\begin{document}\n" + pic + "\n\\end{document}\n")
+                files.append(name)
+    return files
+
+
+def near_duplicates(questions, threshold: float = 0.8):
+    """Các cặp câu gần trùng (độ giống nội dung ≥ threshold): [(i, j, độ_giống)] theo chỉ số trong danh sách."""
+    import math
+    from .idsuggest import question_text, tokens
+    vecs = [tokens(question_text(q)) for q in questions]
+    df = Counter()
+    for v in vecs:
+        df.update(v.keys())
+    n = max(len(questions), 1)
+    idf = {w: math.log((n + 1) / (c + 0.5)) + 0.01 for w, c in df.items()}
+    weighted, norms, index = [], [], {}
+    for i, v in enumerate(vecs):
+        w = {k: c * idf[k] for k, c in v.items()}
+        weighted.append(w)
+        norms.append(math.sqrt(sum(x * x for x in w.values())) or 1.0)
+        for k, x in w.items():
+            index.setdefault(k, []).append((i, x))
+    out = []
+    for i, w in enumerate(weighted):
+        scores = {}
+        for k, x in w.items():
+            for j, y in index[k]:
+                if j > i:
+                    scores[j] = scores.get(j, 0.0) + x * y
+        for j, sc in scores.items():
+            sim = sc / (norms[i] * norms[j])
+            if sim >= threshold and questions[i].qtype == questions[j].qtype:
+                out.append((i, j, round(min(sim, 1.0), 3)))
+    return sorted(out, key=lambda t: -t[2])
+
+
+def zip_dir(folder: str, zip_path: str | None = None) -> str:
+    """Nén toàn bộ thư mục kết quả thành 1 file .zip (tiện gửi/lưu)."""
+    import os
+    import zipfile
+    zip_path = zip_path or folder.rstrip("/\\") + ".zip"
+    with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as z:
+        for root, _, names in os.walk(folder):
+            for nm in names:
+                full = os.path.join(root, nm)
+                z.write(full, os.path.relpath(full, folder))
+    return zip_path

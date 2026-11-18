@@ -5,7 +5,25 @@
 
 Kho câu hỏi `nganhang.db` nằm cạnh file exe. Cập nhật từ bản cũ: chỉ cần thay file exe, kho giữ nguyên.
 
-## Có gì mới ở bản 0.4.0 – Tuỳ chọn trộn đề và đáp án cho TNMaker
+## Có gì mới ở bản 0.5.0 – Bổ sung theo MyLT (đợt 1)
+**Tạo đề**
+- **Đổi câu trước khi trộn:** tick «Xem trước bộ câu…». Bấm *🎲 Đổi ngẫu nhiên* hoặc *Chọn câu thay…*; câu thay luôn cùng dòng ma trận.
+- **Xếp câu dễ → khó** trong mỗi phần (Nhận biết → Vận dụng cao), ở thẻ «Trộn».
+- **Giới hạn tỉ lệ câu trùng** giữa 2 mã đề, khi mỗi mã dùng một bộ câu khác.
+- **Thông tin đầu đề:** Sở/Phòng GD, kì thi, môn, năm học, giáo viên. Mẫu đề mới có ô Họ tên, Số báo danh và dòng «HẾT».
+- **In ma trận đặc tả** (Excel hoặc LaTeX), kèm tên chương/bài/dạng lấy từ Map ID.
+- Thẻ «Trình bày» có thêm: in ID nhỏ sau mỗi câu trong file lời giải (bản giáo viên), nén cả kết quả thành `.zip`.
+
+**Ngân hàng câu hỏi**
+- **Lịch sử sửa từng câu**, khôi phục được bản cũ; **khôi phục câu đã xoá** (menu Câu hỏi).
+- **Tìm và thay thế** hàng loạt (Ctrl+H) trong đề bài, phương án, lời giải; có hỗ trợ regex.
+- **Lọc theo nguồn**, **tìm câu gần trùng** theo tỉ lệ %, xoá câu thừa.
+- **Kiểm tra bản cập nhật** (menu Trợ giúp).
+
+**Công cụ trên file .tex**
+- Tìm và thay thế, xoá ID, xoá một nguồn, lọc câu theo nguồn, trích hình TikZ ra file riêng, tìm câu gần trùng.
+
+## Bản 0.4.0 – Tuỳ chọn trộn đề và đáp án cho TNMaker
 - Mục **«Tuỳ chọn trộn đề»** (tab Tạo đề) gồm 4 thẻ:
   - **Mã đề:** đánh mã liên tiếp hoặc ngẫu nhiên, chọn mã bắt đầu, 3 hoặc 4 chữ số (0101…).
   - **Trộn:** trộn câu, trộn phương án, trộn ý Đúng/Sai, cân bằng đáp án A/B/C/D, giữ đề gốc.

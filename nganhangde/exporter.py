@@ -34,6 +34,9 @@ class ExportOptions:
     ds_style: str = "gop"             # 'gop': 1 ô «ĐSĐS» / câu; 'tach': 4 ô a,b,c,d
     ds_symbols: str = "ĐS"            # 'ĐS' | 'TF' | '10'
     kq_decimal: str = ","             # dấu thập phân phần trả lời ngắn
+    show_id: bool = False             # in ID nhỏ sau mỗi câu trong file lời giải (bản cho giáo viên)
+    make_zip: bool = False            # nén cả thư mục kết quả thành .zip
+    header: dict | None = None        # thông tin đầu đề: SO_GD, KY_THI, MON_THI, GIAO_VIEN, NAM_HOC
 
 
 def plain_answer(a: str) -> str:
@@ -51,8 +54,14 @@ def load_template(path: str | None = None) -> str:
         return f.read()
 
 
-def questions_to_tex(qs: list[Question], with_solution: bool = True) -> str:
-    return "\n".join(q.to_latex(with_solution) for q in qs) + "\n"
+def questions_to_tex(qs: list[Question], with_solution: bool = True, show_id: bool = False) -> str:
+    out = []
+    for q in qs:
+        t = q.to_latex(with_solution)
+        if show_id and q.id_code:
+            t = t.replace("\\end{" + q.env + "}", "\\hfill{\\scriptsize[" + q.id_code + "]}\n\\end{" + q.env + "}", 1)
+        out.append(t)
+    return "\n".join(out) + "\n"
 
 
 def section_heading(s: str, n: int, opt: "ExportOptions | None") -> str:
@@ -72,7 +81,7 @@ def version_body(v: ExamVersion, with_solution: bool, opt: "ExportOptions | None
         parts.append(section_heading(s, len(qs), opt))
         if opt and opt.renumber:
             parts.append("\\setcounter{ex}{0}")
-        parts.append(questions_to_tex(qs, with_solution))
+        parts.append(questions_to_tex(qs, with_solution, bool(opt and opt.show_id and with_solution)))
     return "\n".join(parts)
 
 
@@ -97,9 +106,10 @@ def score_ds(n_correct: int) -> float:
 
 
 def fill(template: str, **kw) -> str:
+    import re as _re
     for k, val in kw.items():
         template = template.replace(f"<<{k}>>", str(val))
-    return template
+    return _re.sub(r"<<[A-Z_]+>>", "", template)       # chỗ trống không có thông tin ⇒ để trống
 
 
 def answer_table_tex(v: ExamVersion) -> str:
@@ -124,7 +134,7 @@ def export_versions(versions: list[ExamVersion], out_dir: str, *, template_path:
     tpl = load_template(template_path)
     files = []
     for v in versions:
-        common = dict(TEN_DE=ten_de, TRUONG=truong, THOI_GIAN=thoi_gian, MA_DE=v.code)
+        common = dict(TEN_DE=ten_de, TRUONG=truong, THOI_GIAN=thoi_gian, MA_DE=v.code, **(opt.header or {}))
         for mode, prefix, sol in (("dethi", "de", False), ("loigiai", "loigiai", True)):
             body = version_body(v, sol, opt)
             if sol:
@@ -164,7 +174,57 @@ def export_versions(versions: list[ExamVersion], out_dir: str, *, template_path:
             files.append(write_answer_xlsx(versions, os.path.join(out_dir, "dap_an_TNMaker.xlsx"), opt))
         except ImportError:
             pass        # thiếu openpyxl: vẫn có 2 file CSV
+    if opt.make_zip:
+        from .tools import zip_dir
+        files.append(zip_dir(out_dir))
     return files
+
+
+def matrix_spec(bank, rules, path: str) -> str:
+    """In ma trận đặc tả: mỗi dòng ma trận kèm tên chương/bài/dạng, mức độ, số câu, số câu kho có.
+
+    Đuôi .xlsx ⇒ Excel; còn lại ⇒ bảng LaTeX.
+    """
+    from .idmap import split_key
+    names = bank.idmap()
+    level = {"N": "Nhận biết", "H": "Thông hiểu", "V": "Vận dụng", "C": "Vận dụng cao", None: "Mọi mức"}
+    part = {"TN": "I. Trắc nghiệm", "DS": "II. Đúng/Sai", "KQ": "III. Trả lời ngắn", "TL": "IV. Tự luận"}
+    rows = []
+    for r in rules:
+        pat = r.id.upper()
+        base = pat.split("*")[0].split("?")[0].split("[")[0]
+        key = base[:3] + (base[4:] if len(base) > 4 else "")
+        label = " › ".join(names[k] for k in ("".join(split_key(key)[:n]) for n in (3, 4))
+                           if k in names) if len(base) >= 3 else ""
+        if "-" in key and key in names:
+            label += " › " + names[key]
+        have = len(bank.search(qtype=r.qtype, id_like=r.id, muc_do=r.muc_do, text=r.text))
+        rows.append([part[r.qtype], r.id, label or "—", level.get(r.muc_do, r.muc_do), r.count, have])
+    total = sum(x[4] for x in rows)
+    if path.lower().endswith(".xlsx"):
+        from openpyxl import Workbook
+        from openpyxl.styles import Font
+        wb = Workbook()
+        ws = wb.active
+        ws.title = "Ma trận đặc tả"
+        ws.append(["Phần", "Mẫu ID", "Nội dung (chương › bài › dạng)", "Mức độ", "Số câu", "Kho có"])
+        for c in ws[1]:
+            c.font = Font(bold=True)
+        for x in rows:
+            ws.append(x)
+        ws.append(["Tổng", "", "", "", total, ""])
+        for col, wd in zip("ABCDEF", (18, 14, 70, 14, 8, 8)):
+            ws.column_dimensions[col].width = wd
+        wb.save(path)
+    else:
+        body = "\n".join(" & ".join(str(c).replace("&", "\\&").replace("_", "\\_") for c in x) + "\\\\ \\hline"
+                         for x in rows)
+        with open(path, "w", encoding="utf-8") as f:
+            f.write("\\begin{center}\\textbf{MA TRẬN ĐẶC TẢ}\\end{center}\n"
+                    "\\begin{tabular}{|l|l|p{7cm}|l|c|c|}\\hline\n"
+                    "Phần & Mẫu ID & Nội dung & Mức độ & Số câu & Kho có\\\\ \\hline\n" + body +
+                    f"\n\\multicolumn{{4}}{{|r|}}{{Tổng}} & {total} & \\\\ \\hline\n\\end{{tabular}}\n")
+    return path
 
 
 def export_questions(qs: list[Question], path: str, with_solution: bool = True):
