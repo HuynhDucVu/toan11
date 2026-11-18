@@ -1,0 +1,47 @@
+# Tự đóng gói NganHangDe.exe trên máy Windows của GitHub.
+# Chạy: tab Actions → "Build exe" → Run workflow; tải file ở mục Artifacts.
+# Đẩy tag dạng v1.0.0 thì exe được gắn vào trang Releases.
+name: Build exe
+
+on:
+  workflow_dispatch:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Cài thư viện
+        run: python -m pip install -r requirements-dev.txt
+      - name: Kiểm thử
+        run: python -m pytest -q
+      - name: Đóng gói
+        run: >
+          pyinstaller --noconfirm --clean --onefile --windowed
+          --name NganHangDe
+          --icon nganhangde/assets/app.ico
+          --add-data "nganhangde/templates:nganhangde/templates"
+          --add-data "nganhangde/assets:nganhangde/assets"
+          --exclude-module tkinter
+          run_gui.py
+      - name: Kiểm tra file exe
+        run: |
+          $p = Start-Process dist/NganHangDe.exe -ArgumentList "--selftest" -Wait -PassThru -NoNewWindow
+          if ($p.ExitCode -ne 0) { exit 1 }
+      - uses: actions/upload-artifact@v4
+        with:
+          name: NganHangDe-windows
+          path: dist/NganHangDe.exe
+      - name: Gắn vào Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/NganHangDe.exe

@@ -8,7 +8,13 @@ Phần mềm quản lý ngân hàng câu hỏi Toán định dạng `ex_test`. C
 * trộn đề theo ma trận;
 * xuất mã đề, lời giải và đáp án.
 
+**Dùng file exe trên Windows:** nhấp đúp `build_exe.bat` (cần Python 3.10+) để tạo `dist\NganHangDe.exe`.
+Hoặc chạy GitHub Actions **Build exe**.
+
+**Chạy từ mã nguồn:**
+
 ```bash
+pip install -r requirements.txt
 python -m nganhangde import 0-1-De-chuan-hoa-1.tex
 python -m nganhangde make ma_tran_mau.json -n 4 -o de_xuat
 python -m nganhangde gui

@@ -91,7 +91,7 @@ def cmd_export(bank: Bank, a):
 
 def main(argv=None):
     ap = argparse.ArgumentParser(prog="nganhangde", description="Quản lý ngân hàng đề thi LaTeX")
-    ap.add_argument("--db", default="nganhang.db", help="file cơ sở dữ liệu (mặc định nganhang.db)")
+    ap.add_argument("--db", default=None, help="file cơ sở dữ liệu (mặc định nganhang.db)")
     sub = ap.add_subparsers(dest="cmd", required=True)
 
     p = sub.add_parser("import"); p.add_argument("files", nargs="+")
@@ -118,9 +118,12 @@ def main(argv=None):
 
     a = ap.parse_args(argv)
     if a.cmd == "gui":
-        from .gui import run
+        try:
+            from .gui_qt import run          # giao diện Qt (PySide6)
+        except ImportError:
+            from .gui import run             # dự phòng: Tkinter
         return run(a.db)
-    bank = Bank(a.db)
+    bank = Bank(a.db or "nganhang.db")
     try:
         {"import": cmd_import, "list": cmd_list, "stats": cmd_stats, "check": cmd_check,
          "make": cmd_make, "export": cmd_export}[a.cmd](bank, a)

@@ -266,8 +266,8 @@ class GeneratorDialog(tk.Toplevel):
         messagebox.showinfo("Xong", f"Đã tạo {len(vs)} mã đề:\n" + "\n".join(files), parent=self)
 
 
-def run(db_path: str = "nganhang.db"):
-    App(db_path).mainloop()
+def run(db_path: str | None = None):
+    App(db_path or "nganhang.db").mainloop()
 
 
 if __name__ == "__main__":

@@ -3,7 +3,6 @@ from __future__ import annotations
 
 import csv
 import os
-from importlib import resources
 
 from .generator import SECTION_ORDER, SECTION_TITLE, ExamVersion
 from .parser import Question
@@ -15,7 +14,9 @@ def load_template(path: str | None = None) -> str:
     if path:
         with open(path, encoding="utf-8") as f:
             return f.read()
-    return resources.files("nganhangde.templates").joinpath(DEFAULT_TEMPLATE).read_text("utf-8")
+    default = os.path.join(os.path.dirname(os.path.abspath(__file__)), "templates", DEFAULT_TEMPLATE)
+    with open(default, encoding="utf-8") as f:
+        return f.read()
 
 
 def questions_to_tex(qs: list[Question], with_solution: bool = True) -> str:

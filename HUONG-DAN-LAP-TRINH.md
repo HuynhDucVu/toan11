@@ -12,7 +12,7 @@ viết bằng LaTeX (khung `ex_test`). Các chức năng chính giống nhóm ph
 
 > **Lưu ý.** Mã nguồn của MyLT không được công bố, và phần mềm đó thuộc về tác giả của nó.
 > Vì vậy phần mềm ở đây được **viết lại từ đầu**: chức năng tương tự, nhưng không sao chép
-> giao diện hay mã của MyLT. Nếu MyLT có chức năng nào chưa có ở đây, xem mục 8 để tự bổ sung.
+> giao diện hay mã của MyLT. Nếu MyLT có chức năng nào chưa có ở đây, xem mục 11 để tự bổ sung.
 
 Mã nguồn hoàn chỉnh nằm trong thư mục `nganhangde/` và chạy được ngay.
 
@@ -24,7 +24,7 @@ Mã nguồn hoàn chỉnh nằm trong thư mục `nganhangde/` và chạy đư�
 |---|---|---|
 | Ngôn ngữ | Python 3.10+ | Dễ học, xử lí chuỗi tốt, chạy trên Windows, macOS và Linux |
 | Cơ sở dữ liệu | SQLite (`sqlite3` có sẵn) | Mỗi kho chỉ là một file `.db`, không cần cài máy chủ, dễ sao lưu và chép qua USB |
-| Giao diện | Tkinter (có sẵn) | Không phải cài thêm thư viện. Muốn giao diện đẹp hơn thì đổi sang PySide6 (mục 8) |
+| Giao diện | PySide6 (Qt) | Giao diện hiện đại; cài bằng `pip`; đóng gói exe dễ. Bản Tkinter (`gui.py`) được giữ làm dự phòng |
 | Đầu ra | File `.tex` + `.csv` | Thầy/cô biên dịch đề bằng `xelatex`/`pdflatex` với gói `ex_test` đang dùng |
 | Đóng gói | PyInstaller | Tạo file `.exe` để chạy trên máy không cài Python |
 
@@ -39,8 +39,13 @@ nganhangde/
 ├── generator.py  # Bước 5: chọn câu theo ma trận, trộn câu, trộn phương án, tạo mã đề
 ├── exporter.py   # Bước 6: điền vào file mẫu .tex, xuất đề, lời giải và đáp án .csv
 ├── cli.py        # Bước 7a: dòng lệnh
-├── gui.py        # Bước 7b: giao diện cửa sổ
+├── gui_qt.py     # Bước 7b: giao diện chính (PySide6/Qt)
+├── gui.py        #          giao diện dự phòng (Tkinter)
+├── assets/       # biểu tượng app.ico, app.png
 └── templates/de_thi.tex   # file mẫu đề (thay bằng mẫu của trường)
+run_gui.py        # điểm chạy khi đóng gói exe (có --selftest)
+build_exe.bat     # nhấp đúp trên Windows → dist\NganHangDe.exe
+.github/workflows/build-exe.yml   # GitHub tự đóng gói exe
 ```
 
 Luồng dữ liệu:
@@ -183,32 +188,86 @@ python -m nganhangde export --id "0D8*" -o chuong8.tex  # trích câu ra file .t
 python -m nganhangde gui                               # mở giao diện cửa sổ
 ```
 
-**Giao diện cửa sổ** (`gui.py`) chia làm ba vùng:
+**Giao diện cửa sổ** (`gui_qt.py`, viết bằng PySide6):
 
-* bên trái là bộ lọc;
-* ở giữa là bảng câu hỏi;
-* bên dưới là khung xem mã LaTeX, kèm giải nghĩa ID và cảnh báo.
+| Vùng | Nội dung |
+|---|---|
+| Thanh menu | **Tệp** (mở/tạo kho `.db`, nhập `.tex`, xuất câu), **Câu hỏi** (thêm, sửa, xoá), **Đề thi** (tạo đề), **Công cụ** (soát lỗi file, thống kê) |
+| Thanh công cụ | Nút bấm nhanh cho các chức năng hay dùng |
+| Cột trái | **Cây chương** Lớp → Phân môn → Chương, có số câu; bấm vào một mục để lọc. Bên dưới là **bộ lọc**: loại câu, mức độ, mẫu ID, từ khoá |
+| Giữa | Bảng câu hỏi: sắp xếp được theo cột, chọn được nhiều dòng. Câu có lỗi soạn thảo hiện chữ đỏ ở cột «Loại» |
+| Dưới | Tab **Thông tin** (giải nghĩa ID, đáp án, phương án, cảnh báo) và tab **Mã LaTeX** (có tô màu cú pháp) |
 
-Thanh công cụ có các nút: **Nhập file .tex**, **Thêm/Sửa câu**, **Xoá**, **Xuất câu đã chọn**,
-**Tạo đề (trộn đề)** và **Thống kê**.
+* **Thêm/Sửa câu:** khung soạn LaTeX có tô màu và nút chèn mẫu cho 4 loại câu.
+  Phần mềm kiểm tra ngay khi gõ và hiện loại câu, ID, đáp án, lỗi.
+* **Tạo đề:**
+  * lập ma trận theo từng dòng (loại, mẫu ID, mức độ, số câu); cột «Kho có» cho biết kho còn đủ câu không;
+  * lưu và mở ma trận bằng file `.json`;
+  * đặt danh sách mã đề, seed, file mẫu `.tex` riêng;
+  * biên dịch PDF nếu máy có `xelatex`;
+  * mở thư mục kết quả sau khi tạo xong.
+* Phần mềm nhớ kho đang dùng và các thông số tạo đề lần trước (`QSettings`).
 
-* Nhấp đúp vào một câu để sửa trực tiếp mã LaTeX. Khi lưu, phần mềm phân tích lại câu và soát lỗi.
-* Cửa sổ «Tạo đề» cho nhập ma trận theo từng dòng. Mỗi dòng gồm loại câu, mẫu ID, mức độ và số câu.
+Kĩ thuật chính trong `gui_qt.py`:
 
-## 10. Cài đặt, chạy, đóng gói
+* `QSyntaxHighlighter`: tô màu lệnh `\...`, công thức `$...$`, comment, `\True` và ID.
+* `QTableWidget` có `setSortingEnabled(True)`. Mã `db_id` của câu được cất trong `Qt.UserRole`
+  để lấy lại khi người dùng chọn dòng.
+* Cây chương được dựng từ `Bank.stats()`. Mỗi nút giữ một dict bộ lọc (`{"lop": "0", "chuong": "9"}`),
+  khi bấm vào nút thì truyền dict đó cho `Bank.search()`.
+* Giao diện chỉ gọi các hàm của phần lõi, không chứa logic xử lí đề.
+
+## 10. Cài đặt, chạy và đóng gói file .exe
+
+**Chạy từ mã nguồn** (cần Python 3.10+):
 
 ```bash
-# chạy trực tiếp (cần Python 3.10+; trên Windows Tkinter có sẵn)
-python -m nganhangde gui
-
-# kiểm thử
-pip install pytest && python -m pytest -q
-
-# đóng gói thành file .exe cho Windows
-pip install pyinstaller
-pyinstaller --onefile --windowed --name NganHangDe ^
-    --add-data "nganhangde/templates;nganhangde/templates" run_gui.py
+pip install -r requirements.txt     # cài PySide6
+python -m nganhangde gui            # mở giao diện
+pip install pytest && python -m pytest -q   # chạy kiểm thử
 ```
+
+**Cách 1: tự đóng gói trên máy Windows.**
+
+1. Cài Python 3.12 từ python.org. Khi cài, tích ô **Add python.exe to PATH**.
+2. Nhấp đúp file **`build_exe.bat`**. Kịch bản sẽ:
+   * tạo môi trường ảo `.venv`;
+   * cài PySide6 và PyInstaller;
+   * đóng gói chương trình.
+3. Sau khoảng 2–5 phút sẽ có file **`dist\NganHangDe.exe`**, dung lượng khoảng 50–70 MB.
+   File này chép sang máy khác dùng được ngay, không cần cài Python.
+
+Lệnh đóng gói bên trong `build_exe.bat`:
+
+```bat
+pyinstaller --noconfirm --clean --onefile --windowed --name NganHangDe ^
+    --icon nganhangde\assets\app.ico ^
+    --add-data "nganhangde/templates:nganhangde/templates" ^
+    --add-data "nganhangde/assets:nganhangde/assets" ^
+    --exclude-module tkinter run_gui.py
+```
+
+Ý nghĩa các tuỳ chọn:
+
+* `--onefile`: gộp mọi thứ vào 1 file exe.
+* `--windowed`: không hiện cửa sổ đen (console).
+* `--add-data`: đưa file mẫu đề và biểu tượng vào exe. Lúc chạy, exe giải nén chúng vào thư mục tạm.
+  Vì vậy `exporter.py` tìm file mẫu theo đường dẫn tính từ `__file__`.
+
+**Cách 2: để GitHub đóng gói hộ, không cần cài gì.**
+
+1. Đưa code lên GitHub.
+2. Vào tab **Actions**, chọn **Build exe**, bấm **Run workflow**.
+3. Chờ khoảng 5 phút, rồi tải `NganHangDe-windows` ở mục **Artifacts**.
+
+Quy trình này chạy kiểm thử, đóng gói, rồi chạy `NganHangDe.exe --selftest` để chắc file exe hoạt động.
+Nếu đẩy một tag dạng `v1.0.0`, file exe được gắn luôn vào trang **Releases**.
+
+**Lưu ý khi dùng exe:**
+
+* Kho mặc định `nganhang.db` nằm **cạnh file exe**. Mở kho khác bằng menu Tệp → Mở kho.
+* Muốn sao lưu thì chép file `.db`.
+* Windows SmartScreen có thể cảnh báo vì exe chưa được kí số. Bấm «More info» → «Run anyway».
 
 Biên dịch đề đã xuất: `xelatex de_101.tex` (cần gói `ex_test` trong cùng thư mục hoặc trong TeX).
 
@@ -222,7 +281,6 @@ Biên dịch đề đã xuất: `xelatex de_101.tex` (cần gói `ex_test` trong
 | Đổi «Chọn đáp án A» trong lời giải khi trộn | Sau khi trộn, thay `\textbf{Chọn A}` theo `perm`. Hoặc để `ex_test` tự in đáp án |
 | Hình TikZ hoặc ảnh đi kèm | Lưu đường dẫn ảnh vào bảng `assets` và chép ảnh theo khi xuất |
 | Nhiều người cùng dùng | Đổi SQLite sang PostgreSQL và làm giao diện web (Flask hoặc FastAPI); các mô-đun `parser`, `generator`, `exporter` giữ nguyên |
-| Giao diện đẹp hơn | Viết lại `gui.py` bằng PySide6 (Qt), phần lõi giữ nguyên |
 | Phiếu trả lời và chấm trắc nghiệm | Dùng `dap_an.csv` làm khoá chấm |
 
 Nguyên tắc quan trọng nhất: **phần lõi (`parser`, `db`, `generator`, `exporter`) không phụ thuộc giao diện**.
