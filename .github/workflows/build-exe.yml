@@ -1,12 +1,26 @@
-# Tự đóng gói NganHangDe.exe trên máy Windows của GitHub.
-# Chạy: tab Actions → "Build exe" → Run workflow; tải file ở mục Artifacts.
-# Đẩy tag dạng v1.0.0 thì exe được gắn vào trang Releases.
+# Tự đóng gói NganHangDe.exe trên máy Windows của GitHub và đăng lên trang Releases.
+#
+# Chạy khi:
+#   * đẩy code lên nhánh main hoặc nhánh phát triển (chỉ khi mã nguồn thay đổi);
+#   * đẩy tag dạng v1.0.0;
+#   * bấm tay: tab Actions → "Build exe" → Run workflow.
+#
+# Số phiên bản lấy từ __version__ trong nganhangde/__init__.py.
+# Muốn ra bản mới: tăng số phiên bản rồi đẩy code; bản cùng số sẽ được cập nhật file exe.
 name: Build exe
 
 on:
   workflow_dispatch:
   push:
+    branches:
+      - main
+      - claude/exam-bank-management-software-5btv51
     tags: ["v*"]
+    paths:
+      - "nganhangde/**"
+      - "run_gui.py"
+      - "requirements*.txt"
+      - ".github/workflows/build-exe.yml"
 
 permissions:
   contents: write
@@ -36,12 +50,36 @@ jobs:
         run: |
           $p = Start-Process dist/NganHangDe.exe -ArgumentList "--selftest" -Wait -PassThru -NoNewWindow
           if ($p.ExitCode -ne 0) { exit 1 }
+      - name: Đọc số phiên bản
+        id: ver
+        shell: bash
+        run: echo "version=$(python -c 'import nganhangde; print(nganhangde.__version__)')" >> "$GITHUB_OUTPUT"
       - uses: actions/upload-artifact@v4
         with:
-          name: NganHangDe-windows
+          name: NganHangDe-${{ steps.ver.outputs.version }}-windows
           path: dist/NganHangDe.exe
-      - name: Gắn vào Release
-        if: startsWith(github.ref, 'refs/tags/v')
+      - name: Đăng lên trang Releases
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: v${{ steps.ver.outputs.version }}
+          target_commitish: ${{ github.sha }}
+          name: Ngân hàng đề thi ${{ steps.ver.outputs.version }}
+          make_latest: true
           files: dist/NganHangDe.exe
+          body: |
+            ## Tải về và chạy
+            1. Tải file **NganHangDe.exe** ở mục *Assets* bên dưới.
+            2. Chép vào một thư mục riêng (ví dụ `D:\NganHangDe`) rồi nhấp đúp để chạy, không cần cài đặt.
+            3. Nếu Windows SmartScreen cảnh báo (vì file chưa ký số): bấm **More info → Run anyway**.
+
+            Kho câu hỏi `nganhang.db` được tạo cạnh file exe. Sao lưu hoặc chia sẻ kho bằng cách chép file `.db`.
+            Thử nhanh: menu **Tệp → Nhập file .tex**, chọn một file đề định dạng `ex_test`.
+
+            ## Chức năng chính
+            - Ngân hàng câu hỏi LaTeX (`ex_test`): trắc nghiệm, Đúng/Sai, trả lời ngắn, tự luận; phân loại theo ID `[0D2N1-2]`, giải nghĩa ID, câu tương tự
+            - Tạo đề theo ma trận, nhiều mã đề, cân bằng đáp án A/B/C/D, ma trận từ đề có sẵn
+            - Rà soát đáp án và lời giải, xoá câu sai
+            - Công cụ trên file `.tex`: trộn đề trực tiếp, lọc/đổi ID, lấy bảng đáp án, tìm câu trùng
+            - Sao lưu, gộp và tách kho
+
+            Hướng dẫn chi tiết: `HUONG-DAN-LAP-TRINH.md` trong mã nguồn.
