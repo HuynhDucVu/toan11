@@ -21,6 +21,7 @@ def selftest() -> int:
         b.add(q)
         n = b.count()
         b.close()
+    import openpyxl  # noqa: F401  – cần cho file đáp án TNMaker
     ok = "<<NOI_DUNG>>" in tpl and n == 1 and q.answer_text == "A"
     print("SELFTEST", "OK" if ok else "FAIL")
     return 0 if ok else 1

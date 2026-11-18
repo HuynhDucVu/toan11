@@ -41,7 +41,8 @@ nganhangde/
 ├── tools.py      # công cụ trên file .tex: lọc ID, tìm trùng, xoá lời giải, đổi ID, lấy đáp án, trộn file
 ├── idmap.py      # đọc/ghi Map ID (định dạng gạch ngang và «khoá = tên»), cây chọn ID
 ├── idsuggest.py  # gợi ý ID: câu giống trong kho (TF-IDF) + tên chương/bài/dạng trong Map ID
-├── review.py     # rà soát đáp án – lời giải – LaTeX, xoá câu sai
+├── review.py     # rà soát đáp án – lời giải – LaTeX, tự sửa, xoá câu sai
+├── tnmaker.py    # xuất đáp án Excel cho phần mềm chấm phiếu (TNMaker…)
 ├── cli.py        # Bước 7a: dòng lệnh
 ├── gui_qt.py     # Bước 7b: giao diện chính (PySide6/Qt)
 ├── gui.py        #          giao diện dự phòng (Tkinter)
@@ -302,6 +303,38 @@ Vì vậy phải duyệt lại trước khi lưu.
   * `dap_an_bang.csv`: mỗi mã đề một dòng, tiện dán vào phần mềm chấm thi.
   Đáp án trả lời ngắn được ghi dạng số thường, ví dụ `0,92`.
 
+## 8b. Tuỳ chọn trộn đề, chuẩn THPT 2026 và đáp án cho TNMaker
+
+**Cấu trúc chuẩn** được khai báo trong `generator.THPT_2026`: 12 – 4 – 6 câu, 90 phút, 24 mã đề.
+`check_structure(rules)` so ma trận với cấu trúc này. `make_codes(n, start, digits, randomize)` sinh mã đề,
+ví dụ `make_codes(24, 101, 4)` → `0101 … 0124`.
+
+**`ExportOptions`** (trong `exporter.py`) điều khiển cách xuất:
+
+| Tuỳ chọn | Ý nghĩa |
+|---|---|
+| `renumber` | Chèn `\setcounter{ex}{0}` đầu mỗi phần, để mỗi phần đánh lại từ Câu 1 (bộ đếm `ex` của `ex_test`) |
+| `official_titles` | Tiêu đề và lời dẫn từng phần theo mẫu đề thi, số câu điền tự động |
+| `scoring` | In thang điểm (`SCORING`) vào file lời giải |
+| `answers_xlsx`, `tnmaker_layout`, `ds_style`, `ds_symbols`, `kq_decimal` | Cấu hình file `dap_an_TNMaker.xlsx` |
+
+**`tnmaker.py`** ghi file Excel bằng `openpyxl`:
+
+* Mọi ô được để dạng chữ, để giữ nguyên `0101`, `0,92`, `-4`.
+* Sheet *Đáp án* có hai bố cục:
+  * dọc: mỗi dòng một câu (`I.1 … II.1 … III.6`), mỗi cột một mã đề;
+  * ngang: mỗi dòng một mã đề.
+* Phần II gộp thành một ô `ĐSĐS`, hoặc tách 4 ô `II.1a … II.1d`.
+* Sheet *Thông tin* ghi cấu trúc và thang điểm. Sheet *Mã đề – câu gốc* ghi ID và mã câu trong kho để đối chiếu.
+
+Mỗi phần mềm chấm (TNMaker, …) có mẫu đáp án riêng, và mẫu này có thể đổi giữa các phiên bản.
+Vì vậy bố cục được để **cấu hình được**, không cố định một kiểu.
+Nếu mẫu của TNMaker khác, có thể thêm bố cục mới trong `write_answer_xlsx`.
+
+Trong giao diện, mục **«Tuỳ chọn trộn đề»** (`ExamOptionsBox`) có 4 thẻ: Mã đề · Trộn · Trình bày · Phiếu chấm TNMaker.
+Nút **⭐ Áp dụng chuẩn đề thi tốt nghiệp THPT 2026** đặt sẵn tất cả các tuỳ chọn trên.
+Dòng lệnh: `python -m nganhangde make ma_tran.json --chuan-2026`, hoặc `shuffle de.tex --chuan-2026`.
+
 ## 9. Bước 7: giao diện
 
 **Dòng lệnh** (`cli.py`):
@@ -434,7 +467,9 @@ Bảng dưới lập từ tên các thành phần giao diện trong file `MyLT.e
 | Đáp án ra bảng Excel (CSV) | ✅ |
 | Công cụ trên file: lọc ID, đổi ID, thêm nguồn, sắp xếp, lấy đáp án, xoá lời giải, trộn đề từ file | ✅ |
 | Đổi một câu trong đề đã sinh | ⏳ chưa có (hiện phải tạo lại với seed khác) |
-| Phiếu trả lời trắc nghiệm, mã QR, đề online (Azota, HTML, Moodle XML) | ⏳ chưa có |
+| Đáp án cho phần mềm chấm phiếu (TNMaker) | ✅ file Excel cấu hình được bố cục |
+| Chuẩn đề tốt nghiệp (24 mã, đánh số từng phần, lời dẫn, thang điểm) | ✅ |
+| In phiếu trả lời, mã QR, đề online (Azota, HTML, Moodle XML) | ⏳ chưa có (phiếu dùng mẫu của TNMaker) |
 | Chuyển Word ↔ LaTeX, xem PDF trong phần mềm | ⏳ chưa có (gợi ý ở mục 12) |
 | Vẽ hình TikZ, đồ thị, bảng biến thiên, biểu đồ | ⏳ chưa có (nên làm thành mô-đun riêng) |
 | Sinh câu hỏi bằng AI, sinh số ngẫu nhiên | ⏳ chưa có |

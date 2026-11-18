@@ -6,7 +6,7 @@ Phần mềm quản lý ngân hàng câu hỏi Toán định dạng `ex_test`. C
 * phân loại theo ID `[0D2N1-2]`, nạp file Map ID dạng gạch ngang, **gán ID** cho nhiều câu và **gợi ý ID tự động**;
 * lọc câu và chống câu trùng;
 * **rà soát đáp án và lời giải** (đáp án lệch lời giải, Đúng/Sai ngược, đáp án trả lời ngắn sai dạng, lỗi LaTeX), **tự sửa** và bỏ câu sai;
-* trộn đề theo ma trận hoặc trộn trực tiếp từ file, cân bằng đáp án A/B/C/D;
+* trộn đề theo ma trận hoặc trộn trực tiếp từ file, cân bằng đáp án A/B/C/D, **chuẩn đề tốt nghiệp THPT 2026** (24 mã 0101…0124), **đáp án Excel cho TNMaker**;
 * sao lưu, gộp và tách kho;
 * xuất mã đề, lời giải và đáp án.
 

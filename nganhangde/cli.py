@@ -7,6 +7,7 @@
     python -m nganhangde make ma_tran.json -n 4 -o out # sinh 4 mã đề
     python -m nganhangde export --id "0D8*" -o chuong8.tex
     python -m nganhangde shuffle de.tex -n 4 -o out   # trộn trực tiếp 1 file đề
+    python -m nganhangde shuffle de.tex --chuan-2026 -o out   # 24 mã 0101…0124 + đáp án TNMaker
     python -m nganhangde idmap --load map_id.txt      # nạp giải nghĩa ID
     python -m nganhangde backup saoluu.db             # sao lưu kho
     python -m nganhangde idmap --load Map_ID.tex      # nạp Map ID (định dạng gạch ngang)
@@ -22,7 +23,7 @@ import sys
 
 from .db import Bank
 from .exporter import export_questions, export_versions
-from .generator import MixOptions, NotEnoughQuestions, Rule, make_versions
+from .generator import NotEnoughQuestions, Rule, make_versions
 from .idcode import parse_id
 from .parser import parse_file, validate
 
@@ -72,18 +73,44 @@ def cmd_check(bank, a):
                 print(f"         ! {w}")
 
 
+def _exam_opts(a):
+    from .exporter import ExportOptions
+    from .generator import MixOptions
+    std = getattr(a, "chuan_2026", False)
+    mix = MixOptions(shuffle_q=not getattr(a, "keep_order", False),
+                     shuffle_ds=not (std or getattr(a, "no_ds", False)),
+                     balance=not getattr(a, "no_balance", False))
+    exp = ExportOptions(renumber=std, official_titles=std, scoring=std,
+                        tnmaker_layout=a.tnmaker_layout, ds_style=a.tnmaker_ds)
+    return mix, exp
+
+
+def _add_exam_flags(p):
+    p.add_argument("--chuan-2026", action="store_true",
+                   help="chuẩn đề tốt nghiệp: 24 mã 0101…0124, giữ ý Đúng/Sai, đánh số lại, lời dẫn, thang điểm")
+    p.add_argument("--tnmaker-layout", choices=["doc", "ngang"], default="doc", help="bố cục file đáp án Excel")
+    p.add_argument("--tnmaker-ds", choices=["gop", "tach"], default="gop", help="phần II: gộp ĐSĐS hay tách 4 ô")
+
+
 def cmd_make(bank: Bank, a):
     with open(a.matrix, encoding="utf-8") as f:
         cfg = json.load(f)
     rules = [Rule.from_dict(r) for r in cfg["rules"]]
+    from .generator import THPT_2026, check_structure, make_codes
+    mix, exp = _exam_opts(a)
+    codes = cfg.get("ma_de")
+    if a.chuan_2026:
+        for d in check_structure(rules):
+            print("! Lệch cấu trúc 2026:", d)
+        codes = codes or make_codes(THPT_2026["so_ma"], 101, 4)
     try:
-        vs = make_versions(bank, rules, a.n, codes=cfg.get("ma_de"), seed=a.seed,
+        vs = make_versions(bank, rules, a.n, codes=codes, seed=a.seed, options=mix,
                            same_questions=not a.different, prefer_unused=a.prefer_unused)
     except NotEnoughQuestions as e:
         sys.exit(f"Không đủ câu:\n{e}")
     files = export_versions(vs, a.out, template_path=a.template or cfg.get("template"),
                             ten_de=cfg.get("ten_de", "ĐỀ KIỂM TRA"),
-                            truong=cfg.get("truong", ""), thoi_gian=cfg.get("thoi_gian", 90))
+                            truong=cfg.get("truong", ""), thoi_gian=cfg.get("thoi_gian", 90), options=exp)
     bank.mark_used({q.db_id for v in vs for q in v.all_questions()})
     for p in files:
         print("Đã ghi", p)
@@ -106,10 +133,16 @@ def cmd_idmap(bank: Bank, a):
 def cmd_shuffle(bank, a):
     from .tools import shuffle_file
     from .generator import answer_distribution
-    codes = a.codes.split(",") if a.codes else [str(101 + i) for i in range(a.n)]
-    opt = MixOptions(shuffle_q=not a.keep_order, shuffle_ds=not a.no_ds, balance=not a.no_balance)
-    vs, files = shuffle_file(a.file, [c.strip() for c in codes], a.out, seed=a.seed, options=opt,
-                             template_path=a.template)
+    from .generator import THPT_2026, make_codes
+    if a.codes:
+        codes = a.codes.split(",")
+    elif a.chuan_2026:
+        codes = make_codes(THPT_2026["so_ma"], 101, 4)
+    else:
+        codes = make_codes(a.n)
+    mix, exp = _exam_opts(a)
+    vs, files = shuffle_file(a.file, [c.strip() for c in codes], a.out, seed=a.seed, options=mix,
+                             template_path=a.template, export_options=exp)
     for v in vs:
         print(f"Mã {v.code}: đáp án TN {answer_distribution(v)}")
     print(f"Đã ghi {len(files)} file vào {a.out}")
@@ -248,6 +281,7 @@ def main(argv=None):
     p.add_argument("--keep-order", action="store_true", help="không trộn thứ tự câu")
     p.add_argument("--no-ds", action="store_true", help="không trộn ý câu Đúng/Sai")
     p.add_argument("--no-balance", action="store_true", help="không cân bằng đáp án A/B/C/D")
+    _add_exam_flags(p)
     p = sub.add_parser("review", help="rà soát đáp án/lời giải/LaTeX của kho hoặc file .tex")
     p.add_argument("files", nargs="*", help="bỏ trống = rà soát cả kho")
     p.add_argument("--only-errors", action="store_true", help="chỉ in câu có lỗi")
@@ -273,6 +307,7 @@ def main(argv=None):
     p.add_argument("--template")
     p.add_argument("--different", action="store_true", help="mỗi mã đề một bộ câu khác nhau")
     p.add_argument("--prefer-unused", action="store_true", help="ưu tiên câu ít được dùng")
+    _add_exam_flags(p)
 
     a = ap.parse_args(argv)
     if a.cmd == "gui":

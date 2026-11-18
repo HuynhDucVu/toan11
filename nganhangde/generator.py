@@ -202,6 +202,31 @@ def make_versions(bank: Bank, rules: list[Rule], n_versions: int = 4, *,
     return out
 
 
+def make_codes(n: int, start: int = 101, digits: int = 3, randomize: bool = False,
+               rng: random.Random | None = None) -> list[str]:
+    """Sinh danh sách mã đề: liên tiếp từ `start` (vd 0101…0124 với digits=4) hoặc ngẫu nhiên không trùng."""
+    if randomize:
+        rng = rng or random.Random()
+        lo, hi = 10 ** (digits - 1), 10 ** digits - 1
+        return [str(x).zfill(digits) for x in sorted(rng.sample(range(lo, hi + 1), n))]
+    return [str(start + i).zfill(digits) for i in range(n)]
+
+
+# Cấu trúc đề thi tốt nghiệp THPT môn Toán (từ 2025, giữ ổn định năm 2026)
+THPT_2026 = {"TN": 12, "DS": 4, "KQ": 6, "TL": 0, "phut": 90, "so_ma": 24}
+
+
+def check_structure(rules: list[Rule], target: dict = THPT_2026) -> list[str]:
+    """So số câu trong ma trận với cấu trúc chuẩn; trả về danh sách lệch."""
+    got = {s: 0 for s in SECTION_ORDER}
+    for r in rules:
+        got[r.qtype] += r.count
+    names = {"TN": "Phần I (trắc nghiệm)", "DS": "Phần II (Đúng/Sai)", "KQ": "Phần III (trả lời ngắn)",
+             "TL": "Tự luận"}
+    return [f"{names[s]}: ma trận có {got[s]} câu, chuẩn là {target[s]} câu"
+            for s in SECTION_ORDER if got[s] != target[s]]
+
+
 def sections_from_questions(qs: list[Question]) -> dict[str, list[Question]]:
     """Gom các câu (vd đọc từ 1 file đề) theo phần TN/DS/KQ/TL, giữ thứ tự trong file."""
     out = {s: [] for s in SECTION_ORDER}

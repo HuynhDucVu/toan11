@@ -88,7 +88,7 @@ def test_make_versions_and_export(bank, tmp_path):
     ids = [sorted(q.db_id for q in v.all_questions()) for v in vs]
     assert ids[0] == ids[1] == ids[2] and len(ids[0]) == 11
     files = export_versions(vs, str(tmp_path / "out"))
-    assert len(files) == 8
+    assert len(files) == 9 and files[-1].endswith("dap_an_TNMaker.xlsx")
     de = open(files[0], encoding="utf-8").read()
     assert "\\loigiai" not in de and "Mã đề 101" in de
 
@@ -308,3 +308,38 @@ def test_set_id_and_suggest():
         x.db_id = i
     s = Suggester(qs[1:]).suggest(qs[0])
     assert s[0].id_code == "0D2N1-2" and s[0].score > 0.5
+
+
+def test_thpt2026_options_and_tnmaker(bank, tmp_path):
+    from openpyxl import load_workbook
+    from nganhangde.exporter import ExportOptions
+    from nganhangde.generator import (MixOptions, THPT_2026, check_structure, make_codes)
+    codes = make_codes(24, 101, 4)
+    assert codes[0] == "0101" and codes[-1] == "0124" and len(set(make_codes(24, digits=3, randomize=True))) == 24
+    rules = [Rule("TN", 12), Rule("DS", 4), Rule("KQ", 6)]
+    assert check_structure(rules) == [] and check_structure([Rule("TN", 10)])
+    assert THPT_2026["so_ma"] == 24
+    vs = make_versions(bank, rules, codes=codes[:3], seed=4, options=MixOptions(shuffle_ds=False))
+    opt = ExportOptions(renumber=True, official_titles=True, scoring=True, ds_style="tach", ds_symbols="TF")
+    files = export_versions(vs, str(tmp_path / "o"), options=opt)
+    de = open(files[0], encoding="utf-8").read()
+    assert de.count("\\setcounter{ex}{0}") == 3
+    assert "Thí sinh trả lời từ câu 1 đến câu 12" in de and "từ câu 1 đến câu 4" in de and "đến câu 6" in de
+    lg = open(files[1], encoding="utf-8").read()
+    assert "Thang điểm" in lg and "Tổng điểm phần trắc nghiệm: 10 điểm" in lg
+    wb = load_workbook(files[-1])
+    ws = wb["Đáp án"]
+    rows = list(ws.values)
+    assert rows[0] == ("Câu", "0101", "0102", "0103")
+    labels = [r[0] for r in rows[1:]]
+    assert labels[:2] == ["I.1", "I.2"] and "II.1a" in labels and labels[-1] == "III.6"
+    assert len(labels) == 12 + 16 + 6
+    v = vs[0]
+    i = labels.index("II.2c") + 1
+    assert rows[i][1] == ("T" if v.sections["DS"][1].correct[2] else "F")
+    assert rows[labels.index("I.1") + 1][1] == v.sections["TN"][0].answer_text
+    assert "$" not in "".join(str(r[1]) for r in rows[1:])
+    # bố cục ngang
+    files = export_versions(vs, str(tmp_path / "n"), options=ExportOptions(tnmaker_layout="ngang"))
+    rows = list(load_workbook(files[-1])["Đáp án"].values)
+    assert rows[0][0] == "Mã đề" and rows[1][0] == "0101" and len(rows[0]) == 1 + 12 + 4 + 6

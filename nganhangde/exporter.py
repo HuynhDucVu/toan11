@@ -3,11 +3,37 @@ from __future__ import annotations
 
 import csv
 import os
+from dataclasses import dataclass
 
 from .generator import SECTION_ORDER, SECTION_TITLE, ExamVersion
 from .parser import Question
 
 DEFAULT_TEMPLATE = "de_thi.tex"
+
+# Lời dẫn theo mẫu đề thi tốt nghiệp THPT (số câu điền tự động)
+OFFICIAL_TITLE = {
+    "TN": ("PHẦN I. Câu trắc nghiệm nhiều phương án lựa chọn.",
+           "Thí sinh trả lời từ câu 1 đến câu {n}. Mỗi câu hỏi thí sinh chỉ chọn một phương án."),
+    "DS": ("PHẦN II. Câu trắc nghiệm đúng sai.",
+           "Thí sinh trả lời từ câu 1 đến câu {n}. Trong mỗi ý a), b), c), d) ở mỗi câu, thí sinh chọn đúng hoặc sai."),
+    "KQ": ("PHẦN III. Câu trắc nghiệm trả lời ngắn.", "Thí sinh trả lời từ câu 1 đến câu {n}."),
+    "TL": ("PHẦN IV. Tự luận.", ""),
+}
+# Thang điểm theo quy chế thi tốt nghiệp THPT từ 2025 (môn Toán)
+SCORING = {"TN": 0.25, "KQ": 0.5, "DS": {1: 0.1, 2: 0.25, 3: 0.5, 4: 1.0}}
+
+
+@dataclass
+class ExportOptions:
+    """Tuỳ chọn khi xuất đề."""
+    renumber: bool = False            # đánh số lại từ Câu 1 ở mỗi phần (\setcounter{ex}{0})
+    official_titles: bool = False     # tiêu đề + lời dẫn theo mẫu đề thi tốt nghiệp
+    scoring: bool = False             # in thang điểm trong file lời giải
+    answers_xlsx: bool = True         # đáp án Excel (dùng cho TNMaker / phần mềm chấm)
+    tnmaker_layout: str = "doc"       # 'doc': mỗi dòng một câu, mỗi cột một mã đề; 'ngang': mỗi dòng một mã đề
+    ds_style: str = "gop"             # 'gop': 1 ô «ĐSĐS» / câu; 'tach': 4 ô a,b,c,d
+    ds_symbols: str = "ĐS"            # 'ĐS' | 'TF' | '10'
+    kq_decimal: str = ","             # dấu thập phân phần trả lời ngắn
 
 
 def plain_answer(a: str) -> str:
@@ -29,15 +55,45 @@ def questions_to_tex(qs: list[Question], with_solution: bool = True) -> str:
     return "\n".join(q.to_latex(with_solution) for q in qs) + "\n"
 
 
-def version_body(v: ExamVersion, with_solution: bool) -> str:
+def section_heading(s: str, n: int, opt: "ExportOptions | None") -> str:
+    if opt and opt.official_titles:
+        head, lead = OFFICIAL_TITLE[s]
+        lead = lead.format(n=n)
+        return f"\\noindent\\textbf{{{head}}} {lead}\\par\\smallskip"
+    return f"\\section*{{{SECTION_TITLE[s]}}}"
+
+
+def version_body(v: ExamVersion, with_solution: bool, opt: "ExportOptions | None" = None) -> str:
     parts = []
     for s in SECTION_ORDER:
         qs = v.sections.get(s) or []
         if not qs:
             continue
-        parts.append(f"\\section*{{{SECTION_TITLE[s]}}}")
+        parts.append(section_heading(s, len(qs), opt))
+        if opt and opt.renumber:
+            parts.append("\\setcounter{ex}{0}")
         parts.append(questions_to_tex(qs, with_solution))
     return "\n".join(parts)
+
+
+def scoring_tex(v: ExamVersion) -> str:
+    n = {s: len(v.sections.get(s) or []) for s in SECTION_ORDER}
+    rows = []
+    if n["TN"]:
+        rows.append(f"Phần I: mỗi câu đúng {SCORING['TN']:g} điểm ({n['TN']} câu, tối đa {n['TN'] * SCORING['TN']:g} điểm).")
+    if n["DS"]:
+        d = SCORING["DS"]
+        rows.append(f"Phần II: mỗi câu đúng 1 ý được {d[1]:g}; 2 ý được {d[2]:g}; 3 ý được {d[3]:g}; "
+                    f"cả 4 ý được {d[4]:g} điểm ({n['DS']} câu, tối đa {n['DS'] * d[4]:g} điểm).")
+    if n["KQ"]:
+        rows.append(f"Phần III: mỗi câu đúng {SCORING['KQ']:g} điểm ({n['KQ']} câu, tối đa {n['KQ'] * SCORING['KQ']:g} điểm).")
+    total = n["TN"] * SCORING["TN"] + n["DS"] * SCORING["DS"][4] + n["KQ"] * SCORING["KQ"]
+    rows.append(f"Tổng điểm phần trắc nghiệm: {total:g} điểm.")
+    return "\\section*{Thang điểm}\n" + "\\\\\n".join(rows) + "\n"
+
+
+def score_ds(n_correct: int) -> float:
+    return SCORING["DS"].get(n_correct, 0.0)
 
 
 def fill(template: str, **kw) -> str:
@@ -61,16 +117,20 @@ def answer_table_tex(v: ExamVersion) -> str:
 
 
 def export_versions(versions: list[ExamVersion], out_dir: str, *, template_path: str | None = None,
-                    ten_de: str = "ĐỀ KIỂM TRA", truong: str = "", thoi_gian: int = 90) -> list[str]:
+                    ten_de: str = "ĐỀ KIỂM TRA", truong: str = "", thoi_gian: int = 90,
+                    options: ExportOptions | None = None) -> list[str]:
+    opt = options or ExportOptions()
     os.makedirs(out_dir, exist_ok=True)
     tpl = load_template(template_path)
     files = []
     for v in versions:
         common = dict(TEN_DE=ten_de, TRUONG=truong, THOI_GIAN=thoi_gian, MA_DE=v.code)
         for mode, prefix, sol in (("dethi", "de", False), ("loigiai", "loigiai", True)):
-            body = version_body(v, sol)
+            body = version_body(v, sol, opt)
             if sol:
                 body += "\n\\section*{Bảng đáp án}\n" + answer_table_tex(v)
+                if opt.scoring:
+                    body += "\n" + scoring_tex(v)
             path = os.path.join(out_dir, f"{prefix}_{v.code}.tex")
             with open(path, "w", encoding="utf-8") as f:
                 f.write(fill(tpl, MODE=mode, NOI_DUNG=body, **common))
@@ -98,6 +158,12 @@ def export_versions(versions: list[ExamVersion], out_dir: str, *, template_path:
                 row.append(plain_answer(qs[i - 1].answer_text) if i <= len(qs) else "")
             w.writerow(row)
     files.append(wide_path)
+    if opt.answers_xlsx:
+        from .tnmaker import write_answer_xlsx
+        try:
+            files.append(write_answer_xlsx(versions, os.path.join(out_dir, "dap_an_TNMaker.xlsx"), opt))
+        except ImportError:
+            pass        # thiếu openpyxl: vẫn có 2 file CSV
     return files
 
 

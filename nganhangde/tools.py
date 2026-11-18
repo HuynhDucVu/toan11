@@ -171,7 +171,7 @@ def sort_by_id(paths: list[str], out_path: str) -> int:
 
 
 def shuffle_file(path: str, codes: list[str], out_dir: str, *, seed=None, options=None,
-                 template_path=None, ten_de="ĐỀ KIỂM TRA", truong="", thoi_gian=90):
+                 template_path=None, ten_de="ĐỀ KIỂM TRA", truong="", thoi_gian=90, export_options=None):
     """Trộn trực tiếp một file đề .tex thành nhiều mã đề (không cần nạp vào kho)."""
     import random
 
@@ -179,5 +179,5 @@ def shuffle_file(path: str, codes: list[str], out_dir: str, *, seed=None, option
     from .generator import mix_versions, sections_from_questions
     versions = mix_versions(sections_from_questions(parse_file(path)), codes, random.Random(seed), options)
     files = export_versions(versions, out_dir, template_path=template_path, ten_de=ten_de,
-                            truong=truong, thoi_gian=thoi_gian)
+                            truong=truong, thoi_gian=thoi_gian, options=export_options)
     return versions, files

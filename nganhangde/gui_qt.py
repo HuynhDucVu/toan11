@@ -24,9 +24,9 @@ from PySide6.QtWidgets import (QAbstractItemView, QApplication, QCheckBox, QComb
 
 from . import __version__, tools
 from .db import Bank
-from .exporter import export_questions, export_versions
-from .generator import (MixOptions, NotEnoughQuestions, Rule, answer_distribution, make_versions,
-                        matrix_from_questions, overlap_report)
+from .exporter import ExportOptions, export_questions, export_versions
+from .generator import (THPT_2026, MixOptions, NotEnoughQuestions, Rule, answer_distribution, check_structure,
+                        make_codes, make_versions, matrix_from_questions, overlap_report)
 from .idmap import IdTree, dash_duplicates, parse_map_text, save_map, to_dash_text
 from .idsuggest import MapSuggester, Suggester, combine
 from . import review as rv
@@ -667,7 +667,7 @@ class GeneratorPanel(QWidget):
         self.e_n.setRange(1, 50)
         self.e_n.setValue(int(self.st.value("gen/n", 4)))
         self.e_ma = QLineEdit(self.st.value("gen/ma", ""))
-        self.e_ma.setPlaceholderText("để trống = 101, 102, …   hoặc nhập: 132, 209, 357, 485")
+        self.e_ma.setPlaceholderText("để trống = sinh theo «Tuỳ chọn trộn đề → Mã đề»; hoặc nhập 132, 209, …")
         self.e_seed = QLineEdit()
         self.e_seed.setPlaceholderText("để trống = ngẫu nhiên; nhập số để tạo lại đúng bộ đề cũ")
         self.e_out = self._path_row(self.st.value("gen/out", os.path.join(resource_dir(), "de_xuat")), folder=True)
@@ -690,10 +690,19 @@ class GeneratorPanel(QWidget):
             fl.addRow("", c)
         lay.addWidget(g)
 
-        g = QGroupBox("Tuỳ chọn trộn")
+        g = QGroupBox("Tuỳ chọn trộn đề")
         ol = QVBoxLayout(g)
-        self.mix = MixOptionsBox(self.st, "gen")
-        ol.addWidget(self.mix)
+        b = QPushButton("⭐ Áp dụng chuẩn đề thi tốt nghiệp THPT 2026")
+        b.setToolTip("12 câu trắc nghiệm · 4 câu Đúng/Sai · 6 câu trả lời ngắn · 90 phút · 24 mã 0101…0124 · "
+                     "giữ thứ tự ý Đúng/Sai · đánh số lại từng phần · lời dẫn chính thức · thang điểm · đáp án TNMaker")
+        b.clicked.connect(self.apply_thpt2026)
+        ol.addWidget(b)
+        self.c_check2026 = QCheckBox("Kiểm tra ma trận theo cấu trúc 12 – 4 – 6 khi tạo đề")
+        self.c_check2026.setChecked(str(self.st.value("gen/check2026", False)).lower() == "true")
+        ol.addWidget(self.c_check2026)
+        self.opts = ExamOptionsBox(self.st, "gen")
+        self.mix = self.opts.mix
+        ol.addWidget(self.opts)
         lay.addWidget(g)
         g2 = QGroupBox("Hướng dẫn")
         hl = QVBoxLayout(g2)
@@ -774,6 +783,7 @@ class GeneratorPanel(QWidget):
     def add_row(self, r=None):
         r = r if isinstance(r, dict) else {"qtype": "TN", "id": "*", "count": 1}
         i = self.t.rowCount()
+        self.t.blockSignals(True)          # chưa tính «Kho có» khi dòng chưa dựng xong
         self.t.insertRow(i)
         cb = QComboBox()
         for k, v in TEN_LOAI.items():
@@ -797,6 +807,7 @@ class GeneratorPanel(QWidget):
         it = QTableWidgetItem("")
         it.setFlags(Qt.ItemFlag.ItemIsEnabled)
         self.t.setItem(i, 4, it)
+        self.t.blockSignals(False)
 
     def del_row(self):
         for r in sorted({i.row() for i in self.t.selectedIndexes()}, reverse=True):
@@ -806,6 +817,8 @@ class GeneratorPanel(QWidget):
     def rules_dicts(self):
         out = []
         for i in range(self.t.rowCount()):
+            if None in (self.t.cellWidget(i, 0), self.t.cellWidget(i, 2), self.t.cellWidget(i, 3)):
+                continue                   # dòng đang dựng dở
             out.append({"qtype": self.t.cellWidget(i, 0).currentData(),
                         "id": (self.t.item(i, 1).text().strip() if self.t.item(i, 1) else "") or "*",
                         "muc_do": self.t.cellWidget(i, 2).currentData() or None,
@@ -865,12 +878,17 @@ class GeneratorPanel(QWidget):
             QMessageBox.warning(self, "Lỗi", "Ma trận chưa có dòng nào.")
             return
         rules = [Rule.from_dict(r) for r in rd]
-        codes = self.codes() or None
+        if self.c_check2026.isChecked():
+            diff = check_structure(rules)
+            if diff and QMessageBox.question(self, "Lệch cấu trúc đề 2026", "\n".join(diff) + "\n\nVẫn tạo đề?") \
+                    != QMessageBox.StandardButton.Yes:
+                return
+        codes = self.codes() or self.opts.codes(self.e_n.value())
         seed = int(self.e_seed.text()) if self.e_seed.text().strip().isdigit() else None
         try:
-            vs = make_versions(self.win.bank, rules, len(codes) if codes else self.e_n.value(), codes=codes,
+            vs = make_versions(self.win.bank, rules, len(codes), codes=codes,
                                seed=seed, same_questions=not self.c_diff.isChecked(),
-                               prefer_unused=self.c_unused.isChecked(), options=self.mix.options())
+                               prefer_unused=self.c_unused.isChecked(), options=self.opts.mix_options())
         except NotEnoughQuestions as e:
             QMessageBox.warning(self, "Không đủ câu", str(e))
             return
@@ -878,7 +896,7 @@ class GeneratorPanel(QWidget):
         try:
             files = export_versions(vs, out, template_path=self.e_tpl[0].text() or None,
                                     ten_de=self.e_ten.text(), truong=self.e_truong.text(),
-                                    thoi_gian=self.e_tg.value())
+                                    thoi_gian=self.e_tg.value(), options=self.opts.export_options())
         except OSError as e:
             QMessageBox.critical(self, "Lỗi ghi file", str(e))
             return
@@ -888,12 +906,33 @@ class GeneratorPanel(QWidget):
                      ("n", self.e_n.value()), ("ma", self.e_ma.text()), ("out", out),
                      ("tpl", self.e_tpl[0].text()), ("matrix", json.dumps(rd, ensure_ascii=False))):
             self.st.setValue(f"gen/{k}", v)
-        self.mix.save()
+        self.opts.save()
+        self.st.setValue("gen/check2026", self.c_check2026.isChecked())
         extra = ""
         if self.c_pdf.isChecked():
             fails = compile_pdfs([f for f in files if f.endswith(".tex")], out)
             extra = "<p>Biên dịch PDF: " + ("thành công" if not fails else "lỗi ở " + ", ".join(fails)) + "</p>"
         ResultDialog(self, vs, out, extra).exec()
+
+    def apply_thpt2026(self):
+        self.opts.apply_thpt2026()
+        self.e_n.setValue(THPT_2026["so_ma"])
+        self.e_ma.clear()
+        self.e_tg.setValue(THPT_2026["phut"])
+        self.c_check2026.setChecked(True)
+        rules = [Rule.from_dict(r) for r in self.rules_dicts()]
+        diff = check_structure(rules)
+        if diff and QMessageBox.question(
+                self, "Ma trận chuẩn 2026", "Ma trận hiện tại lệch cấu trúc chuẩn:\n" + "\n".join(diff)
+                + "\n\nĐặt lại ma trận thành 12 trắc nghiệm · 4 Đúng/Sai · 6 trả lời ngắn (mọi ID)?\n"
+                "(Chọn No để giữ ma trận và tự chỉnh)") == QMessageBox.StandardButton.Yes:
+            self.t.setRowCount(0)
+            for qt in ("TN", "DS", "KQ"):
+                self.add_row({"qtype": qt, "id": "*", "count": THPT_2026[qt]})
+            self.update_avail()
+        QMessageBox.information(self, "Chuẩn 2026", "Đã đặt: 24 mã đề 0101…0124, 90 phút, giữ thứ tự ý Đúng/Sai, "
+                                "đánh số lại từng phần, lời dẫn chính thức, thang điểm, đáp án Excel cho TNMaker.\n"
+                                "Xem/sửa ở mục «Tuỳ chọn trộn đề».")
 
     def matrix_from_exam(self):
         p, _ = QFileDialog.getOpenFileName(self, "Chọn file đề mẫu (.tex)", self.st.value("last_dir", ""),
@@ -940,6 +979,124 @@ class MixOptionsBox(QWidget):
     def save(self):
         for k, c in self.boxes.items():
             self.st.setValue(f"{self.prefix}/mix_{k}", c.isChecked())
+
+
+class ExamOptionsBox(QTabWidget):
+    """Mục «Tuỳ chọn trộn đề»: mã đề · trộn · trình bày · phiếu chấm (đáp án Excel cho TNMaker)."""
+
+    def __init__(self, settings, prefix, show_codes=True):
+        super().__init__()
+        self.st, self.prefix = settings, prefix
+
+        def val(key, default):
+            v = self.st.value(f"{prefix}/opt_{key}", default)
+            if isinstance(default, bool):
+                return v if isinstance(v, bool) else str(v).lower() == "true"
+            return type(default)(v)
+
+        def combo(items, key, default):
+            cb = QComboBox()
+            for text, data in items:
+                cb.addItem(text, data)
+            cb.setCurrentIndex(max(0, cb.findData(val(key, default))))
+            return cb
+
+        # Mã đề
+        self.w_codes = QWidget()
+        f = QFormLayout(self.w_codes)
+        self.cb_codemode = combo([("Liên tiếp (101, 102, …)", "seq"), ("Ngẫu nhiên, không trùng", "rand")],
+                                 "codemode", "seq")
+        self.sp_start = QSpinBox()
+        self.sp_start.setRange(0, 9999)
+        self.sp_start.setValue(val("start", 101))
+        self.cb_digits = combo([("3 chữ số (101)", 3), ("4 chữ số (0101)", 4)], "digits", 3)
+        f.addRow("Cách đánh mã", self.cb_codemode)
+        f.addRow("Bắt đầu từ", self.sp_start)
+        f.addRow("Độ dài mã", self.cb_digits)
+        self.l_preview = QLabel()
+        f.addRow("Ví dụ", self.l_preview)
+        for w_ in (self.cb_codemode, self.cb_digits):
+            w_.currentIndexChanged.connect(self._preview)
+        self.sp_start.valueChanged.connect(self._preview)
+        if show_codes:
+            self.addTab(self.w_codes, "Mã đề")
+
+        # Trộn
+        self.mix = MixOptionsBox(settings, prefix)
+        self.addTab(self.mix, "Trộn")
+
+        # Trình bày
+        w = QWidget()
+        v = QVBoxLayout(w)
+        self.c_renum = QCheckBox("Đánh số lại từ Câu 1 ở mỗi phần (như đề thi tốt nghiệp)")
+        self.c_official = QCheckBox("Tiêu đề và lời dẫn từng phần theo mẫu đề thi tốt nghiệp")
+        self.c_scoring = QCheckBox("In thang điểm (Phần I 0,25 · Phần II 0,1/0,25/0,5/1 · Phần III 0,5) trong file lời giải")
+        for c, k in ((self.c_renum, "renumber"), (self.c_official, "official"), (self.c_scoring, "scoring")):
+            c.setChecked(val(k, False))
+            v.addWidget(c)
+        v.addStretch()
+        self.addTab(w, "Trình bày")
+
+        # Phiếu chấm TNMaker
+        w = QWidget()
+        f = QFormLayout(w)
+        self.c_xlsx = QCheckBox("Xuất file đáp án Excel dap_an_TNMaker.xlsx")
+        self.c_xlsx.setChecked(val("xlsx", True))
+        self.cb_layout = combo([("Mỗi dòng 1 câu, mỗi cột 1 mã đề", "doc"), ("Mỗi dòng 1 mã đề, mỗi cột 1 câu", "ngang")],
+                               "layout", "doc")
+        self.cb_ds = combo([("Gộp 1 ô / câu (ĐSĐS)", "gop"), ("Tách 4 ô a, b, c, d", "tach")], "ds", "gop")
+        self.cb_sym = combo([("Đ / S", "ĐS"), ("T / F", "TF"), ("1 / 0", "10")], "sym", "ĐS")
+        self.cb_dec = combo([("Dấu phẩy (0,5)", ","), ("Dấu chấm (0.5)", ".")], "dec", ",")
+        f.addRow(self.c_xlsx)
+        f.addRow("Bố cục", self.cb_layout)
+        f.addRow("Phần II Đúng/Sai", self.cb_ds)
+        f.addRow("Kí hiệu Đúng/Sai", self.cb_sym)
+        f.addRow("Phần III – thập phân", self.cb_dec)
+        note = QLabel("Trong TNMaker: tạo bài thi theo mẫu phiếu tốt nghiệp (3 phần) → nhập đáp án từ file Excel → "
+                      "chọn <code>dap_an_TNMaker.xlsx</code>. Nếu mẫu đáp án của TNMaker khác, đổi bố cục/kí hiệu ở trên. "
+                      "File còn có sheet <i>Mã đề – câu gốc</i> để đối chiếu.")
+        note.setWordWrap(True)
+        f.addRow(note)
+        self.addTab(w, "Phiếu chấm TNMaker")
+        self._preview()
+
+    def _preview(self):
+        self.l_preview.setText(", ".join(self.codes(3, preview=True)) + ", …")
+
+    def codes(self, n, preview=False):
+        rnd = self.cb_codemode.currentData() == "rand"
+        if rnd and preview:
+            return ["(ngẫu nhiên)"]
+        return make_codes(n, self.sp_start.value(), self.cb_digits.currentData(), rnd)
+
+    def mix_options(self) -> MixOptions:
+        return self.mix.options()
+
+    def export_options(self) -> ExportOptions:
+        return ExportOptions(renumber=self.c_renum.isChecked(), official_titles=self.c_official.isChecked(),
+                             scoring=self.c_scoring.isChecked(), answers_xlsx=self.c_xlsx.isChecked(),
+                             tnmaker_layout=self.cb_layout.currentData(), ds_style=self.cb_ds.currentData(),
+                             ds_symbols=self.cb_sym.currentData(), kq_decimal=self.cb_dec.currentData())
+
+    def apply_thpt2026(self):
+        self.cb_codemode.setCurrentIndex(self.cb_codemode.findData("seq"))
+        self.sp_start.setValue(101)
+        self.cb_digits.setCurrentIndex(self.cb_digits.findData(4))
+        for k, on in (("shuffle_q", True), ("shuffle_tn", True), ("shuffle_ds", False), ("balance", True),
+                      ("first_original", False)):
+            self.mix.boxes[k].setChecked(on)
+        for c in (self.c_renum, self.c_official, self.c_scoring, self.c_xlsx):
+            c.setChecked(True)
+
+    def save(self):
+        self.mix.save()
+        for k, w_ in (("codemode", self.cb_codemode), ("digits", self.cb_digits), ("layout", self.cb_layout),
+                      ("ds", self.cb_ds), ("sym", self.cb_sym), ("dec", self.cb_dec)):
+            self.st.setValue(f"{self.prefix}/opt_{k}", w_.currentData())
+        self.st.setValue(f"{self.prefix}/opt_start", self.sp_start.value())
+        for k, c in (("renumber", self.c_renum), ("official", self.c_official), ("scoring", self.c_scoring),
+                     ("xlsx", self.c_xlsx)):
+            self.st.setValue(f"{self.prefix}/opt_{k}", c.isChecked())
 
 
 def versions_report_html(vs, out_dir) -> str:
@@ -1756,12 +1913,13 @@ class ToolsPanel(QWidget):
         g = QGroupBox("Trộn đề trực tiếp từ file (không cần kho)")
         fl = QFormLayout(g)
         self.e_codes = QLineEdit("101, 102, 103, 104")
-        self.tool_mix = MixOptionsBox(win.settings, "tool")
+        self.tool_opts = ExamOptionsBox(win.settings, "tool", show_codes=False)
+        self.tool_opts.setMinimumHeight(190)
         b = QPushButton("Trộn file đầu tiên trong danh sách…")
         b.setObjectName("primary")
         b.clicked.connect(self.shuffle_file)
         fl.addRow("Mã đề", self.e_codes)
-        fl.addRow(self.tool_mix)
+        fl.addRow(self.tool_opts)
         fl.addRow("", b)
         left.addWidget(g)
 
@@ -1905,10 +2063,11 @@ class ToolsPanel(QWidget):
         if not out:
             return
         gp = self.win.gen_panel
-        vs, _files = tools.shuffle_file(ps[0], codes, out, options=self.tool_mix.options(),
+        vs, _files = tools.shuffle_file(ps[0], codes, out, options=self.tool_opts.mix_options(),
+                                        export_options=self.tool_opts.export_options(),
                                         template_path=gp.e_tpl[0].text() or None, ten_de=gp.e_ten.text(),
                                         truong=gp.e_truong.text(), thoi_gian=gp.e_tg.value())
-        self.tool_mix.save()
+        self.tool_opts.save()
         self.show_result("Trộn đề từ file", f"<p>File: {os.path.basename(ps[0])}</p>" + versions_report_html(vs, out))
 
     def assign_ids_file(self):
