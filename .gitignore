@@ -1,0 +1,8 @@
+__pycache__/
+*.pyc
+*.db
+de_xuat/
+build/
+dist/
+*.spec
+.pytest_cache/

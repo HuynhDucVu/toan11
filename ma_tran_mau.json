@@ -1,0 +1,14 @@
+{
+  "ten_de": "ĐỀ KIỂM TRA CUỐI HỌC KÌ II – TOÁN 10",
+  "truong": "TRƯỜNG THPT ...",
+  "thoi_gian": 90,
+  "ma_de": ["101", "102", "103", "104"],
+  "rules": [
+    {"qtype": "TN", "id": "0D2*", "count": 2},
+    {"qtype": "TN", "id": "0H9*", "count": 6},
+    {"qtype": "TN", "id": "0D[08]*", "count": 4},
+    {"qtype": "DS", "id": "*", "count": 4},
+    {"qtype": "KQ", "id": "*", "muc_do": "V", "count": 5},
+    {"qtype": "KQ", "id": "0H9*", "count": 1}
+  ]
+}
