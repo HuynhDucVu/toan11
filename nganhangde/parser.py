@@ -13,7 +13,7 @@ import re
 from dataclasses import dataclass, field
 
 from .idcode import parse_id
-from .texutil import find_command, read_command_args, read_group, strip_true
+from .texutil import find_command, read_command_args, strip_true
 
 ENV_RE = re.compile(r"\\begin\{(ex|bt)\}(.*?)\\end\{\1\}", re.S)
 TAG_RE = re.compile(r"%\[([^\]]*)\]")

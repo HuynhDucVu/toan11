@@ -38,6 +38,7 @@ nganhangde/
 ├── db.py         # Bước 4: lưu, tìm, lọc trong SQLite; chống trùng bằng mã băm
 ├── generator.py  # Bước 5: chọn câu theo ma trận, trộn câu, trộn phương án, tạo mã đề
 ├── exporter.py   # Bước 6: điền vào file mẫu .tex, xuất đề, lời giải và đáp án .csv
+├── tools.py      # công cụ trên file .tex: lọc ID, tìm trùng, xoá lời giải, đổi ID
 ├── cli.py        # Bước 7a: dòng lệnh
 ├── gui_qt.py     # Bước 7b: giao diện chính (PySide6/Qt)
 ├── gui.py        #          giao diện dự phòng (Tkinter)
@@ -188,15 +189,17 @@ python -m nganhangde export --id "0D8*" -o chuong8.tex  # trích câu ra file .t
 python -m nganhangde gui                               # mở giao diện cửa sổ
 ```
 
-**Giao diện cửa sổ** (`gui_qt.py`, viết bằng PySide6):
+**Giao diện cửa sổ** (`gui_qt.py`, viết bằng PySide6). Cửa sổ chính có menu, thanh công cụ và **4 tab**
+(ảnh chụp trong thư mục `docs/`):
 
-| Vùng | Nội dung |
+| Tab | Nội dung |
 |---|---|
-| Thanh menu | **Tệp** (mở/tạo kho `.db`, nhập `.tex`, xuất câu), **Câu hỏi** (thêm, sửa, xoá), **Đề thi** (tạo đề), **Công cụ** (soát lỗi file, thống kê) |
-| Thanh công cụ | Nút bấm nhanh cho các chức năng hay dùng |
-| Cột trái | **Cây chương** Lớp → Phân môn → Chương, có số câu; bấm vào một mục để lọc. Bên dưới là **bộ lọc**: loại câu, mức độ, mẫu ID, từ khoá |
-| Giữa | Bảng câu hỏi: sắp xếp được theo cột, chọn được nhiều dòng. Câu có lỗi soạn thảo hiện chữ đỏ ở cột «Loại» |
-| Dưới | Tab **Thông tin** (giải nghĩa ID, đáp án, phương án, cảnh báo) và tab **Mã LaTeX** (có tô màu cú pháp) |
+| 📚 **Ngân hàng câu hỏi** | Bên trái là **cây chương** (Lớp → Phân môn → Chương, có số câu) và **bộ lọc** (loại câu, mức độ, mẫu ID, từ khoá). Ở giữa là bảng câu hỏi, sắp xếp được theo cột; câu có lỗi hiện chữ đỏ. Bên dưới là tab *Thông tin* và tab *Mã LaTeX* có tô màu |
+| 📝 **Tạo đề** | Bên trái là thông tin đề (tên, trường, thời gian, số mã đề, danh sách mã, seed, thư mục xuất, file mẫu). Bên phải là ma trận đề, có cột «Kho có» |
+| 🛠 **Công cụ** | Làm việc trực tiếp trên file `.tex`, không cần nạp vào kho: soát lỗi, tìm câu trùng (giữa các file và với kho), thống kê theo ID, lọc câu theo ID ra file mới, đổi ID hàng loạt, xoá lời giải, nạp vào kho |
+| 📊 **Thống kê** | Các ô tổng số câu theo loại, và bảng số câu theo chương × mức độ |
+
+Các công cụ trong tab Công cụ được viết ở `tools.py` (có kiểm thử), không phụ thuộc giao diện.
 
 * **Thêm/Sửa câu:** khung soạn LaTeX có tô màu và nút chèn mẫu cho 4 loại câu.
   Phần mềm kiểm tra ngay khi gõ và hiện loại câu, ID, đáp án, lỗi.

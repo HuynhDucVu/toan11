@@ -96,3 +96,21 @@ def test_make_versions_and_export(bank, tmp_path):
 def test_not_enough(bank):
     with pytest.raises(NotEnoughQuestions):
         make_versions(bank, [Rule("TN", 50)], 1)
+
+
+def test_tools(tmp_path):
+    from nganhangde import tools
+    groups = tools.find_duplicates([SAMPLE, SAMPLE])
+    assert len(groups) == 22
+    out = tmp_path / "loc.tex"
+    assert tools.filter_by_id([SAMPLE], "0H9*", str(out)) == 9
+    assert len(parse_file(str(out))) == 9
+    out2 = tmp_path / "khong_lg.tex"
+    assert tools.erase_solutions(SAMPLE, str(out2)) == 22
+    qs = parse_file(str(out2))
+    assert len(qs) == 22 and all(not q.solution for q in qs)
+    assert qs[0].answer_text == "D"
+    out3 = tmp_path / "doi_id.tex"
+    assert tools.convert_ids(SAMPLE, str(out3), tools.parse_mapping("0H9 = 0H4\n0D2->0D5")) == 11
+    ids = [q.id_code for q in parse_file(str(out3))]
+    assert "0H4H3-3" in ids and "0D5N1-2" in ids and not any(i.startswith("0H9") for i in ids)

@@ -16,17 +16,17 @@ from PySide6.QtGui import (QAction, QColor, QDesktopServices, QFont, QIcon, QKey
                            QSyntaxHighlighter, QTextCharFormat)
 from PySide6.QtWidgets import (QAbstractItemView, QApplication, QCheckBox, QComboBox,
                                QDialog, QDialogButtonBox, QFileDialog, QFormLayout,
-                               QGroupBox, QHBoxLayout, QHeaderView, QLabel, QLineEdit,
+                               QGroupBox, QHBoxLayout, QHeaderView, QLabel, QLineEdit, QListWidget,
                                QMainWindow, QMessageBox, QPlainTextEdit, QPushButton,
                                QSpinBox, QSplitter, QTableWidget, QTableWidgetItem,
                                QTabWidget, QTextBrowser, QToolBar, QTreeWidget,
                                QTreeWidgetItem, QVBoxLayout, QWidget)
 
-from . import __version__
+from . import __version__, tools
 from .db import Bank
 from .exporter import export_questions, export_versions
 from .generator import NotEnoughQuestions, Rule, make_versions
-from .idcode import LOP, MON, MUC_DO, parse_id
+from .idcode import LOP, MON, parse_id
 from .parser import parse_file, parse_tex, validate
 
 APP_NAME = "Ngân hàng đề thi"
@@ -60,6 +60,11 @@ QPushButton:hover { background: #d3e0ee; }
 QPushButton#primary { background: #1f4e79; color: white; font-weight: 600; border: none; }
 QPushButton#primary:hover { background: #2e6da4; }
 QStatusBar { background: #dce6f1; }
+QTabWidget#mainTabs::pane { border-top: 3px solid #1f4e79; background: #f5f7fa; }
+QTabWidget#mainTabs > QTabBar::tab { background: #dce6f1; color: #1f4e79; padding: 8px 18px; margin-right: 2px;
+    border-top-left-radius: 6px; border-top-right-radius: 6px; font-weight: 600; }
+QTabWidget#mainTabs > QTabBar::tab:selected { background: #1f4e79; color: white; }
+QTabWidget#mainTabs > QTabBar::tab:hover:!selected { background: #c5d6ea; }
 """
 
 
@@ -228,8 +233,27 @@ class MainWindow(QMainWindow):
         split.addWidget(left)
         split.addWidget(center)
         split.setSizes([280, 1020])
-        self.setCentralWidget(split)
+
+        # --- cửa sổ chính chia tab
+        self.main_tabs = QTabWidget()
+        self.main_tabs.setObjectName("mainTabs")
+        self.main_tabs.addTab(split, "📚  Ngân hàng câu hỏi")
+        self.gen_panel = GeneratorPanel(self)
+        self.main_tabs.addTab(self.gen_panel, "📝  Tạo đề")
+        self.tools_panel = ToolsPanel(self)
+        self.main_tabs.addTab(self.tools_panel, "🛠  Công cụ")
+        self.stats_panel = StatsPanel(self)
+        self.main_tabs.addTab(self.stats_panel, "📊  Thống kê")
+        self.main_tabs.currentChanged.connect(self.on_tab_changed)
+        self.setCentralWidget(self.main_tabs)
         self.statusBar().showMessage("Sẵn sàng")
+
+    def on_tab_changed(self, idx):
+        w = self.main_tabs.widget(idx)
+        if w is self.gen_panel:
+            self.gen_panel.update_avail()
+        elif w is self.stats_panel:
+            self.stats_panel.reload()
 
     def _act(self, menu, text, fn, shortcut=None):
         a = QAction(text, self)
@@ -254,6 +278,8 @@ class MainWindow(QMainWindow):
         self.setWindowTitle(f"{APP_NAME} – {os.path.abspath(path)}")
         self.build_tree()
         self.refresh()
+        self.gen_panel.update_avail()
+        self.stats_panel.reload()
 
     def choose_bank(self):
         p, _ = QFileDialog.getOpenFileName(self, "Mở kho câu hỏi", "", "Kho câu hỏi (*.db);;Tất cả (*.*)")
@@ -427,52 +453,14 @@ class MainWindow(QMainWindow):
         QMessageBox.information(self, "Xuất", f"Đã xuất {len(ids)} câu ra\n{p}")
 
     def check_file(self):
-        p, _ = QFileDialog.getOpenFileName(self, "Soát lỗi file .tex", self.settings.value("last_dir", ""),
-                                           "LaTeX (*.tex)")
-        if not p:
-            return
-        rows = []
-        for i, q in enumerate(parse_file(p), 1):
-            ws = validate(q)
-            dup = self.bank.find_duplicate(q)
-            if dup:
-                ws.append(f"Trùng câu #{dup} trong kho")
-            color = "#c00000" if ws else "#0b7a0b"
-            rows.append(f"<tr><td>{i}</td><td>{q.qtype}</td><td>{q.id_code}</td><td>{q.answer_text}</td>"
-                        f"<td style='color:{color}'>{'<br>'.join(ws) or '✔'}</td></tr>")
-        dlg = QDialog(self)
-        dlg.setWindowTitle(f"Soát lỗi – {os.path.basename(p)}")
-        dlg.resize(800, 600)
-        tb = QTextBrowser()
-        tb.setHtml("<table border=1 cellspacing=0 cellpadding=4><tr><th>Câu</th><th>Loại</th><th>ID</th>"
-                   "<th>Đáp án</th><th>Kết quả</th></tr>" + "".join(rows) + "</table>")
-        QVBoxLayout(dlg).addWidget(tb)
-        dlg.exec()
+        self.main_tabs.setCurrentWidget(self.tools_panel)
+        self.tools_panel.check_file()
 
     def show_stats(self):
-        dlg = QDialog(self)
-        dlg.setWindowTitle("Thống kê ngân hàng")
-        dlg.resize(700, 500)
-        stats = self.bank.stats()
-        t = QTableWidget(len(stats), 6)
-        t.setHorizontalHeaderLabels(["Lớp", "Môn", "Chương", "Loại", "Mức độ", "Số câu"])
-        for r, s in enumerate(stats):
-            vals = [LOP.get(s["lop"], s["lop"]), MON.get(s["mon"], s["mon"]), s["chuong"],
-                    TEN_LOAI.get(s["qtype"], s["qtype"]), TEN_MUC.get(s["muc_do"], s["muc_do"]), s["n"]]
-            for c, v in enumerate(vals):
-                it = QTableWidgetItem()
-                it.setData(Qt.ItemDataRole.DisplayRole, v)
-                t.setItem(r, c, it)
-        t.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
-        t.setSortingEnabled(True)
-        lay = QVBoxLayout(dlg)
-        lay.addWidget(QLabel(f"<b>Tổng số câu: {self.bank.count()}</b>"))
-        lay.addWidget(t)
-        dlg.exec()
+        self.main_tabs.setCurrentWidget(self.stats_panel)
 
     def open_generator(self):
-        GeneratorDialog(self).exec()
-        self.refresh()
+        self.main_tabs.setCurrentWidget(self.gen_panel)
 
     def about(self):
         QMessageBox.about(self, "Giới thiệu",
@@ -551,17 +539,19 @@ class EditDialog(QDialog):
 
 
 # =====================================================================
-class GeneratorDialog(QDialog):
-    """Lập ma trận đề → sinh nhiều mã đề → xuất .tex/.csv (→ PDF nếu có xelatex)."""
+class GeneratorPanel(QWidget):
+    """Tab «Tạo đề»: lập ma trận → sinh nhiều mã đề → xuất .tex/.csv (→ PDF nếu có xelatex)."""
     COLS = ["Loại câu", "Mẫu ID", "Mức độ", "Số câu", "Kho có"]
 
     def __init__(self, win: MainWindow):
         super().__init__(win)
         self.win = win
         self.st = win.settings
-        self.setWindowTitle("Tạo đề theo ma trận")
-        self.resize(900, 680)
-        lay = QVBoxLayout(self)
+        outer = QVBoxLayout(self)
+        body = QHBoxLayout()
+        outer.addLayout(body, 1)
+        lay = QVBoxLayout()
+        body.addLayout(lay, 2)
 
         g = QGroupBox("Thông tin đề")
         fl = QFormLayout(g)
@@ -596,7 +586,22 @@ class GeneratorDialog(QDialog):
         for c in (self.c_diff, self.c_unused, self.c_pdf):
             fl.addRow("", c)
         lay.addWidget(g)
+        g2 = QGroupBox("Hướng dẫn")
+        hl = QVBoxLayout(g2)
+        hint = QLabel("<b>Mẫu ID</b> dùng kí tự đại diện:<br>"
+                      "&nbsp;• <code>0D2*</code> – lớp 10, Đại số, chương 2<br>"
+                      "&nbsp;• <code>0H9?3-*</code> – chương 9 Hình, bài 3, mọi mức độ<br>"
+                      "&nbsp;• <code>0D[08]*</code> – chương 0 hoặc 8<br>"
+                      "Cột <b>Kho có</b> màu đỏ nghĩa là kho chưa đủ câu cho dòng đó.<br>"
+                      "Kết quả: <code>de_&lt;mã&gt;.tex</code>, <code>loigiai_&lt;mã&gt;.tex</code>, "
+                      "<code>dap_an.csv</code>.")
+        hint.setWordWrap(True)
+        hl.addWidget(hint)
+        lay.addWidget(g2)
+        lay.addStretch()
 
+        lay = QVBoxLayout()
+        body.addLayout(lay, 3)
         g = QGroupBox("Ma trận đề")
         gl = QVBoxLayout(g)
         self.t = QTableWidget(0, len(self.COLS))
@@ -624,11 +629,8 @@ class GeneratorDialog(QDialog):
         b.setObjectName("primary")
         b.setMinimumWidth(160)
         b.clicked.connect(self.generate)
-        close = QPushButton("Đóng")
-        close.clicked.connect(self.reject)
         row.addWidget(b)
-        row.addWidget(close)
-        lay.addLayout(row)
+        outer.addLayout(row)
 
         saved = self.st.value("gen/matrix", "")
         rules = json.loads(saved) if saved else [
@@ -701,6 +703,8 @@ class GeneratorDialog(QDialog):
         return out
 
     def update_avail(self):
+        if not self.win.bank:
+            return
         total, ok = 0, True
         for i, r in enumerate(self.rules_dicts()):
             n = len(self.win.bank.search(qtype=r["qtype"], id_like=r["id"], muc_do=r["muc_do"]))
@@ -769,6 +773,7 @@ class GeneratorDialog(QDialog):
             QMessageBox.critical(self, "Lỗi ghi file", str(e))
             return
         self.win.bank.mark_used({q.db_id for v in vs for q in v.all_questions()})
+        self.win.refresh()
         for k, v in (("ten", self.e_ten.text()), ("truong", self.e_truong.text()), ("tg", self.e_tg.value()),
                      ("n", self.e_n.value()), ("ma", self.e_ma.text()), ("out", out),
                      ("tpl", self.e_tpl[0].text()), ("matrix", json.dumps(rd, ensure_ascii=False))):
@@ -779,6 +784,259 @@ class GeneratorDialog(QDialog):
             msg += "\n\nBiên dịch PDF: " + ("thành công" if not fails else "lỗi ở " + ", ".join(fails))
         if QMessageBox.question(self, "Xong", msg + "\n\nMở thư mục kết quả?") == QMessageBox.StandardButton.Yes:
             QDesktopServices.openUrl(QUrl.fromLocalFile(os.path.abspath(out)))
+
+
+# =====================================================================
+class ToolsPanel(QWidget):
+    """Tab «Công cụ»: xử lí trực tiếp các file .tex (không cần nạp vào kho)."""
+
+    def __init__(self, win: MainWindow):
+        super().__init__()
+        self.win = win
+        body = QHBoxLayout(self)
+        left = QVBoxLayout()
+        body.addLayout(left, 2)
+
+        g = QGroupBox("File .tex nguồn")
+        gl = QVBoxLayout(g)
+        self.files = QListWidget()
+        self.files.setSelectionMode(QAbstractItemView.SelectionMode.ExtendedSelection)
+        gl.addWidget(self.files)
+        row = QHBoxLayout()
+        for text, fn in (("Thêm file…", self.add_files), ("Bỏ file chọn", self.remove_files),
+                         ("Xoá danh sách", self.files.clear)):
+            b = QPushButton(text)
+            b.clicked.connect(fn)
+            row.addWidget(b)
+        gl.addLayout(row)
+        left.addWidget(g, 2)
+
+        g = QGroupBox("Kiểm tra")
+        gl = QHBoxLayout(g)
+        for text, fn in (("Soát lỗi soạn thảo", self.check_files), ("Tìm câu trùng", self.find_dups),
+                         ("Thống kê theo ID", self.count_ids)):
+            b = QPushButton(text)
+            b.clicked.connect(fn)
+            gl.addWidget(b)
+        self.c_vs_bank = QCheckBox("so cả với kho")
+        self.c_vs_bank.setChecked(True)
+        gl.addWidget(self.c_vs_bank)
+        left.addWidget(g)
+
+        g = QGroupBox("Lọc câu theo ID ra file mới")
+        fl = QFormLayout(g)
+        self.e_loc = QLineEdit("0D2*")
+        self.cb_loc = QComboBox()
+        self.cb_loc.addItem("Mọi loại câu", "")
+        for k, v in TEN_LOAI.items():
+            self.cb_loc.addItem(v, k)
+        b = QPushButton("Lọc và lưu…")
+        b.setObjectName("primary")
+        b.clicked.connect(self.filter_ids)
+        fl.addRow("Mẫu ID", self.e_loc)
+        fl.addRow("Loại câu", self.cb_loc)
+        fl.addRow("", b)
+        left.addWidget(g)
+
+        g = QGroupBox("Đổi ID hàng loạt")
+        fl = QFormLayout(g)
+        self.e_map = QPlainTextEdit()
+        self.e_map.setPlaceholderText("Mỗi dòng: tiền tố cũ = tiền tố mới\nvd:\n0H9 = 0H4\n0D2 = 0D5")
+        self.e_map.setFixedHeight(80)
+        b = QPushButton("Đổi ID và lưu…")
+        b.clicked.connect(self.convert_ids)
+        fl.addRow("Bảng đổi", self.e_map)
+        fl.addRow("", b)
+        left.addWidget(g)
+
+        g = QGroupBox("Khác")
+        gl = QHBoxLayout(g)
+        for text, fn in (("Xoá lời giải…", self.erase_solutions), ("Nạp các file vào kho", self.import_to_bank)):
+            b = QPushButton(text)
+            b.clicked.connect(fn)
+            gl.addWidget(b)
+        left.addWidget(g)
+
+        g = QGroupBox("Kết quả")
+        gl = QVBoxLayout(g)
+        self.out = QTextBrowser()
+        gl.addWidget(self.out)
+        body.addWidget(g, 3)
+
+    # --- tiện ích
+    def paths(self) -> list[str]:
+        ps = [self.files.item(i).text() for i in range(self.files.count())]
+        if not ps:
+            self.add_files()
+            ps = [self.files.item(i).text() for i in range(self.files.count())]
+        return ps
+
+    def add_files(self):
+        ps, _ = QFileDialog.getOpenFileNames(self, "Chọn file .tex", self.win.settings.value("last_dir", ""),
+                                             "LaTeX (*.tex);;Tất cả (*.*)")
+        if ps:
+            self.win.settings.setValue("last_dir", os.path.dirname(ps[0]))
+        have = {self.files.item(i).text() for i in range(self.files.count())}
+        for p in ps:
+            if p not in have:
+                self.files.addItem(p)
+
+    def remove_files(self):
+        for it in self.files.selectedItems():
+            self.files.takeItem(self.files.row(it))
+
+    def show_result(self, title, html):
+        self.out.setHtml(f"<h3>{title}</h3>{html}")
+
+    def _save_path(self, default):
+        base = os.path.dirname(self.files.item(0).text()) if self.files.count() else ""
+        p, _ = QFileDialog.getSaveFileName(self, "Lưu thành", os.path.join(base, default), "LaTeX (*.tex)")
+        return p
+
+    # --- công cụ
+    def check_file(self):
+        """Gọi từ menu: chọn file rồi soát lỗi ngay."""
+        self.add_files()
+        if self.files.count():
+            self.check_files()
+
+    def check_files(self):
+        rows = []
+        for p in self.paths():
+            for i, q in enumerate(parse_file(p), 1):
+                ws = validate(q)
+                if self.c_vs_bank.isChecked() and self.win.bank:
+                    dup = self.win.bank.find_duplicate(q)
+                    if dup:
+                        ws.append(f"Trùng câu #{dup} trong kho")
+                color = "#c00000" if ws else "#0b7a0b"
+                rows.append(f"<tr><td>{os.path.basename(p)}</td><td>{i}</td><td>{q.qtype}</td><td>{q.id_code}</td>"
+                            f"<td>{q.answer_text}</td><td style='color:{color}'>{'<br>'.join(ws) or '✔'}</td></tr>")
+        self.show_result("Soát lỗi soạn thảo", "<table border=1 cellspacing=0 cellpadding=3><tr><th>File</th><th>Câu</th>"
+                  "<th>Loại</th><th>ID</th><th>Đáp án</th><th>Kết quả</th></tr>" + "".join(rows) + "</table>")
+
+    def find_dups(self):
+        ps = self.paths()
+        groups = tools.find_duplicates(ps)
+        html = [f"<p>Tìm thấy <b>{len(groups)}</b> nhóm câu trùng giữa các file.</p>"]
+        for k, g in enumerate(groups, 1):
+            html.append(f"<p><b>Nhóm {k}:</b> " + "; ".join(
+                f"{os.path.basename(f)} – câu {i} [{c}]" for f, i, c in g) + "</p>")
+        if self.c_vs_bank.isChecked() and self.win.bank:
+            hits = []
+            for p in ps:
+                for i, q in enumerate(parse_file(p), 1):
+                    dup = self.win.bank.find_duplicate(q)
+                    if dup:
+                        hits.append(f"{os.path.basename(p)} – câu {i} [{q.id_code}] ≡ câu #{dup} trong kho")
+            html.append(f"<p>Trùng với kho: <b>{len(hits)}</b> câu</p>" + "<br>".join(hits))
+        self.show_result("Tìm câu trùng", "".join(html))
+
+    def count_ids(self):
+        by_type, by_ch = tools.count_by_id(self.paths())
+        t1 = "".join(f"<tr><td>{TEN_LOAI.get(t, t)}</td><td>{TEN_MUC.get(m, m)}</td><td>{n}</td></tr>"
+                     for (t, m), n in sorted(by_type.items()))
+        t2 = "".join(f"<tr><td>{c}</td><td>{n}</td></tr>" for c, n in sorted(by_ch.items()))
+        self.show_result("Thống kê theo ID",
+                  f"<p>Tổng: <b>{sum(by_type.values())}</b> câu</p>"
+                  "<table border=1 cellspacing=0 cellpadding=3><tr><th>Loại</th><th>Mức độ</th><th>Số câu</th></tr>"
+                  + t1 + "</table><br><table border=1 cellspacing=0 cellpadding=3><tr><th>Lớp-Môn-Chương</th>"
+                  "<th>Số câu</th></tr>" + t2 + "</table>")
+
+    def filter_ids(self):
+        ps = self.paths()
+        if not ps:
+            return
+        out = self._save_path("loc_id.tex")
+        if out:
+            n = tools.filter_by_id(ps, self.e_loc.text(), out, self.cb_loc.currentData() or None)
+            self.show_result("Lọc câu theo ID", f"<p>Đã lọc <b>{n}</b> câu có ID <code>{self.e_loc.text()}</code> ra<br>{out}</p>")
+
+    def convert_ids(self):
+        mapping = tools.parse_mapping(self.e_map.toPlainText())
+        if not mapping:
+            QMessageBox.warning(self, "Đổi ID", "Chưa nhập bảng đổi (mỗi dòng: cũ = mới).")
+            return
+        html = []
+        for p in self.paths():
+            out = self._save_path(os.path.splitext(os.path.basename(p))[0] + "_doiID.tex")
+            if out:
+                n = tools.convert_ids(p, out, mapping)
+                html.append(f"<p>{os.path.basename(p)}: đổi <b>{n}</b> ID → {out}</p>")
+        self.show_result("Đổi ID", "".join(html))
+
+    def erase_solutions(self):
+        html = []
+        for p in self.paths():
+            out = self._save_path(os.path.splitext(os.path.basename(p))[0] + "_khongLG.tex")
+            if out:
+                n = tools.erase_solutions(p, out)
+                html.append(f"<p>{os.path.basename(p)}: xoá <b>{n}</b> lời giải → {out}</p>")
+        self.show_result("Xoá lời giải", "".join(html))
+
+    def import_to_bank(self):
+        lines = []
+        for p in self.paths():
+            qs = parse_file(p)
+            added = sum(1 for q in qs if self.win.bank.add(q, p))
+            lines.append(f"<p>{os.path.basename(p)}: {len(qs)} câu, thêm <b>{added}</b>, trùng {len(qs) - added}</p>")
+        self.win.build_tree()
+        self.win.refresh()
+        self.show_result("Nạp vào kho", "".join(lines))
+
+
+# =====================================================================
+class StatsPanel(QWidget):
+    """Tab «Thống kê»: tổng quan kho theo lớp/chương/loại/mức độ."""
+
+    def __init__(self, win: MainWindow):
+        super().__init__()
+        self.win = win
+        lay = QVBoxLayout(self)
+        self.cards = QHBoxLayout()
+        lay.addLayout(self.cards)
+        self.card_labels = {}
+        for key, title in (("all", "Tổng số câu"), ("TN", "Trắc nghiệm"), ("DS", "Đúng/Sai"),
+                           ("KQ", "Trả lời ngắn"), ("TL", "Tự luận")):
+            box = QGroupBox(title)
+            bl = QVBoxLayout(box)
+            lb = QLabel("0")
+            lb.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            lb.setStyleSheet("font-size: 26px; font-weight: 700; color: #1f4e79;")
+            bl.addWidget(lb)
+            self.card_labels[key] = lb
+            self.cards.addWidget(box)
+        self.t = QTableWidget(0, 7)
+        self.t.setHorizontalHeaderLabels(["Lớp", "Môn", "Chương", "Nhận biết", "Thông hiểu", "Vận dụng",
+                                          "Vận dụng cao"])
+        self.t.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
+        self.t.verticalHeader().setVisible(False)
+        self.t.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+        self.t.setAlternatingRowColors(True)
+        lay.addWidget(QLabel("<b>Số câu theo chương và mức độ</b>"))
+        lay.addWidget(self.t, 1)
+
+    def reload(self):
+        bank = self.win.bank
+        if not bank:
+            return
+        self.card_labels["all"].setText(str(bank.count()))
+        for k in TEN_LOAI:
+            n = bank.con.execute("SELECT COUNT(*) FROM questions WHERE qtype=?", (k,)).fetchone()[0]
+            self.card_labels[k].setText(str(n))
+        grid = {}
+        for r in bank.stats():
+            key = (r["lop"], r["mon"], r["chuong"])
+            grid.setdefault(key, {})
+            grid[key][r["muc_do"]] = grid[key].get(r["muc_do"], 0) + r["n"]
+        self.t.setRowCount(len(grid))
+        for i, ((lop, mon, ch), d) in enumerate(sorted(grid.items())):
+            vals = [LOP.get(lop, lop or "?"), MON.get(mon, mon or "?"), ch or "?"] + \
+                   [d.get(m, 0) for m in "NHVC"]
+            for c, v in enumerate(vals):
+                it = QTableWidgetItem(str(v))
+                it.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+                self.t.setItem(i, c, it)
 
 
 def compile_pdfs(tex_files, cwd) -> list[str]:
