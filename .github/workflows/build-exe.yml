@@ -20,6 +20,7 @@ on:
       - "nganhangde/**"
       - "run_gui.py"
       - "requirements*.txt"
+      - "RELEASE_NOTES.md"
       - ".github/workflows/build-exe.yml"
 
 permissions:
@@ -66,20 +67,4 @@ jobs:
           name: Ngân hàng đề thi ${{ steps.ver.outputs.version }}
           make_latest: true
           files: dist/NganHangDe.exe
-          body: |
-            ## Tải về và chạy
-            1. Tải file **NganHangDe.exe** ở mục *Assets* bên dưới.
-            2. Chép vào một thư mục riêng (ví dụ `D:\NganHangDe`) rồi nhấp đúp để chạy, không cần cài đặt.
-            3. Nếu Windows SmartScreen cảnh báo (vì file chưa ký số): bấm **More info → Run anyway**.
-
-            Kho câu hỏi `nganhang.db` được tạo cạnh file exe. Sao lưu hoặc chia sẻ kho bằng cách chép file `.db`.
-            Thử nhanh: menu **Tệp → Nhập file .tex**, chọn một file đề định dạng `ex_test`.
-
-            ## Chức năng chính
-            - Ngân hàng câu hỏi LaTeX (`ex_test`): trắc nghiệm, Đúng/Sai, trả lời ngắn, tự luận; phân loại theo ID `[0D2N1-2]`, giải nghĩa ID, câu tương tự
-            - Tạo đề theo ma trận, nhiều mã đề, cân bằng đáp án A/B/C/D, ma trận từ đề có sẵn
-            - Rà soát đáp án và lời giải, xoá câu sai
-            - Công cụ trên file `.tex`: trộn đề trực tiếp, lọc/đổi ID, lấy bảng đáp án, tìm câu trùng
-            - Sao lưu, gộp và tách kho
-
-            Hướng dẫn chi tiết: `HUONG-DAN-LAP-TRINH.md` trong mã nguồn.
+          body_path: RELEASE_NOTES.md

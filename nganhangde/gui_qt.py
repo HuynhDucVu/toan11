@@ -1017,7 +1017,7 @@ class IdMapDialog(QDialog):
 # =====================================================================
 class ReviewPanel(QWidget):
     """Tab «Rà soát»: kiểm tra đáp án – lời giải – LaTeX của cả kho hoặc một file, rồi sửa/xoá câu sai."""
-    COLS = ["", "Mức", "Câu", "Loại", "ID", "Đáp án", "Vấn đề"]
+    COLS = ["", "Mức", "Câu", "Loại", "ID", "Đáp án", "Vấn đề", "Tự sửa được"]
 
     def __init__(self, win: MainWindow):
         super().__init__()
@@ -1063,6 +1063,7 @@ class ReviewPanel(QWidget):
         for c, w_ in enumerate((30, 80, 150, 100, 90, 70)):
             self.t.setColumnWidth(c, w_)
         self.t.horizontalHeader().setSectionResizeMode(6, QHeaderView.ResizeMode.Stretch)
+        self.t.setColumnWidth(7, 280)
         self.t.itemSelectionChanged.connect(self.on_select)
         self.t.doubleClicked.connect(lambda *_: self.edit())
         split.addWidget(self.t)
@@ -1071,9 +1072,33 @@ class ReviewPanel(QWidget):
         split.setSizes([420, 260])
         lay.addWidget(split, 1)
 
+        g = QGroupBox("Sửa tự động")
+        fx = QHBoxLayout(g)
+        fx.addWidget(QLabel("Khi đáp án lệch lời giải:"))
+        self.cb_policy = QComboBox()
+        self.cb_policy.addItem("Tin lời giải → sửa đánh dấu \\True", rv.THEO_LOI_GIAI)
+        self.cb_policy.addItem("Tin đáp án → sửa chữ trong lời giải", rv.THEO_DAP_AN)
+        self.cb_policy.currentIndexChanged.connect(self.fill)
+        fx.addWidget(self.cb_policy)
+        self.c_concl = QCheckBox("Thêm câu kết luận còn thiếu («Chọn đáp án X», «Vậy đáp án là …»)")
+        self.c_concl.setChecked(True)
+        self.c_concl.toggled.connect(self.fill)
+        fx.addWidget(self.c_concl)
+        fx.addStretch()
+        b = QPushButton("Sửa các câu đã đánh dấu")
+        b.clicked.connect(self.fix_checked)
+        fx.addWidget(b)
+        b = QPushButton("⚡ SỬA TỰ ĐỘNG + BỎ CÂU SAI")
+        b.setObjectName("primary")
+        b.setToolTip("Sửa mọi câu sửa được, sau đó xoá những câu vẫn còn Lỗi")
+        b.clicked.connect(self.fix_all_and_remove)
+        fx.addWidget(b)
+        lay.addWidget(g)
+
         row = QHBoxLayout()
-        for text, fn in (("Đánh dấu mọi câu Lỗi", self.check_errors), ("Bỏ đánh dấu", self.uncheck_all),
-                         ("Sửa câu (kho)", self.edit), ("Xuất báo cáo CSV…", self.export_csv)):
+        for text, fn in (("Đánh dấu mọi câu Lỗi", self.check_errors), ("Đánh dấu câu sửa được", self.check_fixable),
+                         ("Bỏ đánh dấu", self.uncheck_all),
+                         ("Sửa tay (kho)", self.edit), ("Xuất báo cáo CSV…", self.export_csv)):
             b = QPushButton(text)
             b.clicked.connect(fn)
             row.addWidget(b)
@@ -1131,12 +1156,16 @@ class ReviewPanel(QWidget):
             chk.setCheckState(Qt.CheckState.Unchecked)
             self.t.setItem(r, 0, chk)
             color = QColor("#c00000") if it["level"] == rv.LOI else QColor("#b36b00")
+            fixed, done = self.plan_fix(q)
+            it["fix"] = (fixed, done)
             vals = [it["level"], it["label"], TEN_LOAI[q.qtype], q.id_code, q.answer_text,
-                    " • ".join(i.msg for i in it["issues"])]
+                    " • ".join(i.msg for i in it["issues"]), ("🔧 " + "; ".join(done)) if done else "—"]
             for c, v in enumerate(vals, 1):
                 cell = QTableWidgetItem(str(v))
                 if c in (1, 6):
                     cell.setForeground(color)
+                if c == 7 and done:
+                    cell.setForeground(QColor("#0b7a0b"))
                 cell.setToolTip("\n".join(f"[{i.level}] {i.msg}" for i in it["issues"]))
                 self.t.setItem(r, c, cell)
         self.code.clear()
@@ -1147,6 +1176,80 @@ class ReviewPanel(QWidget):
             it = self.items[rows[0]]
             head = "\n".join(f"% [{i.level}] {i.msg}" for i in it["issues"])
             self.code.setPlainText(head + "\n" + (it["q"].raw or it["q"].to_latex()))
+
+    # ---------------------------------------------------------- tự sửa
+    def plan_fix(self, q):
+        """Câu sau khi tự sửa + danh sách việc sẽ làm (chưa ghi gì)."""
+        fixed, done = rv.fix_question(q, self.cb_policy.currentData())
+        if self.c_concl.isChecked():
+            fixed2, added = rv.add_conclusion(fixed)
+            if added:
+                fixed = fixed2
+                done = done + ["Thêm câu kết luận"]
+        return fixed, done
+
+    def check_fixable(self):
+        for r, it in enumerate(self.items):
+            ok = bool(it.get("fix", (None, []))[1])
+            self.t.item(r, 0).setCheckState(Qt.CheckState.Checked if ok else Qt.CheckState.Unchecked)
+
+    def commit(self, changes, removes, title) -> bool:
+        """Ghi các thay đổi: changes = [(item, câu_mới)], removes = [item]. Kho: ghi thẳng; file: lưu file mới."""
+        if not changes and not removes:
+            QMessageBox.information(self, title, "Không có câu nào cần sửa hoặc xoá.")
+            return False
+        if self.cb_src.currentData() == "bank":
+            msg = f"Sửa {len(changes)} câu và xoá {len(removes)} câu trong kho?"
+            if QMessageBox.question(self, title, msg + "\nNên sao lưu kho trước (Tệp → Sao lưu kho).") \
+                    != QMessageBox.StandardButton.Yes:
+                return False
+            for it, nq in changes:
+                self.win.bank.update(it["q"].db_id, nq)
+            if removes:
+                self.win.bank.delete([it["q"].db_id for it in removes])
+            self.win.build_tree()
+            self.win.refresh()
+            QMessageBox.information(self, title, f"Đã sửa {len(changes)} câu, xoá {len(removes)} câu khỏi kho.")
+        else:
+            src = self.e_file.text().strip()
+            base, ext = os.path.splitext(src)
+            out, _ = QFileDialog.getSaveFileName(self, "Lưu file đã rà soát", base + "_dasoat" + ext, "LaTeX (*.tex)")
+            if not out:
+                return False
+            with open(src, encoding="utf-8") as f:
+                text = f.read()
+            text, n_fix = rv.replace_questions_text(text, [(it["q"].raw, nq.to_latex()) for it, nq in changes])
+            text, n_del = rv.remove_questions_text(text, [it["q"].raw for it in removes])
+            with open(out, "w", encoding="utf-8") as f:
+                f.write(text)
+            QMessageBox.information(self, title, f"Đã sửa {n_fix} câu, bỏ {n_del} câu.\nLưu thành: {out}\n"
+                                    "(file gốc giữ nguyên)")
+            self.e_file.setText(out)
+        self.run()
+        return True
+
+    def fix_checked(self):
+        items = self.checked()
+        if not items:
+            QMessageBox.information(self, "Sửa câu", "Chưa đánh dấu câu nào (cột đầu tiên). "
+                                    "Bấm «Đánh dấu câu sửa được» để chọn nhanh.")
+            return
+        changes = [(it, it["fix"][0]) for it in items if it.get("fix", (None, []))[1]]
+        self.commit(changes, [], "Sửa tự động")
+
+    def fix_all_and_remove(self):
+        """Một bước: sửa mọi câu sửa được, rồi bỏ các câu vẫn còn Lỗi sau khi sửa."""
+        if not self.items:
+            self.run()
+        changes, removes = [], []
+        for it in self.items:
+            nq, done = it.get("fix", (it["q"], []))
+            if done:
+                changes.append((it, nq))
+            if rv.worst(rv.review_question(nq if done else it["q"])) == rv.LOI:
+                removes.append(it)
+        changes = [(it, nq) for it, nq in changes if it not in removes]
+        self.commit(changes, removes, "Sửa tự động + bỏ câu sai")
 
     def checked(self):
         return [self.items[r] for r in range(self.t.rowCount())

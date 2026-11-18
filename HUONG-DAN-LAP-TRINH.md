@@ -196,6 +196,33 @@ Một số kĩ thuật dùng trong `review.py`:
 * `remove_questions_text` xoá đúng khối câu khỏi file và giữ nguyên phần còn lại.
   Khi rà soát file, kết quả luôn được lưu thành **file mới**; file gốc không bị ghi đè.
 
+**Tự sửa** (`fix_question`, `add_conclusion`). Trước tiên giáo viên chọn tin vào bên nào khi đáp án lệch lời giải:
+
+| Tình huống | Tin lời giải | Tin đáp án |
+|---|---|---|
+| TN: lời giải «Chọn C», `\True` ở B (hoặc có 2 `\True`) | dời `\True` sang C | đổi chữ trong lời giải thành «Chọn B» (chỉ khi có đúng 1 `\True`) |
+| Đúng/Sai: mục `\itemch` ghi «Đúng» mà ý không có `\True` | sửa `\True` theo lời giải | đổi chữ «Đúng/Sai» trong lời giải |
+
+Các sửa khác, áp dụng như nhau với cả hai lựa chọn:
+
+* Trả lời ngắn dùng dấu chấm thập phân, ví dụ `0.5`, được đổi thành `0{,}5`.
+* Lời giải thiếu kết luận được thêm câu «Chọn đáp án \textbf{X}» (trắc nghiệm) hoặc «Vậy đáp án là …» (trả lời ngắn).
+
+Nút **⚡ SỬA TỰ ĐỘNG + BỎ CÂU SAI** làm hai bước:
+
+1. Sửa mọi câu sửa được.
+2. Rà soát lại; câu nào vẫn còn **Lỗi** thì bị bỏ (xoá khỏi kho, hoặc bỏ khỏi file mới).
+
+Những câu không thể tự sửa: phương án trùng nhau; hai `\True` mà lời giải không ghi «Chọn X»;
+đáp án trả lời ngắn không phải số; LaTeX hỏng.
+
+Trong file, câu đã sửa được ghi lại bằng `Question.to_latex()`; phần còn lại của file giữ nguyên.
+
+Khi **trộn phương án**, `shuffle_choices` cũng đổi chữ trong «Chọn X» theo hoán vị.
+Nhờ vậy lời giải của mọi mã đề vẫn khớp đáp án.
+
+Dòng lệnh: `python -m nganhangde review de.tex --fix theo-loi-giai --add-conclusion --remove-errors -o de_sach.tex`.
+
 Rà soát chỉ phát hiện **mâu thuẫn hình thức**, ví dụ lời giải và đáp án lệch nhau hay đáp án sai dạng.
 Nó **không tự giải lại bài**. Một câu cả đáp án lẫn lời giải cùng sai một cách nhất quán thì không phát hiện được,
 nên giáo viên vẫn cần duyệt các câu quan trọng.
@@ -246,7 +273,7 @@ python -m nganhangde gui                               # mở giao diện cửa 
 | 📚 **Ngân hàng câu hỏi** | Bên trái là **cây chương**, hiện tên chương lấy từ bảng giải nghĩa ID, và **bộ lọc** (loại câu, mức độ, mẫu ID, từ khoá). Ở giữa là bảng câu hỏi. Bên dưới có ba tab: *Thông tin* (giải nghĩa đủ chương → bài → dạng), *Mã LaTeX*, và *Câu tương tự* (các câu cùng dạng, cùng mức độ; nhấp đúp để sửa) |
 | 📝 **Tạo đề** | Bên trái: thông tin đề và **tuỳ chọn trộn** (trộn câu, trộn A–D, trộn ý Đúng/Sai, cân bằng đáp án, giữ đề gốc). Bên phải: ma trận đề có cột «Kho có» và nút **Ma trận từ đề có sẵn…**. Tạo xong sẽ hiện bảng phân bố đáp án A/B/C/D và tỉ lệ trùng giữa các mã đề |
 | 🛠 **Công cụ** | Làm việc trực tiếp trên file `.tex`: soát lỗi, tìm câu trùng, thống kê theo ID, lọc câu theo ID, đổi ID hàng loạt, **trộn đề trực tiếp từ file**, lấy bảng đáp án, thêm nguồn cho mọi câu, gộp và sắp xếp theo ID, xoá lời giải, nạp vào kho |
-| ✅ **Rà soát** | Kiểm tra đáp án, lời giải và LaTeX của cả kho hoặc một file. Mỗi câu được xếp mức Lỗi (đỏ) hoặc Cảnh báo (cam). Có nút đánh dấu mọi câu lỗi, xoá câu đã đánh dấu (với file thì lưu thành file mới), nhấp đúp để sửa, xuất báo cáo CSV (xem mục 7b) |
+| ✅ **Rà soát** | Kiểm tra đáp án, lời giải và LaTeX của cả kho hoặc một file. Mỗi câu được xếp mức Lỗi (đỏ) hoặc Cảnh báo (cam). Cột «Tự sửa được» cho biết trước sẽ sửa gì. Có các nút: *Sửa các câu đã đánh dấu*, **⚡ SỬA TỰ ĐỘNG + BỎ CÂU SAI**, xoá câu đã đánh dấu (với file thì lưu thành file mới), nhấp đúp để sửa tay, xuất báo cáo CSV (xem mục 7b) |
 | 📊 **Thống kê** | Các ô tổng số câu theo loại, và bảng số câu theo chương × mức độ |
 
 Các công cụ trong tab Công cụ được viết ở `tools.py` (có kiểm thử), không phụ thuộc giao diện.
@@ -343,7 +370,7 @@ Bảng dưới lập từ tên các thành phần giao diện trong file `MyLT.e
 | Câu tương tự | ✅ |
 | Sao lưu kho, gộp kho (Joiner), tách kho (Extract) | ✅ |
 | Soát lỗi, tìm câu trùng | ✅ |
-| **Rà soát đáp án – lời giải, xoá câu sai** | ✅ (MyLT có kiểm tra câu lỗi; phần đối chiếu đáp án với lời giải là phần thêm) |
+| **Rà soát đáp án – lời giải, tự sửa, bỏ câu sai** | ✅ (MyLT có kiểm tra câu lỗi; phần đối chiếu đáp án với lời giải và tự sửa là phần thêm) |
 | Tạo đề theo ma trận, nhiều mã đề, danh sách mã đề | ✅ |
 | Ma trận từ đề có sẵn | ✅ |
 | Cân bằng tỉ lệ đáp án | ✅ |

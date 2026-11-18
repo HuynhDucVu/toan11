@@ -186,6 +186,8 @@ def check_kq(q: Question) -> list[Issue]:
     a = plain_number(q.short_answer)
     if not a:
         return [Issue(LOI, "kq_rong", "Chưa có đáp án trả lời ngắn")]
+    if re.search(r"\d\.\d", q.short_answer):
+        out.append(Issue(CANH_BAO, "kq_cham", f"Đáp án «{q.short_answer}» dùng dấu chấm thập phân (phiếu thi dùng dấu phẩy)"))
     if not NUMBER_RE.match(a):
         out.append(Issue(LOI, "kq_so", f"Đáp án «{q.short_answer}» không phải một số (phiếu thi chỉ tô được số)"))
     elif len(a) > 4:
@@ -232,4 +234,113 @@ def remove_questions_text(text: str, raws_to_remove: list[str]) -> tuple[str, in
             j += 1
         text = text[:i] + text[j:]
         n += 1
+    return text, n
+
+
+# ================================================================ TỰ SỬA
+THEO_LOI_GIAI, THEO_DAP_AN = "theo_loi_giai", "theo_dap_an"
+WORD_RE = re.compile(r"(Đúng|Sai|đúng|sai|ĐÚNG|SAI)")
+
+
+def _replace_chon_letters(solution: str, mapping) -> str:
+    """Đổi chữ cái trong mọi cụm «Chọn X» của lời giải; mapping: hàm chữ_cũ → chữ_mới."""
+    def sub(m):
+        a, b = m.span(1)
+        rel_a, rel_b = a - m.start(), b - m.start()
+        g = m.group(0)
+        return g[:rel_a] + mapping(m.group(1)) + g[rel_b:]
+    return CHON_RE.sub(sub, solution)
+
+
+def _rewrite_ds_words(solution: str, marks: list[bool]) -> str:
+    """Viết lại chữ Đúng/Sai đầu mỗi mục \\itemch cho khớp marks."""
+    pos = [m.end() for m in ITEMCH_RE.finditer(solution)]
+    if len(pos) != len(marks):
+        return solution
+    out, last = [], 0
+    for p, ok in zip(pos, marks):
+        m = WORD_RE.search(solution, p, min(len(solution), p + 40))
+        if not m:
+            continue
+        word = "Đúng" if ok else "Sai"
+        if m.group(0).isupper():
+            word = word.upper()
+        out.append(solution[last:m.start()] + word)
+        last = m.end()
+    out.append(solution[last:])
+    return "".join(out)
+
+
+def fix_question(q: Question, policy: str = THEO_LOI_GIAI) -> tuple[Question, list[str]]:
+    """Tự sửa những lỗi sửa được một cách chắc chắn. Trả về (câu đã sửa, danh sách việc đã làm).
+
+    policy khi đáp án mâu thuẫn lời giải:
+        THEO_LOI_GIAI – giữ lời giải, sửa đánh dấu \\True cho khớp lời giải
+        THEO_DAP_AN   – giữ \\True, sửa chữ trong lời giải («Chọn X», «Đúng/Sai») cho khớp đáp án
+    """
+    import copy
+    q = copy.deepcopy(q)
+    done = []
+    sol_nc = strip_comments(q.solution)
+
+    if q.qtype == "TN" and len(q.choices) == 4:
+        m = CHON_RE.findall(sol_nc)
+        n_true = sum(q.correct)
+        if m:
+            said = LETTERS.index(m[-1])
+            right = q.correct.index(True) if n_true == 1 else None
+            if right != said:
+                if policy == THEO_LOI_GIAI or n_true != 1:
+                    q.correct = [i == said for i in range(4)]
+                    done.append(f"Đặt \\True vào phương án {m[-1]} theo lời giải")
+                else:
+                    q.solution = _replace_chon_letters(q.solution, lambda _L: LETTERS[right])
+                    done.append(f"Sửa lời giải thành «Chọn {LETTERS[right]}» theo đáp án")
+
+    elif q.qtype == "DS" and q.solution:
+        marks = _ds_solution_marks(q.solution)
+        if len(marks) == len(q.choices) and all(x is not None for x in marks) and marks != q.correct:
+            bad = ", ".join("abcd"[i] for i, (a, b) in enumerate(zip(marks, q.correct)) if a != b and i < 4)
+            if policy == THEO_LOI_GIAI:
+                q.correct = list(marks)
+                done.append(f"Sửa đánh dấu \\True ý {bad} theo lời giải")
+            else:
+                new = _rewrite_ds_words(q.solution, q.correct)
+                if new != q.solution:
+                    q.solution = new
+                    done.append(f"Sửa chữ Đúng/Sai trong lời giải ý {bad} theo đáp án")
+
+    elif q.qtype == "KQ" and re.search(r"\d\.\d", q.short_answer):
+        q.short_answer = re.sub(r"(\d)\.(\d)", r"\1{,}\2", q.short_answer)
+        done.append("Đổi dấu chấm thập phân thành dấu phẩy")
+    return q, done
+
+
+def add_conclusion(q: Question) -> tuple[Question, bool]:
+    """Thêm câu kết luận cuối lời giải (TN: «Chọn đáp án X»; trả lời ngắn: «Vậy đáp án là …»)."""
+    import copy
+    if not q.solution.strip():
+        return q, False
+    sol = strip_comments(q.solution)
+    q2 = copy.deepcopy(q)
+    if q.qtype == "TN" and sum(q.correct) == 1 and not CHON_RE.search(sol):
+        q2.solution = q.solution.rstrip() + "\n\t\tChọn đáp án \\textbf{" + LETTERS[q.correct.index(True)] + "}."
+        return q2, True
+    if q.qtype == "KQ" and q.short_answer:
+        a = plain_number(q.short_answer)
+        if NUMBER_RE.match(a) and not re.search(r"(?<![\d,])" + re.escape(a) + r"(?![\d])", plain_number(sol)):
+            ans = q.short_answer if "$" in q.short_answer else f"${q.short_answer}$"
+            q2.solution = q.solution.rstrip() + f"\\\\\n\t\tVậy đáp án là {ans}."
+            return q2, True
+    return q, False
+
+
+def replace_questions_text(text: str, pairs: list[tuple[str, str]]) -> tuple[str, int]:
+    """Thay khối câu cũ (raw) bằng khối mới trong file, giữ nguyên phần còn lại."""
+    n = 0
+    for old, new in pairs:
+        i = text.find(old)
+        if i >= 0:
+            text = text[:i] + new + text[i + len(old):]
+            n += 1
     return text, n

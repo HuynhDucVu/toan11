@@ -120,6 +120,12 @@ def shuffle_choices(q: Question, rng: random.Random, target: int | None = None) 
         items = [items[i].strip() for i in perm]
         ind = "\n\t\t\t"
         q.solution = head.rstrip() + ind + ind.join(items) + "\n\t\t" + tail.lstrip()
+    if q.qtype == "TN" and n <= 4:
+        # lời giải ghi «Chọn C» phải đổi theo vị trí mới của phương án
+        from .review import _replace_chon_letters
+        L = "ABCD"
+        q.solution = _replace_chon_letters(q.solution, lambda old: L[perm.index(L.index(old))]
+                                           if L.index(old) < n else old)
     q.choices = [q.choices[i] for i in perm]
     q.correct = [q.correct[i] for i in perm]
     return q

@@ -217,3 +217,37 @@ def test_review():
     assert n == 2 and len(parse_tex(text)) == 3
     # đề mẫu: không có lỗi nặng
     assert all(worst(review_question(q)) != LOI for q in parse_file(SAMPLE))
+
+
+def test_fix_and_conclusion():
+    from nganhangde import review as rv
+    qs = parse_tex(BAD)
+    f, done = rv.fix_question(qs[0], rv.THEO_LOI_GIAI)
+    assert f.answer_text == "C" and done and rv.worst(rv.review_question(f)) != rv.LOI
+    f, done = rv.fix_question(qs[0], rv.THEO_DAP_AN)
+    assert f.answer_text == "B" and "Chọn đáp án B" in f.solution
+    f, _ = rv.fix_question(qs[2], rv.THEO_LOI_GIAI)
+    assert f.answer_text == "ĐĐĐS"
+    f, _ = rv.fix_question(qs[2], rv.THEO_DAP_AN)
+    assert f.answer_text == "ĐSĐS" and "\\itemch Sai. y" in f.solution
+    f, done = rv.fix_question(qs[1])          # 2 \True, không có «Chọn» ⇒ không tự sửa được
+    assert not done
+    kq = parse_tex(r"\begin{ex}%[0D1V1-1]" "\nTính.\n\\shortans[oly]{$0.5$}\n\\loigiai{Ta có $0{,}5$.}\n\\end{ex}")[0]
+    f, done = rv.fix_question(kq)
+    assert f.short_answer == "$0{,}5$" and not rv.review_question(f)
+    q = parse_file(SAMPLE)[17]
+    f, ok = rv.add_conclusion(q)
+    assert ok and not rv.review_question(f)
+    text, n = rv.replace_questions_text(BAD, [(qs[0].raw, rv.fix_question(qs[0])[0].to_latex())])
+    assert n == 1 and parse_tex(text)[0].answer_text == "C"
+
+
+def test_shuffle_updates_chon_letter():
+    import random
+    from nganhangde.generator import shuffle_choices
+    from nganhangde import review as rv
+    q = parse_tex(r"\begin{ex}%[0D1N1-1]" "\nX\n\\choice{1}{\\True 2}{3}{4}\n\\loigiai{Vậy chọn. Chọn đáp án B.}\n\\end{ex}")[0]
+    for s in range(10):
+        m = shuffle_choices(q, random.Random(s))
+        assert not [i for i in rv.review_question(m) if i.code == "chon_lech"]
+        assert f"Chọn đáp án {m.answer_text}" in m.solution

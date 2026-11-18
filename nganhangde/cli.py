@@ -9,7 +9,7 @@
     python -m nganhangde shuffle de.tex -n 4 -o out   # trộn trực tiếp 1 file đề
     python -m nganhangde idmap --load map_id.txt      # nạp giải nghĩa ID
     python -m nganhangde backup saoluu.db             # sao lưu kho
-    python -m nganhangde review de.tex --remove-errors -o de_sach.tex   # rà soát, bỏ câu lỗi
+    python -m nganhangde review de.tex --fix theo-loi-giai --add-conclusion --remove-errors -o de_sach.tex
     python -m nganhangde gui                          # mở giao diện cửa sổ
 """
 from __future__ import annotations
@@ -119,9 +119,19 @@ def cmd_review(bank: Bank, a):
         src = [(f"{path} câu {i}", q, path) for path in a.files for i, q in enumerate(parse_file(path), 1)]
     else:
         src = [(f"kho #{q.db_id}", q, None) for q in bank.search()]
-    bad = []
+    bad, fixes = [], []
     n_err = n_warn = 0
     for label, q, path in src:
+        if a.fix:
+            nq, done = rv.fix_question(q, rv.THEO_DAP_AN if a.fix == "theo-dap-an" else rv.THEO_LOI_GIAI)
+            if a.add_conclusion:
+                nq2, added = rv.add_conclusion(nq)
+                if added:
+                    nq, done = nq2, done + ["Thêm câu kết luận"]
+            if done:
+                print(f"[Sửa] {label}: {'; '.join(done)}")
+                fixes.append((q, nq, path))
+                q = nq
         iss = rv.review_question(q)
         lv = rv.worst(iss)
         n_err += lv == rv.LOI
@@ -133,19 +143,28 @@ def cmd_review(bank: Bank, a):
         if lv == rv.LOI:
             bad.append((q, path))
     print(f"\nTổng {len(src)} câu: {n_err} lỗi, {n_warn} cảnh báo, {len(src) - n_err - n_warn} đạt")
-    if a.remove_errors and bad:
+    if fixes and not a.files:
+        for old, nq, _ in fixes:
+            bank.update(old.db_id, nq)
+        print(f"Đã sửa {len(fixes)} câu trong kho")
+    if (a.remove_errors and bad) or (fixes and a.files):
         if a.files:
             if not a.out:
-                sys.exit("Cần -o FILE_MOI.tex để lưu file đã bỏ câu lỗi (file gốc giữ nguyên)")
+                sys.exit("Cần -o FILE_MOI.tex để lưu file đã sửa/bỏ câu lỗi (file gốc giữ nguyên)")
             texts = []
             for path in a.files:
                 with open(path, encoding="utf-8") as f:
-                    t, _ = rv.remove_questions_text(f.read(), [q.raw for q, p in bad if p == path])
+                    t, _ = rv.replace_questions_text(f.read(), [(o.raw, nq.to_latex()) for o, nq, p in fixes if p == path])
+                    if a.remove_errors:
+                        t, _ = rv.remove_questions_text(t, [q.to_latex() if q.raw == "" else q.raw for q, p in bad
+                                                            if p == path] + [nq.to_latex() for o, nq, p in fixes
+                                                            if p == path and any(b is nq for b, _ in bad)])
                 texts.append(t)
             with open(a.out, "w", encoding="utf-8") as f:
                 f.write("\n".join(texts))
-            print(f"Đã bỏ {len(bad)} câu lỗi, lưu thành {a.out}")
-        else:
+            print(f"Đã sửa {len(fixes)} câu" + (f", bỏ {len(bad)} câu lỗi" if a.remove_errors else "")
+                  + f", lưu thành {a.out}")
+        elif a.remove_errors:
             bank.delete([q.db_id for q, _ in bad])
             print(f"Đã xoá {len(bad)} câu lỗi khỏi kho")
 
@@ -197,7 +216,10 @@ def main(argv=None):
     p.add_argument("files", nargs="*", help="bỏ trống = rà soát cả kho")
     p.add_argument("--only-errors", action="store_true", help="chỉ in câu có lỗi")
     p.add_argument("--remove-errors", action="store_true", help="xoá câu có lỗi (kho) / bỏ khỏi file mới")
-    p.add_argument("-o", "--out", help="file mới khi --remove-errors với file .tex")
+    p.add_argument("-o", "--out", help="file mới khi sửa/bỏ câu trong file .tex")
+    p.add_argument("--fix", choices=["theo-loi-giai", "theo-dap-an"],
+                   help="tự sửa đáp án lệch lời giải (tin lời giải / tin đáp án)")
+    p.add_argument("--add-conclusion", action="store_true", help="thêm câu kết luận còn thiếu vào lời giải")
     p = sub.add_parser("backup")
     p.add_argument("dest")
     p = sub.add_parser("make")
