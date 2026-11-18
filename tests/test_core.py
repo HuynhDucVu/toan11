@@ -412,3 +412,64 @@ def test_batch1_features(bank, tmp_path):
                   "\\choice{\\True a}{b}{c}{d}\n\\end{ex}\n", encoding="utf-8")
     fs = tools.extract_tikz([str(tz)], str(tmp_path / "hinh"))
     assert len(fs) == 1 and "standalone" in open(fs[0], encoding="utf-8").read()
+
+
+WORD_MD = """**Câu 1:** Tập nghiệm của phương trình $x^2-1=0$ là
+
+A. $\\{1\\}$ B. $\\{-1\\}$ [C.]{.underline} $\\{-1;1\\}$ D. $\\varnothing$
+
+Lời giải: Ta có $x^2=1$ nên $x=\\pm1$. Chọn C.
+
+**Câu 2.** Cho hàm số $y=x^2$. Xét tính đúng sai:
+
+[a)]{.underline} Hàm số đồng biến trên $(0;+\\infty)$.
+
+b) Đồ thị đi qua điểm $(1;2)$.
+
+[c)]{.underline} Hàm số có giá trị nhỏ nhất bằng $0$.
+
+d) Hàm số là hàm số lẻ.
+
+Câu 3: Tính $\\dfrac{1}{2}+0{,}25$.
+
+Đáp án: 0,75
+
+Lời giải: $0{,}5+0{,}25=0{,}75$.
+"""
+
+
+def test_word_import(tmp_path):
+    import shutil
+    import subprocess
+    if not shutil.which("pandoc"):
+        pytest.skip("chưa cài pandoc")
+    from nganhangde.wordconv import import_docx
+    md = tmp_path / "de.md"
+    md.write_text(WORD_MD, encoding="utf-8")
+    docx = tmp_path / "de.docx"
+    subprocess.run(["pandoc", str(md), "-o", str(docx)], check=True)
+    qs = parse_tex(import_docx(str(docx), tag="Word"))
+    assert [q.qtype for q in qs] == ["TN", "DS", "KQ"]
+    assert qs[0].answer_text == "C" and "Chọn C" in qs[0].solution
+    assert qs[1].answer_text == "ĐSĐS"
+    assert qs[2].short_answer == "0{,}75" and qs[2].solution
+    assert all("Word" in q.tags for q in qs)
+
+
+def test_online_moodle_export(bank, tmp_path):
+    import xml.dom.minidom
+    from nganhangde.exporter import ExportOptions
+    from nganhangde.htmlconv import latex_to_html
+    vs = make_versions(bank, [Rule("TN", 12), Rule("DS", 4), Rule("KQ", 6)], codes=["101"], seed=1)
+    files = export_versions(vs, str(tmp_path / "o"), options=ExportOptions(online_html=True, moodle=True))
+    html_file = [f for f in files if f.endswith("online_101.html")][0]
+    h = open(html_file, encoding="utf-8").read()
+    assert h.count("class='card q'") == 22 and "atob(DATA)" in h and "\\begin{ex}" not in h
+    xml_file = [f for f in files if f.endswith("moodle.xml")][0]
+    doc = xml.dom.minidom.parse(xml_file)
+    types = [q.getAttribute("type") for q in doc.getElementsByTagName("question")]
+    assert types.count("multichoice") == 12 and types.count("cloze") == 4 and types.count("shortanswer") == 6
+    assert "{1:MULTICHOICE:" in open(xml_file, encoding="utf-8").read()
+    t = latex_to_html(r"\textbf{Công đoạn $1$:} chọn \begin{itemize}\item a \begin{itemize}\item b\end{itemize}\item c\end{itemize}"
+                      r"\begin{tikzpicture}\draw(0,0);\end{tikzpicture} x<y")
+    assert "<b>Công đoạn $1$:</b>" in t and t.count("<li>") == 3 and "[Hình vẽ" in t and "x&lt;y" in t

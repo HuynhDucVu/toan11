@@ -146,7 +146,9 @@ class MainWindow(QMainWindow):
         self._act(m, "Tạo kho mới…", self.new_bank, QKeySequence.StandardKey.New)
         m.addSeparator()
         self._act(m, "Nhập file .tex…", self.import_files, "Ctrl+I")
+        self._act(m, "Nhập file Word (.docx)…", self.import_word)
         self._act(m, "Xuất câu đang hiển thị/đã chọn…", self.export_selected, "Ctrl+E")
+        self._act(m, "Xuất câu ra Word / Moodle / bài làm online…", self.export_other)
         m.addSeparator()
         self._act(m, "Sao lưu kho…", self.backup_bank, "Ctrl+B")
         self._act(m, "Gộp kho khác vào kho này…", self.merge_bank)
@@ -719,6 +721,68 @@ class MainWindow(QMainWindow):
             self.bank.delete(ids)
             self.build_tree()
             self.refresh()
+
+    def import_word(self):
+        from .wordconv import PandocMissing, import_docx
+        paths, _ = QFileDialog.getOpenFileNames(self, "Chọn file Word", self.settings.value("last_dir", ""),
+                                                "Word (*.docx)")
+        if not paths:
+            return
+        tag, ok = QInputDialog.getText(self, "Nhập từ Word", "Nhãn nguồn gắn cho các câu (có thể để trống):")
+        if not ok:
+            return
+        lines = []
+        for p in paths:
+            try:
+                tex = import_docx(p, tag.strip())
+            except PandocMissing as e:
+                QMessageBox.warning(self, "Thiếu pandoc", str(e))
+                return
+            except Exception as e:  # noqa: BLE001
+                lines.append(f"✘ {os.path.basename(p)}: {e}")
+                continue
+            out = os.path.splitext(p)[0] + "_tuWord.tex"
+            with open(out, "w", encoding="utf-8") as f:
+                f.write(tex)
+            qs = parse_tex(tex)
+            added = sum(1 for q in qs if self.bank.add(q, p))
+            bad = sum(1 for q in qs if rv.worst(rv.review_question(q)) == rv.LOI)
+            lines.append(f"✔ {os.path.basename(p)}: nhận dạng {len(qs)} câu, thêm {added} câu vào kho, "
+                         f"{bad} câu cần xem lại (chưa rõ đáp án…). Bản LaTeX: {os.path.basename(out)}")
+        self.build_tree()
+        self.refresh()
+        QMessageBox.information(self, "Nhập từ Word", "\n".join(lines) + "\n\nNên mở tab «Rà soát» để kiểm tra lại.")
+
+    def export_other(self):
+        ids = self.selected_ids() or self.visible_ids()
+        if not ids:
+            return
+        kinds = ["Word (.docx) – có đánh dấu đáp án và lời giải", "Moodle XML", "Bài làm online (HTML)"]
+        k, ok = QInputDialog.getItem(self, "Xuất câu", f"Xuất {len(ids)} câu sang:", kinds, 0, False)
+        if not ok:
+            return
+        qs = [self.bank.get(i) for i in ids]
+        ext = {0: "Word (*.docx)", 1: "Moodle XML (*.xml)", 2: "HTML (*.html)"}[kinds.index(k)]
+        p, _ = QFileDialog.getSaveFileName(self, "Lưu thành", "cau_hoi." + ext.split("*.")[1].rstrip(")"), ext)
+        if not p:
+            return
+        try:
+            if kinds.index(k) == 0:
+                from .wordconv import export_questions_docx
+                export_questions_docx(qs, p)
+            elif kinds.index(k) == 1:
+                from .online import export_moodle
+                export_moodle(qs, p)
+            else:
+                from .generator import ExamVersion, sections_from_questions
+                from .online import version_html
+                v = ExamVersion("ÔN TẬP", sections_from_questions(qs))
+                with open(p, "w", encoding="utf-8") as f:
+                    f.write(version_html(v, ten_de="LUYỆN TẬP", thoi_gian=max(15, len(qs) * 3)))
+        except Exception as e:  # noqa: BLE001
+            QMessageBox.warning(self, "Xuất câu", str(e))
+            return
+        QMessageBox.information(self, "Xuất câu", f"Đã xuất {len(qs)} câu ra\n{p}")
 
     def export_selected(self):
         ids = self.selected_ids() or self.visible_ids()
@@ -1390,6 +1454,29 @@ class ExamOptionsBox(QTabWidget):
         note.setWordWrap(True)
         f.addRow(note)
         self.addTab(w, "Phiếu chấm TNMaker")
+
+        w = QWidget()
+        v = QVBoxLayout(w)
+        self.c_online = QCheckBox("Bài làm online: mỗi mã đề 1 file HTML (mở trên máy tính/điện thoại, nộp là có điểm)")
+        self.c_online_sol = QCheckBox("   Hiện lời giải sau khi học sinh nộp bài")
+        self.c_moodle = QCheckBox("File Moodle XML (nhập vào ngân hàng câu hỏi Moodle/LMS)")
+        self.c_word = QCheckBox("File Word .docx mỗi mã đề (công thức Word gốc – cần cài pandoc)")
+        from .wordconv import PandocMissing, pandoc_path
+        try:
+            pandoc_path()
+        except PandocMissing:
+            self.c_word.setEnabled(False)
+            self.c_word.setToolTip("Chưa cài pandoc: tải tại pandoc.org/installing.html")
+        for c, k, d in ((self.c_online, "online", False), (self.c_online_sol, "online_sol", True),
+                        (self.c_moodle, "moodle", False), (self.c_word, "word", False)):
+            c.setChecked(val(k, d))
+            v.addWidget(c)
+        note = QLabel("<i>Bài online dùng MathJax để hiện công thức (cần mạng khi mở). Đáp án nằm trong file "
+                      "(đã mã hoá nhẹ) – phù hợp ôn tập, không dùng cho kì thi chính thức.</i>")
+        note.setWordWrap(True)
+        v.addWidget(note)
+        v.addStretch()
+        self.addTab(w, "Online / Word")
         self._preview()
 
     def _preview(self):
@@ -1409,7 +1496,9 @@ class ExamOptionsBox(QTabWidget):
                              scoring=self.c_scoring.isChecked(), answers_xlsx=self.c_xlsx.isChecked(),
                              tnmaker_layout=self.cb_layout.currentData(), ds_style=self.cb_ds.currentData(),
                              ds_symbols=self.cb_sym.currentData(), kq_decimal=self.cb_dec.currentData(),
-                             show_id=self.c_showid.isChecked(), make_zip=self.c_zip.isChecked())
+                             show_id=self.c_showid.isChecked(), make_zip=self.c_zip.isChecked(),
+                             online_html=self.c_online.isChecked(), online_solution=self.c_online_sol.isChecked(),
+                             moodle=self.c_moodle.isChecked(), word=self.c_word.isChecked() and self.c_word.isEnabled())
 
     def apply_thpt2026(self):
         self.cb_codemode.setCurrentIndex(self.cb_codemode.findData("seq"))
@@ -1428,7 +1517,9 @@ class ExamOptionsBox(QTabWidget):
             self.st.setValue(f"{self.prefix}/opt_{k}", w_.currentData())
         self.st.setValue(f"{self.prefix}/opt_start", self.sp_start.value())
         for k, c in (("renumber", self.c_renum), ("official", self.c_official), ("scoring", self.c_scoring),
-                     ("xlsx", self.c_xlsx), ("showid", self.c_showid), ("zip", self.c_zip)):
+                     ("xlsx", self.c_xlsx), ("showid", self.c_showid), ("zip", self.c_zip),
+                     ("online", self.c_online), ("online_sol", self.c_online_sol), ("moodle", self.c_moodle),
+                     ("word", self.c_word)):
             self.st.setValue(f"{self.prefix}/opt_{k}", c.isChecked())
 
 
@@ -2264,6 +2355,8 @@ class ToolsPanel(QWidget):
                                         ("Tìm và thay thế…", self.file_replace), ("Xoá ID khỏi file…", self.file_remove_ids),
                                         ("Xoá một nguồn…", self.file_remove_tag), ("Lọc câu theo nguồn…", self.file_filter_tag),
                                         ("Trích hình TikZ…", self.file_tikz), ("Tìm câu gần trùng…", self.file_near_dups),
+                                        ("Word → LaTeX…", self.word_to_tex), ("LaTeX → Word…", self.tex_to_word),
+                                        ("Bài làm online từ file…", self.file_online),
                                         ("Nạp các file vào kho", self.import_to_bank))):
             b = QPushButton(text)
             b.clicked.connect(fn)
@@ -2466,6 +2559,59 @@ class ToolsPanel(QWidget):
         self.show_result(f"Câu gần trùng (≥ {thr}%)", f"<p><b>{len(pairs)}</b> cặp.</p><table border=1 cellspacing=0 "
                          "cellpadding=3><tr><th>Giống</th><th>Câu 1</th><th>Câu 2</th><th>Nội dung</th></tr>"
                          + rows + "</table>")
+
+    def word_to_tex(self):
+        from .wordconv import PandocMissing, import_docx
+        ps, _ = QFileDialog.getOpenFileNames(self, "Chọn file Word", self.win.settings.value("last_dir", ""),
+                                             "Word (*.docx)")
+        html_ = []
+        for p in ps:
+            try:
+                tex = import_docx(p)
+            except PandocMissing as e:
+                QMessageBox.warning(self, "Thiếu pandoc", str(e))
+                return
+            out = os.path.splitext(p)[0] + "_tuWord.tex"
+            with open(out, "w", encoding="utf-8") as f:
+                f.write(tex)
+            qs = parse_tex(tex)
+            self.files.addItem(out)
+            html_.append(f"<p>{os.path.basename(p)} → <b>{len(qs)}</b> câu: {out}</p>")
+        if html_:
+            self.show_result("Word → LaTeX", "".join(html_) + "<p>File mới đã thêm vào danh sách bên trái – "
+                             "bấm «Soát lỗi soạn thảo» để kiểm tra đáp án nhận dạng được.</p>")
+
+    def tex_to_word(self):
+        from .wordconv import PandocMissing, export_questions_docx
+        html_ = []
+        for p in self.paths():
+            out = self._save_path(os.path.splitext(os.path.basename(p))[0] + ".docx").replace(".tex", ".docx")
+            if not out:
+                continue
+            try:
+                export_questions_docx(parse_file(p), out)
+            except PandocMissing as e:
+                QMessageBox.warning(self, "Thiếu pandoc", str(e))
+                return
+            html_.append(f"<p>{os.path.basename(p)} → {out}</p>")
+        self.show_result("LaTeX → Word", "".join(html_))
+
+    def file_online(self):
+        from .generator import ExamVersion, sections_from_questions
+        from .online import version_html
+        html_ = []
+        for p in self.paths():
+            base = os.path.splitext(p)[0]
+            out, _ = QFileDialog.getSaveFileName(self, "Lưu bài làm online", base + "_online.html", "HTML (*.html)")
+            if not out:
+                continue
+            qs = parse_file(p)
+            v = ExamVersion(os.path.basename(base), sections_from_questions(qs))
+            with open(out, "w", encoding="utf-8") as f:
+                f.write(version_html(v, ten_de="BÀI LÀM", thoi_gian=self.win.gen_panel.e_tg.value()))
+            html_.append(f"<p>{os.path.basename(p)} → {out}</p>")
+        self.show_result("Bài làm online", "".join(html_) + "<p>Gửi file HTML cho học sinh (Zalo, email…) – "
+                         "mở bằng trình duyệt trên điện thoại hoặc máy tính.</p>")
 
     def assign_ids_file(self):
         ps = self.paths()

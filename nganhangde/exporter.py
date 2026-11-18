@@ -37,6 +37,10 @@ class ExportOptions:
     show_id: bool = False             # in ID nhỏ sau mỗi câu trong file lời giải (bản cho giáo viên)
     make_zip: bool = False            # nén cả thư mục kết quả thành .zip
     header: dict | None = None        # thông tin đầu đề: SO_GD, KY_THI, MON_THI, GIAO_VIEN, NAM_HOC
+    online_html: bool = False         # mỗi mã đề một file HTML làm bài online (chấm điểm ngay)
+    online_solution: bool = True      # bài online: hiện lời giải sau khi nộp
+    moodle: bool = False              # file Moodle XML (bộ câu của đề)
+    word: bool = False                # file Word .docx mỗi mã đề (cần pandoc)
 
 
 def plain_answer(a: str) -> str:
@@ -174,6 +178,22 @@ def export_versions(versions: list[ExamVersion], out_dir: str, *, template_path:
             files.append(write_answer_xlsx(versions, os.path.join(out_dir, "dap_an_TNMaker.xlsx"), opt))
         except ImportError:
             pass        # thiếu openpyxl: vẫn có 2 file CSV
+    if opt.online_html:
+        from .online import export_html
+        files += export_html(versions, out_dir, ten_de=ten_de, thoi_gian=int(thoi_gian),
+                             show_solution=opt.online_solution)
+    if opt.moodle and versions:
+        from .online import export_moodle
+        files.append(export_moodle(list(versions[0].all_questions()), os.path.join(out_dir, "moodle.xml"),
+                                   category=ten_de))
+    if opt.word:
+        from .wordconv import export_docx, PandocMissing
+        for v in versions:
+            try:
+                files.append(export_docx(v, os.path.join(out_dir, f"de_{v.code}.docx"), ten_de=ten_de,
+                                         thoi_gian=thoi_gian, header=opt.header or {}, truong=truong))
+            except PandocMissing:
+                break
     if opt.make_zip:
         from .tools import zip_dir
         files.append(zip_dir(out_dir))

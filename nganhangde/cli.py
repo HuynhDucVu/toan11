@@ -81,7 +81,8 @@ def _exam_opts(a):
                      shuffle_ds=not (std or getattr(a, "no_ds", False)),
                      balance=not getattr(a, "no_balance", False))
     exp = ExportOptions(renumber=std, official_titles=std, scoring=std,
-                        tnmaker_layout=a.tnmaker_layout, ds_style=a.tnmaker_ds)
+                        tnmaker_layout=a.tnmaker_layout, ds_style=a.tnmaker_ds,
+                        online_html=a.online, moodle=a.moodle, word=a.word)
     return mix, exp
 
 
@@ -90,6 +91,9 @@ def _add_exam_flags(p):
                    help="chuẩn đề tốt nghiệp: 24 mã 0101…0124, giữ ý Đúng/Sai, đánh số lại, lời dẫn, thang điểm")
     p.add_argument("--tnmaker-layout", choices=["doc", "ngang"], default="doc", help="bố cục file đáp án Excel")
     p.add_argument("--tnmaker-ds", choices=["gop", "tach"], default="gop", help="phần II: gộp ĐSĐS hay tách 4 ô")
+    p.add_argument("--online", action="store_true", help="thêm bài làm online (HTML) cho mỗi mã đề")
+    p.add_argument("--moodle", action="store_true", help="thêm file Moodle XML")
+    p.add_argument("--word", action="store_true", help="thêm file Word .docx mỗi mã đề (cần pandoc)")
 
 
 def cmd_make(bank: Bank, a):
@@ -238,6 +242,22 @@ def cmd_suggest_id(bank: Bank, a):
         print(f"Đã gán ID gợi ý cho {n} câu (độ giống ≥ {a.auto:.0%}), lưu thành {a.out}. Hãy kiểm tra lại!")
 
 
+def cmd_word2tex(bank, a):
+    from .wordconv import import_docx
+    tex = import_docx(a.file, a.tag)
+    out = a.out or a.file.rsplit(".", 1)[0] + "_tuWord.tex"
+    with open(out, "w", encoding="utf-8") as f:
+        f.write(tex)
+    print(f"Đã nhận dạng {tex.count(chr(92) + 'begin{ex}')} câu → {out}")
+
+
+def cmd_tex2word(bank, a):
+    from .wordconv import export_questions_docx
+    out = a.out or a.file.rsplit(".", 1)[0] + ".docx"
+    export_questions_docx(parse_file(a.file), out, mark_answers=not a.no_answers, with_solution=not a.no_answers)
+    print("Đã ghi", out)
+
+
 def cmd_backup(bank: Bank, a):
     bank.backup(a.dest)
     print(f"Đã sao lưu {bank.count()} câu ra {a.dest}")
@@ -297,6 +317,14 @@ def main(argv=None):
     p.add_argument("--all", action="store_true", help="gợi ý cả câu đã có ID")
     p.add_argument("--auto", type=float, help="tự gán ID gợi ý có độ giống ≥ ngưỡng (0..1)")
     p.add_argument("-o", "--out")
+    p = sub.add_parser("word2tex", help="nhận dạng câu hỏi từ file Word (.docx) → .tex (cần pandoc)")
+    p.add_argument("file")
+    p.add_argument("-o", "--out")
+    p.add_argument("--tag", default="", help="nhãn nguồn gắn cho các câu")
+    p = sub.add_parser("tex2word", help="file .tex → Word .docx (công thức Word gốc, cần pandoc)")
+    p.add_argument("file")
+    p.add_argument("-o", "--out")
+    p.add_argument("--no-answers", action="store_true", help="không đánh dấu đáp án, không kèm lời giải")
     p = sub.add_parser("backup")
     p.add_argument("dest")
     p = sub.add_parser("make")
@@ -320,7 +348,8 @@ def main(argv=None):
     try:
         {"import": cmd_import, "list": cmd_list, "stats": cmd_stats, "check": cmd_check,
          "make": cmd_make, "export": cmd_export, "idmap": cmd_idmap, "shuffle": cmd_shuffle,
-         "backup": cmd_backup, "review": cmd_review, "suggest-id": cmd_suggest_id}[a.cmd](bank, a)
+         "backup": cmd_backup, "review": cmd_review, "suggest-id": cmd_suggest_id,
+         "word2tex": cmd_word2tex, "tex2word": cmd_tex2word}[a.cmd](bank, a)
     finally:
         bank.close()
 

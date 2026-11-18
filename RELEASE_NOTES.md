@@ -5,7 +5,21 @@
 
 Kho câu hỏi `nganhang.db` nằm cạnh file exe. Cập nhật từ bản cũ: chỉ cần thay file exe, kho giữ nguyên.
 
-## Có gì mới ở bản 0.5.0 – Bổ sung theo MyLT (đợt 1)
+## Có gì mới ở bản 0.6.0 – Đề online, Moodle, Word ↔ LaTeX (đợt 2)
+- **Bài làm online:** mỗi mã đề một file HTML, mở bằng trình duyệt trên máy tính, iPhone hoặc Android.
+  - Học sinh nhập tên, làm bài có đồng hồ đếm ngược, bấm *Nộp bài* là được chấm ngay theo thang điểm thi tốt nghiệp.
+  - Sau khi nộp: hiện đáp án đúng/sai từng câu và (tuỳ chọn) lời giải. Gửi qua Zalo hoặc email được.
+  - Cần mạng khi mở để hiện công thức. Dùng để ôn tập, không dùng cho kì thi chính thức.
+- **Moodle XML:** trắc nghiệm → multichoice; Đúng/Sai → cloze 4 ý; trả lời ngắn → shortanswer (nhận cả 0,5 và 0.5).
+- **LaTeX → Word (.docx):** công thức thành công thức Word gốc, sửa được bằng Equation.
+- **Word → LaTeX:**
+  - nhận dạng «Câu 1.», phương án A–D (cùng dòng hay mỗi dòng một phương án đều được), ý a)–d) kể cả danh sách đánh số tự động;
+  - đáp án lấy từ chữ cái **gạch chân**; nhận cả «Đáp án: …» và «Lời giải: …»;
+  - nhập thẳng vào kho (menu Tệp → Nhập file Word).
+- Thẻ **«Online / Word»** trong Tuỳ chọn trộn đề; menu **Tệp → Xuất câu ra Word / Moodle / bài làm online**; tab Công cụ có Word → LaTeX, LaTeX → Word, Bài làm online từ file.
+- **Chức năng Word cần cài pandoc** (miễn phí): https://pandoc.org/installing.html (bản Windows .msi).
+
+## Bản 0.5.0 – Bổ sung theo MyLT (đợt 1)
 **Tạo đề**
 - **Đổi câu trước khi trộn:** tick «Xem trước bộ câu…». Bấm *🎲 Đổi ngẫu nhiên* hoặc *Chọn câu thay…*; câu thay luôn cùng dòng ma trận.
 - **Xếp câu dễ → khó** trong mỗi phần (Nhận biết → Vận dụng cao), ở thẻ «Trộn».

@@ -43,6 +43,9 @@ nganhangde/
 ├── idsuggest.py  # gợi ý ID: câu giống trong kho (TF-IDF) + tên chương/bài/dạng trong Map ID
 ├── review.py     # rà soát đáp án – lời giải – LaTeX, tự sửa, xoá câu sai
 ├── tnmaker.py    # xuất đáp án Excel cho phần mềm chấm phiếu (TNMaker…)
+├── htmlconv.py   # LaTeX → HTML (giữ công thức cho MathJax)
+├── online.py     # bài làm online (HTML tự chấm) và Moodle XML
+├── wordconv.py   # Word ↔ LaTeX qua pandoc
 ├── cli.py        # Bước 7a: dòng lệnh
 ├── gui_qt.py     # Bước 7b: giao diện chính (PySide6/Qt)
 ├── gui.py        #          giao diện dự phòng (Tkinter)
@@ -335,6 +338,60 @@ Trong giao diện, mục **«Tuỳ chọn trộn đề»** (`ExamOptionsBox`) c�
 Nút **⭐ Áp dụng chuẩn đề thi tốt nghiệp THPT 2026** đặt sẵn tất cả các tuỳ chọn trên.
 Dòng lệnh: `python -m nganhangde make ma_tran.json --chuan-2026`, hoặc `shuffle de.tex --chuan-2026`.
 
+## 8c. Đề online, Moodle, Word (`htmlconv.py`, `online.py`, `wordconv.py`)
+
+### LaTeX → HTML (`htmlconv.py`)
+
+1. Công thức (`$..$`, `$$..$$`, `\(..\)`, `\[..\]`, môi trường toán) được **thay tạm bằng kí hiệu giữ chỗ**.
+   Nhờ vậy các lệnh như `\textbf{Công đoạn $1$:}` có công thức bên trong vẫn xử lí đúng.
+2. Phần chữ được đổi sang HTML:
+   * `\textbf` → `<b>`;
+   * `itemize`/`enumerate`/`itemchoice` → `<ul>`/`<ol>`; danh sách lồng nhau được tìm `\end` khớp đúng cấp;
+   * `\\` → `<br>`;
+   * TikZ hay bảng tabular → ô «[Hình vẽ – xem bản in]».
+3. Trả công thức về chỗ cũ. Công thức được escape `<` `>` `&` để MathJax đọc đúng.
+
+### Bài làm online (`online.version_html`)
+
+Mỗi mã đề là một file HTML tự chứa:
+
+* CSS dành cho điện thoại; công thức dài cuộn ngang trong khung riêng, không làm rộng cả trang.
+* MathJax 3 tải từ cdnjs, kèm các macro `\heva`, `\hoac`.
+* Đáp án mã hoá base64 nhúng trong file.
+* JavaScript chấm điểm theo thang điểm thi tốt nghiệp, chuẩn hoá dấu thập phân (`0.5` ≡ `0,5`).
+* Đồng hồ đếm ngược; hết giờ thì tự nộp.
+
+Đã kiểm thử bằng Chromium giả lập iPhone 13: điểm tự chấm khớp với tính tay.
+
+### Moodle XML (`online.moodle_xml`)
+
+| Loại câu | Kiểu câu hỏi Moodle |
+|---|---|
+| Trắc nghiệm | `multichoice` |
+| Đúng/Sai | `cloze` với 4 ô `{1:MULTICHOICE:=Đúng~Sai}` |
+| Trả lời ngắn | `shortanswer` (nhận cả dấu phẩy và dấu chấm) |
+| Tự luận | `essay` |
+
+Công thức được đổi sang dạng `\( \)` mà bộ lọc MathJax của Moodle dùng.
+
+### Word ↔ LaTeX (`wordconv.py`)
+
+Phần này dùng **pandoc**.
+
+* **LaTeX → Word:** câu hỏi được viết lại thành LaTeX chuẩn (bỏ macro `ex_test`, thêm định nghĩa `\heva`, `\hoac`),
+  rồi chạy `pandoc -t docx`. Công thức thành **OMML**, tức công thức Word gốc.
+* **Word → LaTeX:** chạy `pandoc -f docx -t latex`, rồi nhận dạng theo từng dòng:
+  * `Câu n` bắt đầu câu mới;
+  * `A.`…`D.` (một hay nhiều phương án trên một dòng) là phương án;
+  * `a)`…`d)` là ý;
+  * `Đáp án:` là đáp án trả lời ngắn;
+  * `Lời giải:` là lời giải;
+  * đáp án là chữ cái được **gạch chân**;
+  * danh sách đánh số tự động của Word được làm phẳng trước khi nhận dạng (`_flatten_lists`).
+
+  Kết quả nên chạy qua **Rà soát** để bắt những câu chưa nhận ra đáp án.
+  Đã kiểm thử: xuất kho mẫu ra Word rồi đọc lại khớp 22/22 câu, cả loại câu lẫn đáp án.
+
 ## 9. Bước 7: giao diện
 
 **Dòng lệnh** (`cli.py`):
@@ -474,8 +531,10 @@ Bảng dưới lập từ tên các thành phần giao diện trong file `MyLT.e
 | Kiểm tra cập nhật | ✅ (đọc bản phát hành mới nhất trên GitHub) |
 | Đáp án cho phần mềm chấm phiếu (TNMaker) | ✅ file Excel cấu hình được bố cục |
 | Chuẩn đề tốt nghiệp (24 mã, đánh số từng phần, lời dẫn, thang điểm) | ✅ |
-| In phiếu trả lời, mã QR, đề online (Azota, HTML, Moodle XML) | ⏳ chưa có (phiếu dùng mẫu của TNMaker) |
-| Chuyển Word ↔ LaTeX, xem PDF trong phần mềm | ⏳ chưa có (gợi ý ở mục 12) |
+| In phiếu trả lời, mã QR, Azota | ⏳ chưa có (phiếu dùng mẫu của TNMaker) |
+| Chuyển Word ↔ LaTeX | ✅ qua pandoc (mục 8c) |
+| Đề online (HTML tự chấm), Moodle XML | ✅ (mục 8c) |
+| Xem PDF trong phần mềm | ⏳ chưa có (cần cài LaTeX; hiện có tuỳ chọn biên dịch PDF bằng xelatex) |
 | Vẽ hình TikZ, đồ thị, bảng biến thiên, biểu đồ | ⏳ chưa có (nên làm thành mô-đun riêng) |
 | Sinh câu hỏi bằng AI, sinh số ngẫu nhiên | ⏳ chưa có |
 
