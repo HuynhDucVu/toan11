@@ -556,3 +556,38 @@ def test_pdfbuild(bank, tmp_path):
     errs, _ = pb.parse_log("! Undefined control sequence.\nl.12 \\foo\n! Missing $ inserted.\nl.20 x^2\n")
     assert errs == ["Dòng 12: Undefined control sequence. – lệnh không tồn tại (gõ sai tên lệnh hoặc thiếu gói)",
                     "Dòng 20: Missing $ inserted. – thiếu dấu $ (công thức chưa đóng/mở đúng)"]
+
+
+def test_gemini_id():
+    import json as _json
+    from nganhangde import aiid
+    from nganhangde.idmap import parse_map_text
+    m = parse_map_text(DASH_MAP)
+    qs = parse_file(SAMPLE)
+    circle, newton, ellipse = qs[2], qs[11], qs[10]
+    calls = []
+
+    def fake(url, data, key, timeout=90):
+        calls.append((url, data, key))
+        if data is None:                                          # list_models
+            return {"models": [{"name": "models/gemini-x", "supportedGenerationMethods": ["generateContent"]},
+                               {"name": "models/embed", "supportedGenerationMethods": ["embedContent"]}]}
+        prompt = data["contents"][0]["parts"][0]["text"]
+        assert "0H94-1 | Lớp 10 › Hình học 10" in prompt and "### Câu 3" in prompt
+        assert data["generationConfig"]["responseMimeType"] == "application/json"
+        out = {"ket_qua": [
+            {"cau": 1, "ma": "0H94-1", "muc_do": "N", "tin_cay": 0.92, "ly_do": "tâm và bán kính đường tròn"},
+            {"cau": 2, "ma": "0D83-2", "muc_do": "H", "tin_cay": 0.85, "ly_do": "khai triển nhị thức"},
+            {"cau": 3, "ma": "0H77-7", "muc_do": "N", "tin_cay": 0.9, "ly_do": "mã bịa"}]}
+        return {"candidates": [{"content": {"parts": [{"text": "```json\n" + _json.dumps(out) + "\n```"}]}}]}
+
+    c = aiid.GeminiClient("KHOA-THU", "gemini-x", transport=fake)
+    assert c.list_models() == ["gemini-x"]
+    res = c and aiid.classify(c, [circle, newton, ellipse], m, scope="0")
+    assert [r.id_code for r in res] == ["0H9N4-1", "0D8H3-2", None]
+    assert res[0].score == 0.92 and res[2].score == 0 and "không có trong Map ID" in res[2].reason
+    assert calls[-1][2] == "KHOA-THU" and calls[-1][0].endswith("/models/gemini-x:generateContent")
+    with pytest.raises(aiid.AIError):
+        aiid.GeminiClient("")
+    with pytest.raises(aiid.AIError):                             # phạm vi không có dạng nào
+        aiid.classify(c, [circle], m, scope="2")

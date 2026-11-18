@@ -160,6 +160,7 @@ class MainWindow(QMainWindow):
         self._act(m, "Xoá câu", self.delete_questions, QKeySequence.StandardKey.Delete)
         m.addSeparator()
         self._act(m, "Gán ID cho câu đã chọn / câu thiếu ID…", self.assign_ids, "F3")
+        self._act(m, "Gán ID tự động bằng Gemini…", lambda: self.assign_ids(use_ai=True), "Shift+F3")
         self._act(m, "Tìm và thay thế…", self.find_replace, "Ctrl+H")
         self._act(m, "Khôi phục câu đã xoá…", self.restore_deleted)
         m = mb.addMenu("Đề &thi")
@@ -173,6 +174,7 @@ class MainWindow(QMainWindow):
         self._act(m, "Xem PDF câu đã chọn", self.preview_pdf, "F5")
         self._act(m, "Biên dịch file .tex → PDF…", self.compile_files)
         self._act(m, "Cài đặt biên dịch PDF…", self.pdf_settings_dialog)
+        self._act(m, "Cài đặt Gemini (AI)…", lambda: GeminiSettingsDialog(self).exec())
         self._act(m, "Thống kê ngân hàng", self.show_stats)
         m = mb.addMenu("Trợ &giúp")
         self._act(m, "Kiểm tra bản cập nhật…", self.check_update)
@@ -666,7 +668,7 @@ class MainWindow(QMainWindow):
             n = self.bank.export_subset(ids, p)
             QMessageBox.information(self, "Tách kho", f"Đã chép {n} câu sang\n{p}")
 
-    def assign_ids(self):
+    def assign_ids(self, use_ai=False):
         ids = self.selected_ids()
         if ids:
             qs = [self.bank.get(i) for i in ids]
@@ -676,7 +678,11 @@ class MainWindow(QMainWindow):
                 QMessageBox.information(self, "Gán ID", "Hãy chọn các câu cần gán/đổi ID trong bảng "
                                         "(kho hiện không có câu nào thiếu ID).")
                 return
-        if AssignIdDialog(self, qs, [f"Kho #{q.db_id}" for q in qs]).exec():
+        dlg = AssignIdDialog(self, qs, [f"Kho #{q.db_id}" for q in qs])
+        if use_ai:
+            from PySide6.QtCore import QTimer
+            QTimer.singleShot(200, dlg.run_gemini)
+        if dlg.exec():
             self.refresh()
 
     def edit_idmap(self):
@@ -1911,6 +1917,30 @@ class AssignIdDialog(QDialog):
         gl.addRow(self.sug_list)
         right.addWidget(g)
 
+        g = QGroupBox("🤖 Gán ID bằng Gemini (AI của Google)")
+        gl = QVBoxLayout(g)
+        row = QHBoxLayout()
+        b = QPushButton("🤖 Gợi ý bằng Gemini cho các câu đã chọn")
+        b.setObjectName("primary")
+        b.clicked.connect(self.run_gemini)
+        bs = QPushButton("Cài đặt…")
+        bs.clicked.connect(lambda: GeminiSettingsDialog(self.win).exec())
+        row.addWidget(b, 1)
+        row.addWidget(bs)
+        gl.addLayout(row)
+        self.c_ai_level = QCheckBox("Gemini đánh giá luôn mức độ (N/H/V/C)")
+        self.c_ai_level.setChecked(True)
+        self.c_ai_fill = QCheckBox("Điền luôn kết quả vào cột «ID mới»")
+        self.c_ai_fill.setChecked(True)
+        gl.addWidget(self.c_ai_level)
+        gl.addWidget(self.c_ai_fill)
+        note = QLabel("<i>Dùng phạm vi ở mục 1 để giới hạn Map ID gửi đi (nhanh, đỡ tốn hạn mức). Nội dung câu hỏi "
+                      "được gửi tới Google. ID Gemini trả về luôn được đối chiếu với Map ID; mã không có thật bị loại. "
+                      "Vẫn cần giáo viên duyệt lại trước khi lưu.</i>")
+        note.setWordWrap(True)
+        gl.addWidget(note)
+        right.addWidget(g)
+
         g = QGroupBox("2. Chọn ID theo Map ID rồi áp cho câu đã chọn")
         gl = QVBoxLayout(g)
         self.picker = IdPicker(self.mapping)
@@ -1996,7 +2026,8 @@ class AssignIdDialog(QDialog):
         sg = self.sugs[r]
         self.sug_list.setRowCount(len(sg))
         for i, x in enumerate(sg):
-            src = (f"câu #{x.db_id} trong kho: {x.sample}" if x.db_id is not None else f"Map ID: {x.sample}")
+            src = (f"câu #{x.db_id} trong kho: {x.sample}" if x.db_id is not None else
+                   x.sample if x.sample.startswith("Gemini") else f"Map ID: {x.sample}")
             for c, v in enumerate((x.id_code, f"{x.score:.0%}", src)):
                 it = QTableWidgetItem(v)
                 it.setToolTip(src)
@@ -2008,6 +2039,52 @@ class AssignIdDialog(QDialog):
             x = self.sugs[rows[0]][idx.row()]
             self.set_new(rows[0], x.id_code, x.score)
             self.update_count()
+
+    def run_gemini(self):
+        from . import aiid
+        from .idsuggest import Suggestion
+        st = self.win.settings
+        key, model = st.value("ai/key", ""), st.value("ai/model", aiid.DEFAULT_MODEL)
+        if not key:
+            GeminiSettingsDialog(self.win).exec()
+            key, model = st.value("ai/key", ""), st.value("ai/model", aiid.DEFAULT_MODEL)
+            if not key:
+                return
+        rows = self.checked_rows() or list(range(len(self.qs)))
+        qs = [self.qs[r] for r in rows]
+        dlg = QProgressDialog("Đang hỏi Gemini…", "Dừng", 0, len(qs), self)
+        dlg.setWindowTitle("Gán ID bằng Gemini")
+        dlg.setWindowModality(Qt.WindowModality.WindowModal)
+        dlg.setMinimumDuration(0)
+        worker = AiWorker(aiid.GeminiClient(key, model), qs, self.mapping, self.cb_scope.currentData() or "",
+                          self.cb_def_md.currentData(), self.c_ai_level.isChecked(),
+                          int(st.value("ai/batch", 10)))
+        worker.progress.connect(lambda i, n: (dlg.setValue(i), dlg.setLabelText(f"Đã phân loại {i}/{n} câu…")))
+        dlg.canceled.connect(worker.requestInterruption)
+        worker.start()
+        while worker.isRunning():
+            QApplication.processEvents()
+            worker.wait(50)
+        dlg.close()
+        if worker.error:
+            QMessageBox.warning(self, "Gemini", worker.error)
+            if not worker.results:
+                return
+        ok = 0
+        for res in worker.results:
+            r = rows[res.index]
+            sug = Suggestion(res.id_code or (res.raw_code or "—"), res.score, None, f"Gemini: {res.reason}")
+            self.sugs[r] = [sug] + [x for x in self.sugs[r] if not x.sample.startswith("Gemini")]
+            if res.id_code:
+                ok += 1
+                if self.c_ai_fill.isChecked():
+                    self.set_new(r, res.id_code, res.score)
+                    self.t.item(r, 4).setToolTip("Gemini: " + res.reason)
+        self.update_count()
+        self.on_select()
+        QMessageBox.information(self, "Gemini", f"Gemini đã phân loại {ok}/{len(worker.results)} câu hợp lệ "
+                                f"(mô hình {model}).\nCột «Độ giống» là độ tin cậy Gemini tự đánh giá – "
+                                "xem lại các câu có độ tin cậy thấp trước khi lưu.")
 
     def accept_best(self):
         thr = self.sp_thr.value() / 100
@@ -3254,6 +3331,95 @@ class StatsPanel(QWidget):
                 it = QTableWidgetItem(str(v))
                 it.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
                 self.t.setItem(i, c, it)
+
+
+class AiWorker(QThread):
+    progress = Signal(int, int)
+
+    def __init__(self, client, questions, mapping, scope, default_level, judge_level, batch):
+        super().__init__()
+        self.args = (client, questions, mapping, scope, default_level, judge_level, batch)
+        self.results, self.error = [], ""
+
+    def run(self):
+        from . import aiid
+        client, qs, mapping, scope, lv, judge, batch = self.args
+        try:
+            self.results = aiid.classify(client, qs, mapping, scope=scope, default_level=lv, judge_level=judge,
+                                         batch=batch, progress=lambda i, n: self.progress.emit(i, n),
+                                         should_stop=self.isInterruptionRequested)
+        except aiid.AIError as e:
+            self.error = str(e)
+        except Exception as e:  # noqa: BLE001
+            self.error = f"Lỗi khi gọi Gemini: {e}"
+
+
+class GeminiSettingsDialog(QDialog):
+    def __init__(self, win: MainWindow):
+        super().__init__(win)
+        from . import aiid
+        self.win, st = win, win.settings
+        self.setWindowTitle("Cài đặt Gemini (AI)")
+        self.resize(620, 300)
+        f = QFormLayout(self)
+        f.addRow(QLabel("Lấy khoá API miễn phí tại <b>aistudio.google.com/apikey</b> (đăng nhập tài khoản Google → "
+                        "<i>Create API key</i>), rồi dán vào ô dưới. Khoá được lưu trên máy này."))
+        self.e_key = QLineEdit(st.value("ai/key", ""))
+        self.e_key.setEchoMode(QLineEdit.EchoMode.Password)
+        self.e_key.setPlaceholderText("AIza…")
+        show = QCheckBox("Hiện khoá")
+        show.toggled.connect(lambda v: self.e_key.setEchoMode(QLineEdit.EchoMode.Normal if v
+                                                              else QLineEdit.EchoMode.Password))
+        self.cb_model = QComboBox()
+        self.cb_model.setEditable(True)
+        self.cb_model.addItem(st.value("ai/model", aiid.DEFAULT_MODEL))
+        self.sp_batch = QSpinBox()
+        self.sp_batch.setRange(1, 30)
+        self.sp_batch.setValue(int(st.value("ai/batch", 10)))
+        f.addRow("Khoá API", self.e_key)
+        f.addRow("", show)
+        f.addRow("Mô hình", self.cb_model)
+        f.addRow("Số câu mỗi lần gửi", self.sp_batch)
+        self.info = QLabel()
+        self.info.setWordWrap(True)
+        f.addRow(self.info)
+        row = QHBoxLayout()
+        b = QPushButton("Kiểm tra kết nối / tải danh sách mô hình")
+        b.clicked.connect(self.check)
+        ok = QPushButton("Lưu")
+        ok.setObjectName("primary")
+        ok.clicked.connect(self.save)
+        row.addWidget(b)
+        row.addStretch()
+        row.addWidget(ok)
+        f.addRow(row)
+
+    def check(self):
+        from . import aiid
+        try:
+            QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
+            models = aiid.GeminiClient(self.e_key.text()).list_models()
+        except aiid.AIError as e:
+            self.info.setText(f"<span style='color:#c00000'>{e}</span>")
+            return
+        finally:
+            QApplication.restoreOverrideCursor()
+        cur = self.cb_model.currentText()
+        self.cb_model.clear()
+        self.cb_model.addItems(models)
+        if cur in models:
+            self.cb_model.setCurrentText(cur)
+        elif aiid.DEFAULT_MODEL in models:
+            self.cb_model.setCurrentText(aiid.DEFAULT_MODEL)
+        self.info.setText(f"<span style='color:#0b7a0b'>✔ Kết nối được – {len(models)} mô hình dùng được. "
+                          "Nên chọn bản «flash» (nhanh, hạn mức miễn phí rộng).</span>")
+
+    def save(self):
+        st = self.win.settings
+        st.setValue("ai/key", self.e_key.text().strip())
+        st.setValue("ai/model", self.cb_model.currentText().strip())
+        st.setValue("ai/batch", self.sp_batch.value())
+        self.accept()
 
 
 class BuildWorker(QThread):

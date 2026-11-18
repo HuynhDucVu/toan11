@@ -49,6 +49,7 @@ nganhangde/
 ├── mathgen.py    # sinh câu hỏi số từ câu mẫu có tham số
 ├── drawgen.py    # mã TikZ: bảng biến thiên, đồ thị, biểu đồ cột/quạt
 ├── pdfbuild.py   # biên dịch PDF: tìm MiKTeX/TeX Live, chạy nhiều lượt, đọc lỗi từ .log
+├── aiid.py       # gán ID bằng Google Gemini (REST, không cần thư viện ngoài)
 ├── templates/nhd_extest.sty   # gói ex_test rút gọn dùng khi máy chưa cài ex_test
 ├── cli.py        # Bước 7a: dòng lệnh
 ├── gui_qt.py     # Bước 7b: giao diện chính (PySide6/Qt)
@@ -489,6 +490,36 @@ Thứ tự ưu tiên là pdflatex → xelatex → lualatex, đổi được.
 **Đã kiểm thử bằng pdflatex và xelatex:** đề và lời giải xuất từ kho mẫu biên dịch thành công.
 File cố ý lỗi được báo đúng «Dòng 4: … lệnh không tồn tại».
 
+## 8g. Gán ID bằng Gemini (`aiid.py`)
+
+**`GeminiClient`** gọi REST API `models/{model}:generateContent` bằng `urllib`:
+
+* khoá API gửi trong header `x-goog-api-key`;
+* yêu cầu Gemini trả JSON (`responseMimeType: application/json`), `temperature` thấp để kết quả ổn định;
+* lỗi 429, 500, 503 thì thử lại; lỗi 401/403/404… được dịch sang câu dễ hiểu.
+
+`list_models()` lấy danh sách mô hình hỗ trợ `generateContent`, để người dùng chọn mà không phải gõ tên mô hình.
+
+**Lời nhắc** (`build_prompt`) gồm:
+
+* thang mức độ N/H/V/C kèm mô tả;
+* bảng mã dạng trong phạm vi (`map_catalog`: `0D71-2 | Lớp 10 › … › Dạng …`);
+* nhóm câu hỏi: đề bài, phương án, tóm tắt lời giải;
+* yêu cầu trả JSON `{"ket_qua": [{"cau", "ma", "muc_do", "tin_cay", "ly_do"}]}`.
+
+**`classify`** gửi theo nhóm (mặc định 10 câu mỗi lần), rồi với từng kết quả:
+
+* **chỉ nhận mã có trong Map ID**, chống việc AI tự nghĩ ra mã;
+* ghép mức độ vào để thành ID đầy đủ, ví dụ `0D71-2` + `H` → `0D7H1-2`;
+* không dùng mức độ của AI (hoặc AI không trả) thì giữ mức độ cũ, hoặc dùng mức mặc định.
+
+Giao diện chạy phần này ở `AiWorker` (QThread), có nút Dừng. Worker chỉ dùng dữ liệu đã chuẩn bị sẵn,
+**không truy cập SQLite từ luồng nền**.
+
+**Kiểm thử** dùng `transport` giả lập, trả về đúng cấu trúc phản hồi của Google
+(`candidates[0].content.parts[0].text`), có cả JSON nằm trong khối \`\`\`json và mã bịa.
+Phần này **chưa được chạy với Gemini thật**, vì máy phát triển không gọi được API của Google.
+
 ## 9. Bước 7: giao diện
 
 **Dòng lệnh** (`cli.py`):
@@ -635,7 +666,8 @@ Bảng dưới lập từ tên các thành phần giao diện trong file `MyLT.e
 | Bảng biến thiên, đồ thị hàm số, biểu đồ cột/quạt → TikZ | ✅ (mục 8e) |
 | Sinh số / sinh câu từ câu mẫu | ✅ (mục 8d) |
 | Dựng hình học phẳng từng bước (điểm, đường tròn, giao điểm…) | ⏳ chưa có |
-| Sinh câu hỏi bằng AI (Gemini) | ⏳ chưa có (cần khoá API) |
+| Gán ID bằng AI (Gemini) | ✅ (mục 8g – cần khoá API Gemini) |
+| Sinh câu hỏi bằng AI (Gemini) | ⏳ chưa có (dùng chung `GeminiClient` được) |
 
 ## 12. Hướng phát triển thêm
 

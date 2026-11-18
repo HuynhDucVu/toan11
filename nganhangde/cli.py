@@ -285,6 +285,33 @@ def cmd_pdf(bank, a):
         sys.exit(1)
 
 
+def cmd_ai_id(bank: Bank, a):
+    """Gán ID bằng Gemini cho các câu trong file .tex (khoá API lấy từ biến môi trường GEMINI_API_KEY)."""
+    import os
+    from . import aiid
+    from . import review as rv
+    key = os.environ.get("GEMINI_API_KEY", "")
+    client = aiid.GeminiClient(key, a.model)
+    qs = [q for q in parse_file(a.file) if a.all or not q.id_code]
+    res = aiid.classify(client, qs, bank.idmap(), scope=a.scope, default_level=a.level, batch=a.batch,
+                        progress=lambda i, n: print(f"  {i}/{n} câu…"))
+    pairs = []
+    for r in res:
+        q = qs[r.index]
+        stem = " ".join(q.stem.split())[:60]
+        print(f"[{r.id_code or '—':<10}] {r.score:4.0%}  {stem}\n             {r.reason}")
+        if r.id_code and r.score >= a.min_score:
+            old = q.raw
+            q.set_id(r.id_code)
+            pairs.append((old, q.raw))
+    if a.out:
+        with open(a.file, encoding="utf-8") as f:
+            text, n = rv.replace_questions_text(f.read(), pairs)
+        with open(a.out, "w", encoding="utf-8") as f:
+            f.write(text)
+        print(f"Đã gán ID cho {n} câu (tin cậy ≥ {a.min_score:.0%}) → {a.out}. Hãy kiểm tra lại!")
+
+
 def cmd_backup(bank: Bank, a):
     bank.backup(a.dest)
     print(f"Đã sao lưu {bank.count()} câu ra {a.dest}")
@@ -357,6 +384,15 @@ def main(argv=None):
     p.add_argument("--engine", default="auto", choices=["auto", "pdflatex", "xelatex", "lualatex"])
     p.add_argument("--runs", type=int, default=2)
     p.add_argument("--extest", help="thư mục chứa ex_test.sty")
+    p = sub.add_parser("ai-id", help="gán ID bằng Gemini (đặt GEMINI_API_KEY; cần Map ID trong kho)")
+    p.add_argument("file")
+    p.add_argument("-o", "--out", help="file mới đã gán ID (bỏ trống = chỉ in gợi ý)")
+    p.add_argument("--scope", default="", help="giới hạn Map ID, vd 0 (lớp 10)")
+    p.add_argument("--level", default="N", choices=list("NHVC"))
+    p.add_argument("--model", default="gemini-2.5-flash")
+    p.add_argument("--batch", type=int, default=10)
+    p.add_argument("--min-score", type=float, default=0.0, help="chỉ gán khi Gemini tin cậy ≥ ngưỡng (0..1)")
+    p.add_argument("--all", action="store_true", help="gán lại cả câu đã có ID")
     p = sub.add_parser("backup")
     p.add_argument("dest")
     p = sub.add_parser("make")
@@ -377,11 +413,14 @@ def main(argv=None):
             from .gui import run             # dự phòng: Tkinter
         return run(a.db)
     bank = Bank(a.db or "nganhang.db")
+    from .aiid import AIError
     try:
         {"import": cmd_import, "list": cmd_list, "stats": cmd_stats, "check": cmd_check,
          "make": cmd_make, "export": cmd_export, "idmap": cmd_idmap, "shuffle": cmd_shuffle,
          "backup": cmd_backup, "review": cmd_review, "suggest-id": cmd_suggest_id,
-         "word2tex": cmd_word2tex, "tex2word": cmd_tex2word, "pdf": cmd_pdf}[a.cmd](bank, a)
+         "word2tex": cmd_word2tex, "tex2word": cmd_tex2word, "pdf": cmd_pdf, "ai-id": cmd_ai_id}[a.cmd](bank, a)
+    except AIError as e:
+        sys.exit(f"Lỗi: {e}")
     finally:
         bank.close()
 

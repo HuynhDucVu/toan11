@@ -5,7 +5,20 @@
 
 Kho câu hỏi `nganhang.db` nằm cạnh file exe. Cập nhật từ bản cũ: chỉ cần thay file exe, kho giữ nguyên.
 
-## Có gì mới ở bản 0.8.0 – Biên dịch PDF
+## Có gì mới ở bản 0.9.0 – Gán ID tự động bằng Gemini (AI)
+- **🤖 Gán ID bằng Gemini:**
+  - menu **Câu hỏi → Gán ID tự động bằng Gemini** (Shift+F3), hoặc nút 🤖 trong hộp Gán ID;
+  - Gemini đọc đề bài, phương án, lời giải và chọn **chương › bài › dạng trong Map ID của thầy/cô**, đánh giá luôn **mức độ** N/H/V/C kèm **độ tin cậy** và **lí do**;
+  - phần mềm **đối chiếu lại với Map ID**: mã Gemini tự nghĩ ra (không có trong Map ID) bị loại.
+- Kết quả điền vào cột «ID mới» để thầy/cô **duyệt trước khi lưu** (vào kho hoặc ra file .tex mới).
+- Chọn **phạm vi** (ví dụ chỉ lớp 10) để gửi ít Map ID hơn, cho nhanh và đỡ tốn hạn mức.
+- **Cài đặt:** menu **Công cụ → Cài đặt Gemini**.
+  - Dán khoá API miễn phí lấy tại aistudio.google.com/apikey, bấm *Kiểm tra kết nối* để tải danh sách mô hình (nên chọn bản «flash»).
+  - Khoá lưu trên máy của thầy/cô.
+- **Lưu ý:** nội dung câu hỏi được gửi tới máy chủ Google; cần Internet.
+- Dòng lệnh: `set GEMINI_API_KEY=…` rồi `python -m nganhangde ai-id de.tex --scope 0 -o de_ganID.tex`.
+
+## Bản 0.8.0 – Biên dịch PDF
 - **📄 Xem PDF câu đã chọn** (nút trên thanh công cụ, phím F5): chọn một hoặc nhiều câu trong kho, phần mềm biên dịch và mở PDF có lời giải. Hộp «Sửa câu» cũng có nút *Xem PDF*.
 - **Tạo đề → tick «Biên dịch luôn ra PDF»:** sau khi trộn, mọi file đề và lời giải được biên dịch thành PDF. Chạy ở luồng nền nên phần mềm không bị treo; có thanh tiến trình và nút Huỷ.
 - **Biên dịch file .tex bất kì** (menu Công cụ hoặc tab Công cụ). File chỉ có câu hỏi sẽ tự được bọc vào mẫu đề.
