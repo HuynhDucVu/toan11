@@ -3,7 +3,16 @@
 % (chỗ nào không có thông tin sẽ để trống). Tên dùng được:
 %   SO_GD TRUONG KY_THI MON_THI TEN_DE THOI_GIAN MA_DE GIAO_VIEN NAM_HOC MODE(dethi/loigiai) NOI_DUNG
 \documentclass[12pt,a4paper]{article}
-\usepackage[utf8]{vietnam}
+\usepackage{iftex}
+\ifPDFTeX
+	\usepackage[utf8]{vietnam}          % pdflatex: gói tiếng Việt vntex
+\else
+	\usepackage{fontspec}               % xelatex/lualatex: phông hệ thống
+	\IfFontExistsTF{Times New Roman}{\setmainfont{Times New Roman}}{%
+	\IfFontExistsTF{texgyretermes-regular.otf}{\setmainfont{texgyretermes-regular.otf}[%
+		BoldFont=texgyretermes-bold.otf,ItalicFont=texgyretermes-italic.otf,BoldItalicFont=texgyretermes-bolditalic.otf]}{%
+	\IfFontExistsTF{Liberation Serif}{\setmainfont{Liberation Serif}}{}}}   % không có ⇒ Latin Modern mặc định
+\fi
 \usepackage{amsmath,amssymb,tikz,enumitem}
 \usepackage[top=1.5cm,bottom=1.5cm,left=2cm,right=1.5cm]{geometry}
 \usepackage[<<MODE>>]{ex_test}
@@ -12,14 +21,14 @@
 \providecommand{\hoac}[1]{\left[\begin{aligned}#1\end{aligned}\right.}
 \begin{document}
 \noindent\begin{minipage}[t]{0.45\textwidth}\centering
-	<<SO_GD>>\\
-	\textbf{<<TRUONG>>}
+	{<<SO_GD>>\par}
+	{\bfseries <<TRUONG>>\par}
 \end{minipage}\hfill
 \begin{minipage}[t]{0.53\textwidth}\centering
-	\textbf{<<KY_THI>>}\\
-	\textbf{<<TEN_DE>>}\\
-	Môn: \textbf{<<MON_THI>>}\quad Năm học: <<NAM_HOC>>\\
-	\textit{Thời gian làm bài: <<THOI_GIAN>> phút, không kể thời gian phát đề}
+	{\bfseries <<KY_THI>>\par}
+	{\bfseries <<TEN_DE>>\par}
+	{Môn: \textbf{<<MON_THI>>}\quad Năm học: <<NAM_HOC>>\par}
+	{\itshape Thời gian làm bài: <<THOI_GIAN>> phút, không kể thời gian phát đề\par}
 \end{minipage}
 \par\medskip
 \noindent Họ và tên thí sinh: \dotfill\quad Số báo danh: \makebox[3cm]{\dotfill}\quad \fbox{\textbf{Mã đề <<MA_DE>>}}

@@ -7,18 +7,16 @@ from __future__ import annotations
 import json
 import os
 import re
-import shutil
-import subprocess
 import sys
 
-from PySide6.QtCore import QSettings, Qt, QUrl
+from PySide6.QtCore import QSettings, Qt, QThread, QUrl, Signal
 from PySide6.QtGui import (QAction, QBrush, QColor, QDesktopServices, QFont, QIcon, QKeySequence, QPainter, QPen,
                            QPainterPath,
                            QSyntaxHighlighter, QTextCharFormat)
 from PySide6.QtWidgets import (QAbstractItemView, QApplication, QCheckBox, QComboBox,
                                QDialog, QDialogButtonBox, QFrame, QScrollArea, QFileDialog, QFormLayout, QGridLayout,
                                QGroupBox, QHBoxLayout, QInputDialog, QHeaderView, QLabel, QLineEdit, QListWidget,
-                               QMainWindow, QMessageBox, QPlainTextEdit, QPushButton,
+                               QMainWindow, QMessageBox, QPlainTextEdit, QProgressDialog, QPushButton,
                                QSpinBox, QSplitter, QTableWidget, QTableWidgetItem,
                                QTabWidget, QTextBrowser, QToolBar, QTreeWidget,
                                QTreeWidgetItem, QVBoxLayout, QWidget)
@@ -171,6 +169,10 @@ class MainWindow(QMainWindow):
         self._act(m, "Soát lỗi file .tex…", self.check_file)
         self._act(m, "Giải nghĩa ID (Map ID)…", self.edit_idmap, "Ctrl+M")
         self._act(m, "Tìm câu gần trùng trong kho…", self.near_dups)
+        m.addSeparator()
+        self._act(m, "Xem PDF câu đã chọn", self.preview_pdf, "F5")
+        self._act(m, "Biên dịch file .tex → PDF…", self.compile_files)
+        self._act(m, "Cài đặt biên dịch PDF…", self.pdf_settings_dialog)
         self._act(m, "Thống kê ngân hàng", self.show_stats)
         m = mb.addMenu("Trợ &giúp")
         self._act(m, "Kiểm tra bản cập nhật…", self.check_update)
@@ -184,7 +186,8 @@ class MainWindow(QMainWindow):
                          ("✏️ Sửa", self.edit_question), ("🗑 Xoá", self.delete_questions),
                          ("🏷 Gán ID", self.assign_ids),
                          ("📤 Xuất câu", self.export_selected), ("🎲 Tạo đề", self.open_generator),
-                         ("✅ Rà soát", self.open_review), ("📊 Thống kê", self.show_stats)):
+                         ("✅ Rà soát", self.open_review), ("📄 Xem PDF", self.preview_pdf),
+                         ("📊 Thống kê", self.show_stats)):
             tb.addAction(text, fn)
 
         # --- cột trái: cây chương + bộ lọc
@@ -807,6 +810,83 @@ class MainWindow(QMainWindow):
     def show_stats(self):
         self.main_tabs.setCurrentWidget(self.stats_panel)
 
+    # ---------------------------------------------------------- PDF
+    def pdf_opts(self) -> dict:
+        st = self.settings
+        return {"preferred": st.value("pdf/engine", "auto"), "custom": st.value("pdf/custom", ""),
+                "extest_dir": st.value("pdf/extest", ""), "runs": int(st.value("pdf/runs", 2)),
+                "clean": str(st.value("pdf/clean", True)).lower() == "true",
+                "open": str(st.value("pdf/open", True)).lower() == "true"}
+
+    def engine(self, quiet=False):
+        from .pdfbuild import EngineMissing, find_engine
+        o = self.pdf_opts()
+        try:
+            return find_engine(o["preferred"], o["custom"])
+        except EngineMissing as e:
+            if not quiet:
+                QMessageBox.warning(self, "Chưa có LaTeX", f"{e}\n\nMenu Công cụ → Cài đặt biên dịch PDF.")
+            return None
+
+    def build_pdfs(self, paths, title="Biên dịch PDF", open_single=True):
+        """Biên dịch nhiều file trong luồng nền (không treo giao diện), hiện kết quả."""
+        eng = self.engine()
+        if not eng or not paths:
+            return []
+        o = self.pdf_opts()
+        dlg = QProgressDialog("Đang biên dịch…", "Huỷ", 0, len(paths), self)
+        dlg.setWindowTitle(title)
+        dlg.setWindowModality(Qt.WindowModality.WindowModal)
+        dlg.setMinimumDuration(0)
+        worker = BuildWorker(paths, eng, o)
+        worker.progress.connect(lambda i, n, p: (dlg.setValue(i - 1), dlg.setLabelText(f"Đang biên dịch {i}/{n}: "
+                                                                                       f"{os.path.basename(p)}")))
+        dlg.canceled.connect(worker.requestInterruption)
+        results = []
+        worker.done.connect(lambda r: results.extend(r))
+        worker.start()
+        while worker.isRunning():
+            QApplication.processEvents()
+            worker.wait(50)
+        QApplication.processEvents()
+        dlg.close()
+        if len(results) == 1 and results[0].ok and open_single and o["open"]:
+            QDesktopServices.openUrl(QUrl.fromLocalFile(results[0].pdf))
+        else:
+            PdfResultDialog(self, results).exec()
+        return results
+
+    def preview_pdf(self):
+        from .pdfbuild import preview_questions
+        ids = self.selected_ids()
+        if not ids:
+            QMessageBox.information(self, "Xem PDF", "Chọn một hoặc nhiều câu trong bảng (tối đa 50).")
+            return
+        eng = self.engine()
+        if not eng:
+            return
+        qs = [self.bank.get(i) for i in ids[:50]]
+        QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
+        try:
+            r = preview_questions(qs, mode="loigiai", engine=eng, extest_dir=self.pdf_opts()["extest_dir"],
+                                  template_path=self.gen_panel.e_tpl[0].text() or None)
+        finally:
+            QApplication.restoreOverrideCursor()
+        if r.pdf:
+            QDesktopServices.openUrl(QUrl.fromLocalFile(r.pdf))
+        if not r.ok:
+            PdfResultDialog(self, [r]).exec()
+
+    def compile_files(self):
+        ps, _ = QFileDialog.getOpenFileNames(self, "Chọn file .tex cần biên dịch", self.settings.value("last_dir", ""),
+                                             "LaTeX (*.tex)")
+        if ps:
+            self.build_pdfs(prepare_tex_for_pdf(ps, self.gen_panel.e_tpl[0].text() or None))
+
+    def pdf_settings_dialog(self):
+        PdfSettingsDialog(self).exec()
+        self.gen_panel.c_pdf.setEnabled(bool(self.engine(quiet=True)))
+
     def open_review(self):
         self.main_tabs.setCurrentWidget(self.review_panel)
 
@@ -853,11 +933,33 @@ class EditDialog(QDialog):
         self.editor.textChanged.connect(self.check)
         bb = QDialogButtonBox(QDialogButtonBox.StandardButton.Save | QDialogButtonBox.StandardButton.Cancel)
         bb.button(QDialogButtonBox.StandardButton.Save).setText("Lưu")
+        b_pdf = bb.addButton("📄 Xem PDF", QDialogButtonBox.ButtonRole.ActionRole)
+        b_pdf.clicked.connect(self.preview_pdf)
         bb.button(QDialogButtonBox.StandardButton.Cancel).setText("Huỷ")
         bb.accepted.connect(self.save)
         bb.rejected.connect(self.reject)
         lay.addWidget(bb)
         self.check()
+
+    def preview_pdf(self):
+        from .pdfbuild import preview_questions
+        q, n = self._parse()
+        if not q:
+            QMessageBox.warning(self, "Xem PDF", f"Cần đúng 1 khối câu hỏi (đang có {n}).")
+            return
+        eng = self.win.engine()
+        if not eng:
+            return
+        QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
+        try:
+            r = preview_questions([q], engine=eng, extest_dir=self.win.pdf_opts()["extest_dir"],
+                                  template_path=self.win.gen_panel.e_tpl[0].text() or None)
+        finally:
+            QApplication.restoreOverrideCursor()
+        if r.pdf:
+            QDesktopServices.openUrl(QUrl.fromLocalFile(r.pdf))
+        if not r.ok:
+            PdfResultDialog(self, [r]).exec()
 
     def _parse(self):
         qs = parse_tex(self.editor.toPlainText())
@@ -946,8 +1048,9 @@ class GeneratorPanel(QWidget):
         self.c_preview = QCheckBox("Xem trước bộ câu để «đổi câu» trước khi trộn")
         self.c_unused = QCheckBox("Ưu tiên câu ít được dùng")
         self.c_unused.setChecked(True)
-        self.c_pdf = QCheckBox("Biên dịch PDF bằng xelatex (nếu máy có cài)")
-        self.c_pdf.setEnabled(bool(shutil.which("xelatex")))
+        self.c_pdf = QCheckBox("Biên dịch luôn ra PDF (cần MiKTeX/TeX Live – xem Công cụ → Cài đặt biên dịch PDF)")
+        self.c_pdf.setEnabled(bool(win.engine(quiet=True)))
+        self.c_pdf.setChecked(str(self.st.value("gen/pdf", False)).lower() == "true" and self.c_pdf.isEnabled())
         for c in (self.c_diff,):
             fl.addRow("", c)
         fl.addRow("  Trùng tối đa giữa 2 mã", self.sp_overlap)
@@ -1189,10 +1292,14 @@ class GeneratorPanel(QWidget):
         self.st.setValue("gen/overlap", self.sp_overlap.value())
         for k, e in self.hdr.items():
             self.st.setValue(f"gen/hdr_{k}", e.text())
+        self.st.setValue("gen/pdf", self.c_pdf.isChecked())
         extra = ""
         if self.c_pdf.isChecked():
-            fails = compile_pdfs([f for f in files if f.endswith(".tex")], out)
-            extra = "<p>Biên dịch PDF: " + ("thành công" if not fails else "lỗi ở " + ", ".join(fails)) + "</p>"
+            res = self.win.build_pdfs([f for f in files if f.endswith(".tex")], "Biên dịch đề ra PDF",
+                                      open_single=False)
+            ok = sum(r.ok for r in res)
+            extra = (f"<p><b>Biên dịch PDF:</b> {ok}/{len(res)} file thành công.</p>"
+                     + "".join(f"<p style='color:#c00000'>{r.summary()}</p>" for r in res if not r.ok))
         ResultDialog(self, vs, out, extra).exec()
 
     def export_options(self):
@@ -2789,6 +2896,7 @@ class ToolsPanel(QWidget):
                                         ("Trích hình TikZ…", self.file_tikz), ("Tìm câu gần trùng…", self.file_near_dups),
                                         ("Word → LaTeX…", self.word_to_tex), ("LaTeX → Word…", self.tex_to_word),
                                         ("Bài làm online từ file…", self.file_online),
+                                        ("📄 Biên dịch PDF các file", self.file_pdf),
                                         ("Nạp các file vào kho", self.import_to_bank))):
             b = QPushButton(text)
             b.clicked.connect(fn)
@@ -3045,6 +3153,12 @@ class ToolsPanel(QWidget):
         self.show_result("Bài làm online", "".join(html_) + "<p>Gửi file HTML cho học sinh (Zalo, email…) – "
                          "mở bằng trình duyệt trên điện thoại hoặc máy tính.</p>")
 
+    def file_pdf(self):
+        ps = self.paths()
+        if ps:
+            res = self.win.build_pdfs(prepare_tex_for_pdf(ps, self.win.gen_panel.e_tpl[0].text() or None))
+            self.show_result("Biên dịch PDF", "".join(f"<p>{r.summary()}</p>" for r in res))
+
     def assign_ids_file(self):
         ps = self.paths()
         if not ps:
@@ -3142,14 +3256,174 @@ class StatsPanel(QWidget):
                 self.t.setItem(i, c, it)
 
 
-def compile_pdfs(tex_files, cwd) -> list[str]:
-    fails = []
-    for f in tex_files:
-        r = subprocess.run(["xelatex", "-interaction=nonstopmode", os.path.basename(f)], cwd=cwd,
-                           capture_output=True)
-        if r.returncode != 0:
-            fails.append(os.path.basename(f))
-    return fails
+class BuildWorker(QThread):
+    """Biên dịch PDF ở luồng nền."""
+    progress = Signal(int, int, str)
+    done = Signal(list)
+
+    def __init__(self, paths, engine, opts):
+        super().__init__()
+        self.paths, self.eng, self.o = list(paths), engine, opts
+
+    def run(self):
+        from .pdfbuild import compile_tex
+        out = []
+        for i, p in enumerate(self.paths, 1):
+            if self.isInterruptionRequested():
+                break
+            self.progress.emit(i, len(self.paths), p)
+            try:
+                out.append(compile_tex(p, self.eng, runs=self.o["runs"], extest_dir=self.o["extest_dir"],
+                                       clean=self.o["clean"]))
+            except Exception as e:  # noqa: BLE001
+                from .pdfbuild import BuildResult
+                out.append(BuildResult(p, False, errors=[str(e)]))
+        self.done.emit(out)
+
+
+def prepare_tex_for_pdf(paths, template_path=None) -> list[str]:
+    """File chỉ có câu hỏi (không có \\documentclass) ⇒ bọc vào mẫu đề (bản lời giải) thành file _pdf.tex."""
+    from .exporter import fill, load_template
+    out = []
+    for p in paths:
+        with open(p, encoding="utf-8", errors="ignore") as f:
+            text = f.read()
+        if "\\documentclass" in text:
+            out.append(p)
+            continue
+        q = os.path.splitext(p)[0] + "_pdf.tex"
+        with open(q, "w", encoding="utf-8") as f:
+            f.write(fill(load_template(template_path), MODE="loigiai", NOI_DUNG=text,
+                         TEN_DE=os.path.basename(os.path.splitext(p)[0]), MA_DE="—"))
+        out.append(q)
+    return out
+
+
+class PdfResultDialog(QDialog):
+    def __init__(self, parent, results):
+        super().__init__(parent)
+        self.setWindowTitle("Kết quả biên dịch PDF")
+        self.resize(820, 420)
+        self.results = results
+        lay = QVBoxLayout(self)
+        ok = sum(r.ok for r in results)
+        lay.addWidget(QLabel(f"<b>{ok}/{len(results)} file biên dịch thành công.</b> Nhấp đúp một dòng để mở PDF "
+                             "(hoặc file .tex nếu lỗi)."
+                             + ("<br><i>Có file dùng gói ex_test rút gọn đi kèm vì máy chưa cài ex_test – cài ex_test "
+                                "thật (hoặc chỉ thư mục chứa ex_test.sty trong Cài đặt) để có bản in chuẩn.</i>"
+                                if any(r.used_lite for r in results) else "")))
+        t = QTableWidget(len(results), 3)
+        t.setHorizontalHeaderLabels(["File", "Kết quả", "Lỗi (nếu có)"])
+        t.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch)
+        t.verticalHeader().setVisible(False)
+        t.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+        t.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+        for r_, res in enumerate(results):
+            vals = (os.path.basename(res.tex), "✔ " + f"{res.seconds:.1f}s" if res.ok else "✘ lỗi",
+                    " | ".join(res.errors[:4]))
+            for c, v in enumerate(vals):
+                it = QTableWidgetItem(v)
+                it.setToolTip("\n".join(res.errors) or res.pdf or "")
+                if c == 1:
+                    it.setForeground(QColor("#0b7a0b" if res.ok else "#c00000"))
+                t.setItem(r_, c, it)
+        t.doubleClicked.connect(self.open_row)
+        lay.addWidget(t)
+        b = QPushButton("Đóng")
+        b.clicked.connect(self.accept)
+        lay.addWidget(b)
+
+    def open_row(self, idx):
+        r = self.results[idx.row()]
+        QDesktopServices.openUrl(QUrl.fromLocalFile(r.pdf if r.pdf else r.tex))
+
+
+class PdfSettingsDialog(QDialog):
+    def __init__(self, win: MainWindow):
+        super().__init__(win)
+        self.win, st = win, win.settings
+        self.setWindowTitle("Cài đặt biên dịch PDF")
+        self.resize(640, 380)
+        f = QFormLayout(self)
+        self.cb_eng = QComboBox()
+        for t, d in (("Tự động (pdflatex → xelatex → lualatex)", "auto"), ("pdflatex", "pdflatex"),
+                     ("xelatex", "xelatex"), ("lualatex", "lualatex")):
+            self.cb_eng.addItem(t, d)
+        self.cb_eng.setCurrentIndex(max(0, self.cb_eng.findData(st.value("pdf/engine", "auto"))))
+        self.e_custom = self._path(st.value("pdf/custom", ""), False, "Đường dẫn pdflatex.exe/xelatex.exe (để trống = tự tìm)")
+        self.e_extest = self._path(st.value("pdf/extest", ""), True, "Thư mục chứa ex_test.sty (để trống = dùng gói đã cài)")
+        self.sp_runs = QSpinBox()
+        self.sp_runs.setRange(1, 3)
+        self.sp_runs.setValue(int(st.value("pdf/runs", 2)))
+        self.c_clean = QCheckBox("Xoá file phụ (.aux, .log…) sau khi biên dịch thành công")
+        self.c_clean.setChecked(str(st.value("pdf/clean", True)).lower() == "true")
+        self.c_open = QCheckBox("Tự mở PDF khi biên dịch 1 file")
+        self.c_open.setChecked(str(st.value("pdf/open", True)).lower() == "true")
+        f.addRow("Trình biên dịch", self.cb_eng)
+        f.addRow("Chỉ định file chạy", self.e_custom[1])
+        f.addRow("Gói ex_test", self.e_extest[1])
+        f.addRow("Số lượt chạy", self.sp_runs)
+        f.addRow("", self.c_clean)
+        f.addRow("", self.c_open)
+        self.info = QLabel()
+        self.info.setWordWrap(True)
+        f.addRow(self.info)
+        row = QHBoxLayout()
+        b = QPushButton("Kiểm tra")
+        b.clicked.connect(self.check)
+        ok = QPushButton("Lưu")
+        ok.setObjectName("primary")
+        ok.clicked.connect(self.save)
+        row.addWidget(b)
+        row.addStretch()
+        row.addWidget(ok)
+        f.addRow(row)
+        self.check()
+
+    def _path(self, value, folder, ph):
+        w = QWidget()
+        h = QHBoxLayout(w)
+        h.setContentsMargins(0, 0, 0, 0)
+        e = QLineEdit(value)
+        e.setPlaceholderText(ph)
+        b = QPushButton("…")
+        b.setFixedWidth(40)
+
+        def pick():
+            p = QFileDialog.getExistingDirectory(self, "Chọn thư mục", e.text()) if folder else \
+                QFileDialog.getOpenFileName(self, "Chọn file chạy LaTeX", e.text())[0]
+            if p:
+                e.setText(p)
+        b.clicked.connect(pick)
+        h.addWidget(e)
+        h.addWidget(b)
+        return e, w
+
+    def check(self):
+        from .pdfbuild import EngineMissing, find_engine, has_package
+        try:
+            eng = find_engine(self.cb_eng.currentData(), self.e_custom[0].text())
+        except EngineMissing as e:
+            self.info.setText(f"<span style='color:#c00000'>{e}</span><br>Tải MiKTeX: <b>miktex.org/download</b> "
+                              "(cài xong khởi động lại phần mềm).")
+            return
+        ext = has_package(eng, "ex_test.sty", [self.e_extest[0].text()])
+        vn = has_package(eng, "vietnam.sty")
+        self.info.setText(f"<span style='color:#0b7a0b'>✔ Tìm thấy: {eng}</span><br>"
+                          + ("✔ Có gói ex_test" if ext else "⚠ Chưa thấy gói ex_test – sẽ dùng gói rút gọn đi kèm "
+                             "(đủ để xem/in thử; nên cài ex_test thật để in chính thức)") + "<br>"
+                          + ("✔ Có gói tiếng Việt vntex (pdflatex)" if vn else
+                             "⚠ Chưa thấy gói vietnam (vntex) – với pdflatex cần cài; xelatex thì dùng phông Times New Roman"))
+
+    def save(self):
+        st = self.win.settings
+        st.setValue("pdf/engine", self.cb_eng.currentData())
+        st.setValue("pdf/custom", self.e_custom[0].text())
+        st.setValue("pdf/extest", self.e_extest[0].text())
+        st.setValue("pdf/runs", self.sp_runs.value())
+        st.setValue("pdf/clean", self.c_clean.isChecked())
+        st.setValue("pdf/open", self.c_open.isChecked())
+        self.accept()
 
 
 def run(db_path: str | None = None):

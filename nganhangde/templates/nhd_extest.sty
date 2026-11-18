@@ -1,0 +1,71 @@
+% =====================================================================
+%  nhd_extest.sty – gói RÚT GỌN thay cho ex_test, đi kèm phần mềm Ngân hàng đề thi.
+%  Chỉ được dùng khi máy CHƯA cài ex_test: phần mềm chép file này vào thư mục biên dịch
+%  dưới tên ex_test.sty. Muốn đề đẹp/đầy đủ như bản in chính thức, hãy cài gói ex_test thật.
+%  Hỗ trợ: môi trường ex, bt; \choice, \choiceTF, \shortans, \loigiai, \True,
+%  itemchoice/\itemch, \cautn \cauds \caukq, \Opensolutionfile, \Closesolutionfile, \indapan.
+%  Tuỳ chọn gói: dethi (không in lời giải) | loigiai (in lời giải, tô đáp án đúng).
+% =====================================================================
+\NeedsTeXFormat{LaTeX2e}
+\ProvidesPackage{ex_test}[2026/11/18 ban rut gon cua phan mem Ngan hang de thi]
+\RequirePackage{amsmath,amssymb,xcolor,enumitem,tikz}
+\newif\ifnhd@lg \nhd@lgfalse
+\DeclareOption{dethi}{\nhd@lgfalse}
+\DeclareOption{loigiai}{\nhd@lgtrue}
+\DeclareOption*{}
+\ProcessOptions\relax
+
+\@ifundefined{c@ex}{\newcounter{ex}}{}
+\newcounter{nhdbt}
+\newif\ifnhd@ok
+% \True đứng đầu phương án: ở bản lời giải tô đỏ đáp án đúng
+\newcommand{\True}{\ifnhd@lg\color{red}\fi}
+
+\newenvironment{ex}[1][]{\par\medskip\noindent\refstepcounter{ex}\textbf{\color{blue!60!black}Câu \theex.}~\ignorespaces}%
+  {\par}
+\newenvironment{bt}[1][]{\par\medskip\noindent\refstepcounter{nhdbt}\textbf{\color{blue!60!black}Bài \thenhdbt.}~\ignorespaces}%
+  {\par}
+
+% ---- \choice[tuỳ chọn]{A}{B}{C}{D}: tự chọn 4 cột / 2 cột / 1 cột theo độ dài phương án dài nhất
+\newlength\nhd@w \newlength\nhd@max
+\newcommand{\nhd@measure}[1]{\settowidth{\nhd@w}{\textbf{A.}~#1}\ifdim\nhd@w>\nhd@max\setlength{\nhd@max}{\nhd@w}\fi}
+\newcommand{\nhd@cell}[3]{\begin{minipage}[t]{#1}\textbf{#2.}~{#3}\end{minipage}}
+\newcommand{\choice}[5][]{\par\smallskip\setlength{\nhd@max}{0pt}%
+  \nhd@measure{#2}\nhd@measure{#3}\nhd@measure{#4}\nhd@measure{#5}%
+  \noindent
+  \ifdim\nhd@max<.235\linewidth
+    \nhd@cell{.24\linewidth}{A}{#2}\hfill\nhd@cell{.24\linewidth}{B}{#3}\hfill
+    \nhd@cell{.24\linewidth}{C}{#4}\hfill\nhd@cell{.24\linewidth}{D}{#5}%
+  \else\ifdim\nhd@max<.47\linewidth
+    \nhd@cell{.48\linewidth}{A}{#2}\hfill\nhd@cell{.48\linewidth}{B}{#3}\par\smallskip\noindent
+    \nhd@cell{.48\linewidth}{C}{#4}\hfill\nhd@cell{.48\linewidth}{D}{#5}%
+  \else
+    \nhd@cell{\linewidth}{A}{#2}\par\noindent\nhd@cell{\linewidth}{B}{#3}\par\noindent
+    \nhd@cell{\linewidth}{C}{#4}\par\noindent\nhd@cell{\linewidth}{D}{#5}%
+  \fi\fi
+  \par\smallskip}
+
+% ---- \choiceTF[t]{a}{b}{c}{d}: 4 ý đúng/sai
+\newcommand{\nhd@tf}[2]{\par\noindent\hspace*{1em}\textbf{#1)}~{#2}}
+\newcommand{\choiceTF}[5][]{\par\smallskip\nhd@tf{a}{#2}\nhd@tf{b}{#3}\nhd@tf{c}{#4}\nhd@tf{d}{#5}\par\smallskip}
+
+% ---- \shortans[oly]{đáp án}
+\newcommand{\shortans}[2][]{\ifnhd@lg\par\noindent\textbf{Đáp án:}~{\color{red}#2}\par\fi}
+
+% ---- \loigiai{...}
+\newcommand{\loigiai}[1]{\ifnhd@lg\par\smallskip\noindent{\color{blue!50!black}\textbf{Lời giải.}}~#1\par\fi}
+
+% ---- danh sách ý trong lời giải câu đúng/sai
+\newlist{itemchoice}{enumerate}{1}
+\setlist[itemchoice]{label=\alph*),leftmargin=2em}
+\newcommand{\itemch}{\item}
+
+% ---- các lệnh khung đề hay gặp: bỏ qua cho an toàn
+\providecommand{\cautn}{}
+\providecommand{\cauds}{}
+\providecommand{\caukq}{}
+\providecommand{\Opensolutionfile}[2][]{}
+\providecommand{\Closesolutionfile}[1]{}
+\providecommand{\indapan}[2]{}
+\providecommand{\immini}[3][]{#2\hfill#3}
+\endinput

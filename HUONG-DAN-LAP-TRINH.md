@@ -48,6 +48,8 @@ nganhangde/
 ├── wordconv.py   # Word ↔ LaTeX qua pandoc
 ├── mathgen.py    # sinh câu hỏi số từ câu mẫu có tham số
 ├── drawgen.py    # mã TikZ: bảng biến thiên, đồ thị, biểu đồ cột/quạt
+├── pdfbuild.py   # biên dịch PDF: tìm MiKTeX/TeX Live, chạy nhiều lượt, đọc lỗi từ .log
+├── templates/nhd_extest.sty   # gói ex_test rút gọn dùng khi máy chưa cài ex_test
 ├── cli.py        # Bước 7a: dòng lệnh
 ├── gui_qt.py     # Bước 7b: giao diện chính (PySide6/Qt)
 ├── gui.py        #          giao diện dự phòng (Tkinter)
@@ -447,6 +449,46 @@ Giao diện có `PlotView` (QPainter) để **xem trước không cần LaTeX**.
 * đồ thị bậc ba và đồ thị $y=1/x$;
 * biểu đồ cột và biểu đồ quạt.
 
+## 8f. Biên dịch PDF (`pdfbuild.py`)
+
+**Tìm trình biên dịch** (`find_engine`) theo thứ tự:
+
+1. đường dẫn người dùng chỉ định;
+2. `PATH`;
+3. các thư mục cài hay gặp: MiKTeX trong `Program Files` / `LOCALAPPDATA`, TeX Live `C:\texlive\20xx\bin\…`.
+
+Thứ tự ưu tiên là pdflatex → xelatex → lualatex, đổi được.
+
+**Biên dịch** (`compile_tex`):
+
+* Chạy `-interaction=nonstopmode -halt-on-error`, mặc định 2 lượt (ex_test cần lượt sau để đọc file đáp án),
+  có giới hạn thời gian.
+* Trên Windows chạy kèm `CREATE_NO_WINDOW` để không bật cửa sổ đen.
+* Đọc file `.log`: mỗi dòng `! …` kèm `l.<số>` được dịch thành câu dễ hiểu (bảng `FRIENDLY`).
+* Biên dịch thành công thì xoá file phụ; lỗi thì giữ `.log` để xem.
+
+**Gói ex_test rút gọn** (`templates/nhd_extest.sty`):
+
+* Dùng khi `kpsewhich ex_test.sty` không thấy gói.
+* Được chép tạm vào thư mục biên dịch dưới tên `ex_test.sty`, xong thì xoá.
+* Định nghĩa `ex`, `\choice` (đo độ rộng phương án dài nhất để chọn 4, 2 hay 1 cột), `\choiceTF`, `\shortans`, `\loigiai`,
+  `\True` (tô đỏ ở bản lời giải), `itemchoice`, và bỏ qua `\Opensolutionfile`…
+
+**File mẫu đề** dùng `iftex`:
+
+* pdflatex dùng gói `vietnam`;
+* xelatex/lualatex dùng `fontspec`, phông Times New Roman → TeX Gyre Termes → Liberation Serif → Latin Modern.
+
+**Giao diện:**
+
+* `BuildWorker` (QThread) biên dịch ở luồng nền, có `QProgressDialog` và nút Huỷ;
+* `PdfResultDialog` hiện kết quả từng file;
+* `PdfSettingsDialog` để cài đặt;
+* xem trước câu (`preview_questions`) dựng tài liệu tạm từ file mẫu.
+
+**Đã kiểm thử bằng pdflatex và xelatex:** đề và lời giải xuất từ kho mẫu biên dịch thành công.
+File cố ý lỗi được báo đúng «Dòng 4: … lệnh không tồn tại».
+
 ## 9. Bước 7: giao diện
 
 **Dòng lệnh** (`cli.py`):
@@ -589,7 +631,7 @@ Bảng dưới lập từ tên các thành phần giao diện trong file `MyLT.e
 | In phiếu trả lời, mã QR, Azota | ⏳ chưa có (phiếu dùng mẫu của TNMaker) |
 | Chuyển Word ↔ LaTeX | ✅ qua pandoc (mục 8c) |
 | Đề online (HTML tự chấm), Moodle XML | ✅ (mục 8c) |
-| Xem PDF trong phần mềm | ⏳ chưa có (cần cài LaTeX; hiện có tuỳ chọn biên dịch PDF bằng xelatex) |
+| Biên dịch PDF, xem PDF câu hỏi, báo lỗi LaTeX | ✅ (mục 8f – cần MiKTeX/TeX Live) |
 | Bảng biến thiên, đồ thị hàm số, biểu đồ cột/quạt → TikZ | ✅ (mục 8e) |
 | Sinh số / sinh câu từ câu mẫu | ✅ (mục 8d) |
 | Dựng hình học phẳng từng bước (điểm, đường tròn, giao điểm…) | ⏳ chưa có |

@@ -5,7 +5,18 @@
 
 Kho câu hỏi `nganhang.db` nằm cạnh file exe. Cập nhật từ bản cũ: chỉ cần thay file exe, kho giữ nguyên.
 
-## Có gì mới ở bản 0.7.0 – Sinh câu hỏi số và vẽ hình (đợt 3, 4)
+## Có gì mới ở bản 0.8.0 – Biên dịch PDF
+- **📄 Xem PDF câu đã chọn** (nút trên thanh công cụ, phím F5): chọn một hoặc nhiều câu trong kho, phần mềm biên dịch và mở PDF có lời giải. Hộp «Sửa câu» cũng có nút *Xem PDF*.
+- **Tạo đề → tick «Biên dịch luôn ra PDF»:** sau khi trộn, mọi file đề và lời giải được biên dịch thành PDF. Chạy ở luồng nền nên phần mềm không bị treo; có thanh tiến trình và nút Huỷ.
+- **Biên dịch file .tex bất kì** (menu Công cụ hoặc tab Công cụ). File chỉ có câu hỏi sẽ tự được bọc vào mẫu đề.
+- **Báo lỗi dễ hiểu kèm số dòng**, ví dụ «Dòng 4: lệnh không tồn tại», «thiếu dấu $», «ngoặc { } không cân bằng», «thiếu gói …». Nhấp đúp để mở file.
+- **Tự tìm MiKTeX / TeX Live** trên máy (pdflatex → xelatex → lualatex). Menu **Công cụ → Cài đặt biên dịch PDF**: chọn trình biên dịch, chỉ đường dẫn, thư mục chứa `ex_test.sty`, số lượt chạy; nút *Kiểm tra* cho biết máy đã đủ gói chưa.
+- **Chưa cài gói ex_test vẫn biên dịch được:** phần mềm dùng **gói rút gọn đi kèm**, tự chia phương án thành 4, 2 hoặc 1 cột, tô đỏ đáp án ở bản lời giải. Muốn bản in chính thức thì cài ex_test thật.
+- **Mẫu đề chạy được cả pdflatex** (gói tiếng Việt vntex) **lẫn xelatex** (phông Times New Roman, không có thì dùng phông dự phòng).
+- Sửa lỗi mẫu đề: bỏ trống ô «Sở/Phòng GD» làm pdflatex báo lỗi. Gọi LaTeX hay pandoc không còn bật cửa sổ đen trên Windows.
+- Cần cài **MiKTeX** (miễn phí, miktex.org) hoặc TeX Live. Dòng lệnh: `python -m nganhangde pdf de.tex`, hoặc thêm `--pdf` khi trộn đề.
+
+## Bản 0.7.0 – Sinh câu hỏi số và vẽ hình (đợt 3, 4)
 **🔢 Sinh câu (tab mới)**
 - Từ **một câu mẫu có tham số**, sinh hàng loạt biến thể với số liệu khác nhau. Đáp án và lời giải tự tính theo số mới.
 - Khai báo biến bằng dòng `%@`:

@@ -86,6 +86,16 @@ def _exam_opts(a):
     return mix, exp
 
 
+def _maybe_pdf(a, files):
+    if not getattr(a, "pdf", False):
+        return
+    from .pdfbuild import compile_tex, find_engine
+    eng = find_engine()
+    for f in files:
+        if f.endswith(".tex"):
+            print("  PDF:", compile_tex(f, eng).summary())
+
+
 def _add_exam_flags(p):
     p.add_argument("--chuan-2026", action="store_true",
                    help="chuẩn đề tốt nghiệp: 24 mã 0101…0124, giữ ý Đúng/Sai, đánh số lại, lời dẫn, thang điểm")
@@ -94,6 +104,7 @@ def _add_exam_flags(p):
     p.add_argument("--online", action="store_true", help="thêm bài làm online (HTML) cho mỗi mã đề")
     p.add_argument("--moodle", action="store_true", help="thêm file Moodle XML")
     p.add_argument("--word", action="store_true", help="thêm file Word .docx mỗi mã đề (cần pandoc)")
+    p.add_argument("--pdf", action="store_true", help="biên dịch luôn các file đề/lời giải ra PDF")
 
 
 def cmd_make(bank: Bank, a):
@@ -118,6 +129,7 @@ def cmd_make(bank: Bank, a):
     bank.mark_used({q.db_id for v in vs for q in v.all_questions()})
     for p in files:
         print("Đã ghi", p)
+    _maybe_pdf(a, files)
 
 
 def cmd_idmap(bank: Bank, a):
@@ -150,6 +162,7 @@ def cmd_shuffle(bank, a):
     for v in vs:
         print(f"Mã {v.code}: đáp án TN {answer_distribution(v)}")
     print(f"Đã ghi {len(files)} file vào {a.out}")
+    _maybe_pdf(a, files)
 
 
 def cmd_review(bank: Bank, a):
@@ -258,6 +271,20 @@ def cmd_tex2word(bank, a):
     print("Đã ghi", out)
 
 
+def cmd_pdf(bank, a):
+    from .pdfbuild import compile_tex, find_engine
+    eng = find_engine(a.engine)
+    ok = True
+    for f in a.files:
+        r = compile_tex(f, eng, runs=a.runs, extest_dir=a.extest or "")
+        print(r.summary())
+        for e in r.errors[1:6]:
+            print("     ", e)
+        ok &= r.ok
+    if not ok:
+        sys.exit(1)
+
+
 def cmd_backup(bank: Bank, a):
     bank.backup(a.dest)
     print(f"Đã sao lưu {bank.count()} câu ra {a.dest}")
@@ -325,6 +352,11 @@ def main(argv=None):
     p.add_argument("file")
     p.add_argument("-o", "--out")
     p.add_argument("--no-answers", action="store_true", help="không đánh dấu đáp án, không kèm lời giải")
+    p = sub.add_parser("pdf", help="biên dịch file .tex ra PDF (pdflatex/xelatex), báo lỗi kèm số dòng")
+    p.add_argument("files", nargs="+")
+    p.add_argument("--engine", default="auto", choices=["auto", "pdflatex", "xelatex", "lualatex"])
+    p.add_argument("--runs", type=int, default=2)
+    p.add_argument("--extest", help="thư mục chứa ex_test.sty")
     p = sub.add_parser("backup")
     p.add_argument("dest")
     p = sub.add_parser("make")
@@ -349,7 +381,7 @@ def main(argv=None):
         {"import": cmd_import, "list": cmd_list, "stats": cmd_stats, "check": cmd_check,
          "make": cmd_make, "export": cmd_export, "idmap": cmd_idmap, "shuffle": cmd_shuffle,
          "backup": cmd_backup, "review": cmd_review, "suggest-id": cmd_suggest_id,
-         "word2tex": cmd_word2tex, "tex2word": cmd_tex2word}[a.cmd](bank, a)
+         "word2tex": cmd_word2tex, "tex2word": cmd_tex2word, "pdf": cmd_pdf}[a.cmd](bank, a)
     finally:
         bank.close()
 

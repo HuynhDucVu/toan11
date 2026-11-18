@@ -45,7 +45,8 @@ def pandoc_path() -> str:
 
 
 def _run(args: list[str]) -> str:
-    r = subprocess.run([pandoc_path()] + args, capture_output=True, text=True, encoding="utf-8")
+    extra = {"creationflags": 0x08000000} if os.name == "nt" else {}      # chạy ẩn trên Windows
+    r = subprocess.run([pandoc_path()] + args, capture_output=True, text=True, encoding="utf-8", **extra)
     if r.returncode != 0:
         raise RuntimeError(r.stderr.strip()[:500])
     return r.stdout

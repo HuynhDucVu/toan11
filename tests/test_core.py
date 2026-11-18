@@ -526,3 +526,33 @@ def test_drawgen():
     assert dg.pie_tikz(labels, values).count("arc") == 3 and "30\\%" in dg.pie_tikz(labels, values)
     with pytest.raises(dg.FuncError):
         dg.make_func("__import__('os')")
+
+
+def test_pdfbuild(bank, tmp_path):
+    from nganhangde import pdfbuild as pb
+    try:
+        eng = pb.find_engine("pdflatex")
+    except pb.EngineMissing:
+        pytest.skip("máy chưa có LaTeX")
+    from nganhangde.exporter import ExportOptions
+    vs = make_versions(bank, [Rule("TN", 12), Rule("DS", 4), Rule("KQ", 6)], codes=["101"], seed=1)
+    files = export_versions(vs, str(tmp_path / "o"), options=ExportOptions(renumber=True, official_titles=True,
+                            scoring=True), truong="THPT ABC")
+    for f in files[:2]:
+        r = pb.compile_tex(f, eng)
+        assert r.ok and r.pdf and os.path.getsize(r.pdf) > 10000, r.errors
+        assert not os.path.exists(f.replace(".tex", ".aux"))          # đã dọn file phụ
+    assert not os.path.exists(str(tmp_path / "o" / "ex_test.sty"))   # gói rút gọn chỉ chép tạm
+    # lỗi được đọc thành câu dễ hiểu, có số dòng
+    bad = tmp_path / "loi.tex"
+    bad.write_text("\\documentclass{article}\n\\begin{document}\nA\n\\lenhsai{x}\n$x^2\n\\end{document}\n",
+                   encoding="utf-8")
+    r = pb.compile_tex(str(bad), eng)
+    assert not r.ok and r.errors[0].startswith("Dòng 4:") and "lệnh không tồn tại" in r.errors[0]
+    assert os.path.exists(str(tmp_path / "loi.log"))                    # lỗi ⇒ giữ .log để xem
+    # xem trước 1 câu
+    r = pb.preview_questions([bank.get(13)], engine=eng, out_dir=str(tmp_path / "xt"))
+    assert r.ok and r.pdf
+    errs, _ = pb.parse_log("! Undefined control sequence.\nl.12 \\foo\n! Missing $ inserted.\nl.20 x^2\n")
+    assert errs == ["Dòng 12: Undefined control sequence. – lệnh không tồn tại (gõ sai tên lệnh hoặc thiếu gói)",
+                    "Dòng 20: Missing $ inserted. – thiếu dấu $ (công thức chưa đóng/mở đúng)"]
