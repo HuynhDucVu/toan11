@@ -40,6 +40,7 @@ nganhangde/
 ├── exporter.py   # Bước 6: điền vào file mẫu .tex, xuất đề, lời giải và đáp án .csv
 ├── tools.py      # công cụ trên file .tex: lọc ID, tìm trùng, xoá lời giải, đổi ID, lấy đáp án, trộn file
 ├── idmap.py      # đọc/ghi file giải nghĩa ID (Map ID)
+├── review.py     # rà soát đáp án – lời giải – LaTeX, xoá câu sai
 ├── cli.py        # Bước 7a: dòng lệnh
 ├── gui_qt.py     # Bước 7b: giao diện chính (PySide6/Qt)
 ├── gui.py        #          giao diện dự phòng (Tkinter)
@@ -177,6 +178,35 @@ Có hai chế độ tạo mã đề:
 * `same_questions=True`: mọi mã đề dùng cùng một bộ câu và chỉ hoán vị. Đây là kiểu đề kiểm tra tập trung.
 * `same_questions=False`: mỗi mã đề rút một bộ câu khác.
 
+## 7b. Rà soát đáp án và lời giải (`review.py`)
+
+Mỗi câu được kiểm tra và trả về danh sách `Issue(level, code, msg)`, với `level` là **Lỗi** hoặc **Cảnh báo**.
+
+| Loại câu | Lỗi | Cảnh báo |
+|---|---|---|
+| Trắc nghiệm | không đủ 4 phương án; không đúng 1 `\True`; phương án rỗng hoặc trùng nhau (so sau khi chuẩn hoá: `\dfrac{1}{2}` ≡ `\frac12`); lời giải ghi «Chọn C» mà `\True` ở B | cuối lời giải có phương án sai mà không thấy đáp án đúng |
+| Đúng/Sai | không đủ 4 ý; mục `\itemch` thứ k mở đầu «Đúng»/«Sai» ngược với đánh dấu `\True` của ý k | số mục `\itemch` khác số ý; có ý không ghi rõ Đúng/Sai |
+| Trả lời ngắn | không có đáp án; đáp án không phải số (phiếu thi chỉ tô được chữ số, dấu `-` và `,`) | đáp án dài quá 4 kí tự; giá trị đáp án không có trong lời giải (thiếu bước kết luận hoặc sai đáp án) |
+| Mọi câu | LaTeX hỏng: ngoặc `{}` lệch, số dấu `$` lẻ, `\begin`/`\end` không khớp, `\left`/`\right` lệch | thiếu ID, thiếu lời giải |
+
+Một số kĩ thuật dùng trong `review.py`:
+
+* So khớp số «nguyên cụm» (`has_token`) để `-1` không bị khớp vào `-12`.
+* Chuẩn hoá biểu thức (`norm_math`) trước khi so khớp.
+* `remove_questions_text` xoá đúng khối câu khỏi file và giữ nguyên phần còn lại.
+  Khi rà soát file, kết quả luôn được lưu thành **file mới**; file gốc không bị ghi đè.
+
+Rà soát chỉ phát hiện **mâu thuẫn hình thức**, ví dụ lời giải và đáp án lệch nhau hay đáp án sai dạng.
+Nó **không tự giải lại bài**. Một câu cả đáp án lẫn lời giải cùng sai một cách nhất quán thì không phát hiện được,
+nên giáo viên vẫn cần duyệt các câu quan trọng.
+
+Cách dùng:
+
+* **Giao diện:** mở tab **✅ Rà soát**, chọn nguồn là kho hoặc một file `.tex`, bấm *RÀ SOÁT*.
+  Bấm *Đánh dấu mọi câu Lỗi* rồi *Xoá các câu đã đánh dấu*. Có thể nhấp đúp để sửa câu, hoặc xuất báo cáo CSV.
+* **Dòng lệnh:** `python -m nganhangde review de.tex --remove-errors -o de_sach.tex` cho file;
+  `python -m nganhangde review --remove-errors` để xoá câu lỗi trong kho.
+
 ## 8. Bước 6: xuất đề (`exporter.py`)
 
 * File mẫu `templates/de_thi.tex` có các chỗ trống: `<<TEN_DE>>`, `<<MA_DE>>`, `<<NOI_DUNG>>`, `<<MODE>>`, …
@@ -216,6 +246,7 @@ python -m nganhangde gui                               # mở giao diện cửa 
 | 📚 **Ngân hàng câu hỏi** | Bên trái là **cây chương**, hiện tên chương lấy từ bảng giải nghĩa ID, và **bộ lọc** (loại câu, mức độ, mẫu ID, từ khoá). Ở giữa là bảng câu hỏi. Bên dưới có ba tab: *Thông tin* (giải nghĩa đủ chương → bài → dạng), *Mã LaTeX*, và *Câu tương tự* (các câu cùng dạng, cùng mức độ; nhấp đúp để sửa) |
 | 📝 **Tạo đề** | Bên trái: thông tin đề và **tuỳ chọn trộn** (trộn câu, trộn A–D, trộn ý Đúng/Sai, cân bằng đáp án, giữ đề gốc). Bên phải: ma trận đề có cột «Kho có» và nút **Ma trận từ đề có sẵn…**. Tạo xong sẽ hiện bảng phân bố đáp án A/B/C/D và tỉ lệ trùng giữa các mã đề |
 | 🛠 **Công cụ** | Làm việc trực tiếp trên file `.tex`: soát lỗi, tìm câu trùng, thống kê theo ID, lọc câu theo ID, đổi ID hàng loạt, **trộn đề trực tiếp từ file**, lấy bảng đáp án, thêm nguồn cho mọi câu, gộp và sắp xếp theo ID, xoá lời giải, nạp vào kho |
+| ✅ **Rà soát** | Kiểm tra đáp án, lời giải và LaTeX của cả kho hoặc một file. Mỗi câu được xếp mức Lỗi (đỏ) hoặc Cảnh báo (cam). Có nút đánh dấu mọi câu lỗi, xoá câu đã đánh dấu (với file thì lưu thành file mới), nhấp đúp để sửa, xuất báo cáo CSV (xem mục 7b) |
 | 📊 **Thống kê** | Các ô tổng số câu theo loại, và bảng số câu theo chương × mức độ |
 
 Các công cụ trong tab Công cụ được viết ở `tools.py` (có kiểm thử), không phụ thuộc giao diện.
@@ -298,6 +329,10 @@ Biên dịch đề đã xuất: `xelatex de_101.tex` (cần gói `ex_test` trong
 
 ## 11. Đối chiếu chức năng với MyLT
 
+MyLT viết bằng **Visual Basic .NET (WinForms)** trên .NET Framework 3.5, và dùng Office Interop để làm việc với Word/Excel.
+Phần mềm này viết bằng **Python + PySide6 (Qt)**. Ngôn ngữ này chạy được cả Windows/macOS/Linux,
+đóng gói thành `.exe` bằng PyInstaller, và kiểm thử tự động được.
+
 Bảng dưới lập từ tên các thành phần giao diện trong file `MyLT.exe`. Mã nguồn MyLT không được
 đọc hay sao chép; phần mềm này tự viết các chức năng tương ứng.
 
@@ -308,6 +343,7 @@ Bảng dưới lập từ tên các thành phần giao diện trong file `MyLT.e
 | Câu tương tự | ✅ |
 | Sao lưu kho, gộp kho (Joiner), tách kho (Extract) | ✅ |
 | Soát lỗi, tìm câu trùng | ✅ |
+| **Rà soát đáp án – lời giải, xoá câu sai** | ✅ (MyLT có kiểm tra câu lỗi; phần đối chiếu đáp án với lời giải là phần thêm) |
 | Tạo đề theo ma trận, nhiều mã đề, danh sách mã đề | ✅ |
 | Ma trận từ đề có sẵn | ✅ |
 | Cân bằng tỉ lệ đáp án | ✅ |

@@ -9,6 +9,7 @@
     python -m nganhangde shuffle de.tex -n 4 -o out   # trộn trực tiếp 1 file đề
     python -m nganhangde idmap --load map_id.txt      # nạp giải nghĩa ID
     python -m nganhangde backup saoluu.db             # sao lưu kho
+    python -m nganhangde review de.tex --remove-errors -o de_sach.tex   # rà soát, bỏ câu lỗi
     python -m nganhangde gui                          # mở giao diện cửa sổ
 """
 from __future__ import annotations
@@ -112,6 +113,43 @@ def cmd_shuffle(bank, a):
     print(f"Đã ghi {len(files)} file vào {a.out}")
 
 
+def cmd_review(bank: Bank, a):
+    from . import review as rv
+    if a.files:
+        src = [(f"{path} câu {i}", q, path) for path in a.files for i, q in enumerate(parse_file(path), 1)]
+    else:
+        src = [(f"kho #{q.db_id}", q, None) for q in bank.search()]
+    bad = []
+    n_err = n_warn = 0
+    for label, q, path in src:
+        iss = rv.review_question(q)
+        lv = rv.worst(iss)
+        n_err += lv == rv.LOI
+        n_warn += lv == rv.CANH_BAO
+        if lv == rv.LOI or (lv and not a.only_errors):
+            print(f"[{lv}] {label} {q.qtype} {q.id_code}")
+            for i in iss:
+                print(f"     - {i.level}: {i.msg}")
+        if lv == rv.LOI:
+            bad.append((q, path))
+    print(f"\nTổng {len(src)} câu: {n_err} lỗi, {n_warn} cảnh báo, {len(src) - n_err - n_warn} đạt")
+    if a.remove_errors and bad:
+        if a.files:
+            if not a.out:
+                sys.exit("Cần -o FILE_MOI.tex để lưu file đã bỏ câu lỗi (file gốc giữ nguyên)")
+            texts = []
+            for path in a.files:
+                with open(path, encoding="utf-8") as f:
+                    t, _ = rv.remove_questions_text(f.read(), [q.raw for q, p in bad if p == path])
+                texts.append(t)
+            with open(a.out, "w", encoding="utf-8") as f:
+                f.write("\n".join(texts))
+            print(f"Đã bỏ {len(bad)} câu lỗi, lưu thành {a.out}")
+        else:
+            bank.delete([q.db_id for q, _ in bad])
+            print(f"Đã xoá {len(bad)} câu lỗi khỏi kho")
+
+
 def cmd_backup(bank: Bank, a):
     bank.backup(a.dest)
     print(f"Đã sao lưu {bank.count()} câu ra {a.dest}")
@@ -155,6 +193,11 @@ def main(argv=None):
     p.add_argument("--keep-order", action="store_true", help="không trộn thứ tự câu")
     p.add_argument("--no-ds", action="store_true", help="không trộn ý câu Đúng/Sai")
     p.add_argument("--no-balance", action="store_true", help="không cân bằng đáp án A/B/C/D")
+    p = sub.add_parser("review", help="rà soát đáp án/lời giải/LaTeX của kho hoặc file .tex")
+    p.add_argument("files", nargs="*", help="bỏ trống = rà soát cả kho")
+    p.add_argument("--only-errors", action="store_true", help="chỉ in câu có lỗi")
+    p.add_argument("--remove-errors", action="store_true", help="xoá câu có lỗi (kho) / bỏ khỏi file mới")
+    p.add_argument("-o", "--out", help="file mới khi --remove-errors với file .tex")
     p = sub.add_parser("backup")
     p.add_argument("dest")
     p = sub.add_parser("make")
@@ -177,7 +220,7 @@ def main(argv=None):
     try:
         {"import": cmd_import, "list": cmd_list, "stats": cmd_stats, "check": cmd_check,
          "make": cmd_make, "export": cmd_export, "idmap": cmd_idmap, "shuffle": cmd_shuffle,
-         "backup": cmd_backup}[a.cmd](bank, a)
+         "backup": cmd_backup, "review": cmd_review}[a.cmd](bank, a)
     finally:
         bank.close()
 

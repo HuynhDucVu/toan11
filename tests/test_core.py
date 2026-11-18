@@ -117,7 +117,6 @@ def test_tools(tmp_path):
 
 
 def test_balance_and_options(bank):
-    from collections import Counter
     from nganhangde.generator import MixOptions, answer_distribution, overlap_report
     rules = [Rule("TN", 12), Rule("DS", 4)]
     vs = make_versions(bank, rules, 4, seed=3, options=MixOptions(balance=True))
@@ -167,3 +166,54 @@ def test_file_tools(tmp_path):
     assert tools.sort_by_id([SAMPLE], str(tmp_path / "sx.tex")) == 22
     vs, files = tools.shuffle_file(SAMPLE, ["001", "002"], str(tmp_path / "tron"), seed=5)
     assert [v.code for v in vs] == ["001", "002"] and len(list(vs[0].all_questions())) == 22
+
+
+BAD = r"""\begin{ex}%[0D1N1-1]
+    Câu TN ghi chọn lệch.
+    \choice{$1$}{\True $2$}{$3$}{$4$}
+    \loigiai{Tính được kết quả. Chọn đáp án C.}
+\end{ex}
+\begin{ex}%[0D1N1-2]
+    Câu TN có hai phương án giống nhau và hai True.
+    \choice{\True $\dfrac{1}{2}$}{$\frac12$}{\True $3$}{$4$}
+    \loigiai{x}
+\end{ex}
+\begin{ex}%[0D1H1-1]
+    Câu đúng sai lệch lời giải.
+    \choiceTF[t]{\True a}{b}{\True c}{d}
+    \loigiai{\begin{itemchoice}
+        \itemch Đúng. x
+        \itemch Đúng. y
+        \itemch Đúng. z
+        \itemch Sai. t
+    \end{itemchoice}}
+\end{ex}
+\begin{ex}%[0D1V1-1]
+    Trả lời ngắn không phải số $x+1$.
+    \shortans[oly]{$x+1$}
+    \loigiai{Ta có \begin{itemize} \item a \end{enumerate}}
+\end{ex}
+\begin{ex}
+    Thiếu ngoặc { và lẻ dấu $ đô la.
+    \shortans[oly]{$12345$}
+    \loigiai{Kết quả $12345$.}
+\end{ex}
+"""
+
+
+def test_review():
+    from nganhangde.review import LOI, review_question, worst, remove_questions_text
+    qs = parse_tex(BAD)
+    codes = [{i.code for i in review_question(q)} for q in qs]
+    assert "chon_lech" in codes[0]
+    assert {"so_true", "pa_trung"} <= codes[1]
+    assert "ds_lech" in codes[2]
+    msg = [i.msg for i in review_question(qs[2]) if i.code == "ds_lech"][0]
+    assert "Ý b" in msg
+    assert {"kq_so", "env"} <= codes[3]
+    assert {"id", "ngoac", "dola", "kq_dai"} <= codes[4]
+    assert all(worst(review_question(q)) == LOI for q in qs)
+    text, n = remove_questions_text(BAD, [qs[0].raw, qs[2].raw])
+    assert n == 2 and len(parse_tex(text)) == 3
+    # đề mẫu: không có lỗi nặng
+    assert all(worst(review_question(q)) != LOI for q in parse_file(SAMPLE))

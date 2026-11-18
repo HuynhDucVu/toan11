@@ -28,6 +28,7 @@ from .exporter import export_questions, export_versions
 from .generator import (MixOptions, NotEnoughQuestions, Rule, answer_distribution, make_versions,
                         matrix_from_questions, overlap_report)
 from .idmap import load_map, parse_map_text, save_map
+from . import review as rv
 from .idcode import LOP, MON, parse_id
 from .parser import parse_file, parse_tex, validate
 
@@ -157,6 +158,7 @@ class MainWindow(QMainWindow):
         self._act(m, "Xoá câu", self.delete_questions, QKeySequence.StandardKey.Delete)
         m = mb.addMenu("Đề &thi")
         self._act(m, "Tạo đề theo ma trận…", self.open_generator, "Ctrl+G")
+        self._act(m, "Rà soát đáp án và lời giải…", self.open_review, "Ctrl+R")
         m = mb.addMenu("Công &cụ")
         self._act(m, "Soát lỗi file .tex…", self.check_file)
         self._act(m, "Giải nghĩa ID (Map ID)…", self.edit_idmap, "Ctrl+M")
@@ -171,7 +173,7 @@ class MainWindow(QMainWindow):
         for text, fn in (("📥 Nhập .tex", self.import_files), ("➕ Thêm câu", self.add_question),
                          ("✏️ Sửa", self.edit_question), ("🗑 Xoá", self.delete_questions),
                          ("📤 Xuất câu", self.export_selected), ("🎲 Tạo đề", self.open_generator),
-                         ("🔎 Soát lỗi file", self.check_file), ("📊 Thống kê", self.show_stats)):
+                         ("✅ Rà soát", self.open_review), ("📊 Thống kê", self.show_stats)):
             tb.addAction(text, fn)
 
         # --- cột trái: cây chương + bộ lọc
@@ -268,6 +270,8 @@ class MainWindow(QMainWindow):
         self.main_tabs.addTab(split, "📚  Ngân hàng câu hỏi")
         self.gen_panel = GeneratorPanel(self)
         self.main_tabs.addTab(self.gen_panel, "📝  Tạo đề")
+        self.review_panel = ReviewPanel(self)
+        self.main_tabs.addTab(self.review_panel, "✅  Rà soát")
         self.tools_panel = ToolsPanel(self)
         self.main_tabs.addTab(self.tools_panel, "🛠  Công cụ")
         self.stats_panel = StatsPanel(self)
@@ -537,6 +541,9 @@ class MainWindow(QMainWindow):
 
     def show_stats(self):
         self.main_tabs.setCurrentWidget(self.stats_panel)
+
+    def open_review(self):
+        self.main_tabs.setCurrentWidget(self.review_panel)
 
     def open_generator(self):
         self.main_tabs.setCurrentWidget(self.gen_panel)
@@ -1005,6 +1012,208 @@ class IdMapDialog(QDialog):
     def save(self):
         self.win.bank.set_idmap(parse_map_text(self.ed.toPlainText()), replace=True)
         self.accept()
+
+
+# =====================================================================
+class ReviewPanel(QWidget):
+    """Tab «Rà soát»: kiểm tra đáp án – lời giải – LaTeX của cả kho hoặc một file, rồi sửa/xoá câu sai."""
+    COLS = ["", "Mức", "Câu", "Loại", "ID", "Đáp án", "Vấn đề"]
+
+    def __init__(self, win: MainWindow):
+        super().__init__()
+        self.win = win
+        self.items = []          # [{src, idx, q, issues}]
+        lay = QVBoxLayout(self)
+
+        g = QGroupBox("Phạm vi rà soát")
+        hl = QHBoxLayout(g)
+        self.cb_src = QComboBox()
+        self.cb_src.addItem("Kho câu hỏi đang mở", "bank")
+        self.cb_src.addItem("Một file .tex", "file")
+        self.e_file = QLineEdit()
+        self.e_file.setPlaceholderText("chọn file .tex cần rà soát")
+        bf = QPushButton("…")
+        bf.setFixedWidth(40)
+        bf.clicked.connect(self.pick_file)
+        self.cb_show = QComboBox()
+        self.cb_show.addItem("Hiện câu có Lỗi hoặc Cảnh báo", "all")
+        self.cb_show.addItem("Chỉ hiện câu có Lỗi", "loi")
+        b = QPushButton("RÀ SOÁT")
+        b.setObjectName("primary")
+        b.clicked.connect(self.run)
+        for w_, st in ((QLabel("Nguồn:"), 0), (self.cb_src, 0), (self.e_file, 1), (bf, 0), (self.cb_show, 0), (b, 0)):
+            hl.addWidget(w_, st)
+        self.cb_src.currentIndexChanged.connect(lambda: self.e_file.setEnabled(self.cb_src.currentData() == "file"))
+        self.e_file.setEnabled(False)
+        lay.addWidget(g)
+
+        self.summary = QLabel("Chọn nguồn rồi bấm <b>RÀ SOÁT</b>. Phần mềm kiểm tra: số phương án và \\True, "
+                              "phương án trùng, lời giải «Chọn X» lệch đáp án, lời giải Đúng/Sai ngược đánh dấu, "
+                              "đáp án trả lời ngắn (là số, ≤ 4 kí tự, có trong lời giải), lỗi LaTeX "
+                              "(ngoặc, $, \\begin/\\end, \\left/\\right), thiếu ID, thiếu lời giải.")
+        self.summary.setWordWrap(True)
+        lay.addWidget(self.summary)
+
+        split = QSplitter(Qt.Orientation.Vertical)
+        self.t = QTableWidget(0, len(self.COLS))
+        self.t.setHorizontalHeaderLabels(self.COLS)
+        self.t.verticalHeader().setVisible(False)
+        self.t.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+        self.t.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+        for c, w_ in enumerate((30, 80, 150, 100, 90, 70)):
+            self.t.setColumnWidth(c, w_)
+        self.t.horizontalHeader().setSectionResizeMode(6, QHeaderView.ResizeMode.Stretch)
+        self.t.itemSelectionChanged.connect(self.on_select)
+        self.t.doubleClicked.connect(lambda *_: self.edit())
+        split.addWidget(self.t)
+        self.code = latex_editor(read_only=True)
+        split.addWidget(self.code)
+        split.setSizes([420, 260])
+        lay.addWidget(split, 1)
+
+        row = QHBoxLayout()
+        for text, fn in (("Đánh dấu mọi câu Lỗi", self.check_errors), ("Bỏ đánh dấu", self.uncheck_all),
+                         ("Sửa câu (kho)", self.edit), ("Xuất báo cáo CSV…", self.export_csv)):
+            b = QPushButton(text)
+            b.clicked.connect(fn)
+            row.addWidget(b)
+        row.addStretch()
+        self.b_del = QPushButton("Xoá các câu đã đánh dấu")
+        self.b_del.setObjectName("primary")
+        self.b_del.clicked.connect(self.delete_checked)
+        row.addWidget(self.b_del)
+        lay.addLayout(row)
+
+    def pick_file(self):
+        p, _ = QFileDialog.getOpenFileName(self, "Chọn file .tex", self.win.settings.value("last_dir", ""),
+                                           "LaTeX (*.tex)")
+        if p:
+            self.e_file.setText(p)
+            self.cb_src.setCurrentIndex(1)
+
+    def run(self):
+        mode = self.cb_src.currentData()
+        if mode == "file":
+            p = self.e_file.text().strip()
+            if not p or not os.path.exists(p):
+                self.pick_file()
+                p = self.e_file.text().strip()
+                if not p:
+                    return
+            qs = parse_file(p)
+            src = [(f"{os.path.basename(p)} – câu {i}", q) for i, q in enumerate(qs, 1)]
+        else:
+            qs = self.win.bank.search()
+            src = [(f"Kho #{q.db_id}", q) for q in qs]
+        only_err = self.cb_show.currentData() == "loi"
+        self.items = []
+        n_err = n_warn = 0
+        for label, q in src:
+            iss = rv.review_question(q)
+            lv = rv.worst(iss)
+            n_err += lv == rv.LOI
+            n_warn += lv == rv.CANH_BAO
+            if lv and (lv == rv.LOI or not only_err):
+                self.items.append({"label": label, "q": q, "issues": iss, "level": lv})
+        self.items.sort(key=lambda it: it["level"] != rv.LOI)
+        self.fill()
+        self.summary.setText(f"Đã rà soát <b>{len(src)}</b> câu: <span style='color:#c00000'><b>{n_err}</b> câu có lỗi</span>, "
+                             f"<span style='color:#b36b00'><b>{n_warn}</b> câu có cảnh báo</span>, "
+                             f"<span style='color:#0b7a0b'><b>{len(src) - n_err - n_warn}</b> câu đạt</span>."
+                             + ("" if mode == "bank" else " Xoá câu sẽ lưu thành <b>file mới</b>, file gốc giữ nguyên."))
+
+    def fill(self):
+        self.t.setRowCount(len(self.items))
+        for r, it in enumerate(self.items):
+            q = it["q"]
+            chk = QTableWidgetItem()
+            chk.setFlags(Qt.ItemFlag.ItemIsUserCheckable | Qt.ItemFlag.ItemIsEnabled | Qt.ItemFlag.ItemIsSelectable)
+            chk.setCheckState(Qt.CheckState.Unchecked)
+            self.t.setItem(r, 0, chk)
+            color = QColor("#c00000") if it["level"] == rv.LOI else QColor("#b36b00")
+            vals = [it["level"], it["label"], TEN_LOAI[q.qtype], q.id_code, q.answer_text,
+                    " • ".join(i.msg for i in it["issues"])]
+            for c, v in enumerate(vals, 1):
+                cell = QTableWidgetItem(str(v))
+                if c in (1, 6):
+                    cell.setForeground(color)
+                cell.setToolTip("\n".join(f"[{i.level}] {i.msg}" for i in it["issues"]))
+                self.t.setItem(r, c, cell)
+        self.code.clear()
+
+    def on_select(self):
+        rows = sorted({i.row() for i in self.t.selectedIndexes()})
+        if rows and rows[0] < len(self.items):
+            it = self.items[rows[0]]
+            head = "\n".join(f"% [{i.level}] {i.msg}" for i in it["issues"])
+            self.code.setPlainText(head + "\n" + (it["q"].raw or it["q"].to_latex()))
+
+    def checked(self):
+        return [self.items[r] for r in range(self.t.rowCount())
+                if self.t.item(r, 0).checkState() == Qt.CheckState.Checked]
+
+    def check_errors(self):
+        for r, it in enumerate(self.items):
+            self.t.item(r, 0).setCheckState(Qt.CheckState.Checked if it["level"] == rv.LOI else Qt.CheckState.Unchecked)
+
+    def uncheck_all(self):
+        for r in range(self.t.rowCount()):
+            self.t.item(r, 0).setCheckState(Qt.CheckState.Unchecked)
+
+    def edit(self):
+        rows = sorted({i.row() for i in self.t.selectedIndexes()})
+        if not rows:
+            return
+        q = self.items[rows[0]]["q"]
+        if q.db_id is None:
+            QMessageBox.information(self, "Sửa câu", "Câu này nằm trong file .tex – hãy sửa trực tiếp trong file, "
+                                    "hoặc nạp file vào kho rồi rà soát kho.")
+            return
+        if EditDialog(self.win, q.db_id).exec():
+            self.win.refresh()
+            self.run()
+
+    def delete_checked(self):
+        items = self.checked()
+        if not items:
+            QMessageBox.information(self, "Xoá câu", "Chưa đánh dấu câu nào (cột đầu tiên).")
+            return
+        if self.cb_src.currentData() == "bank":
+            if QMessageBox.question(self, "Xoá câu", f"Xoá {len(items)} câu khỏi kho?\n"
+                                    "Nên sao lưu kho trước (Tệp → Sao lưu kho).") != QMessageBox.StandardButton.Yes:
+                return
+            self.win.bank.delete([it["q"].db_id for it in items])
+            self.win.build_tree()
+            self.win.refresh()
+            QMessageBox.information(self, "Xoá câu", f"Đã xoá {len(items)} câu khỏi kho.")
+        else:
+            src = self.e_file.text().strip()
+            base, ext = os.path.splitext(src)
+            out, _ = QFileDialog.getSaveFileName(self, "Lưu file đã bỏ câu sai", base + "_dasoat" + ext, "LaTeX (*.tex)")
+            if not out:
+                return
+            with open(src, encoding="utf-8") as f:
+                text, n = rv.remove_questions_text(f.read(), [it["q"].raw for it in items])
+            with open(out, "w", encoding="utf-8") as f:
+                f.write(text)
+            QMessageBox.information(self, "Xoá câu", f"Đã bỏ {n} câu, lưu thành\n{out}\n(file gốc giữ nguyên)")
+            self.e_file.setText(out)
+        self.run()
+
+    def export_csv(self):
+        if not self.items:
+            return
+        p, _ = QFileDialog.getSaveFileName(self, "Xuất báo cáo rà soát", "bao_cao_ra_soat.csv", "CSV (*.csv)")
+        if not p:
+            return
+        import csv
+        with open(p, "w", encoding="utf-8-sig", newline="") as f:
+            w_ = csv.writer(f)
+            w_.writerow(["Câu", "Loại", "ID", "Đáp án", "Mức", "Vấn đề"])
+            for it in self.items:
+                for i in it["issues"]:
+                    w_.writerow([it["label"], it["q"].qtype, it["q"].id_code, it["q"].answer_text, i.level, i.msg])
+        QMessageBox.information(self, "Báo cáo", f"Đã lưu {p}")
 
 
 # =====================================================================
