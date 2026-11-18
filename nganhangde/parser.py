@@ -50,7 +50,8 @@ class Question:
     @property
     def fingerprint(self) -> str:
         """Mã băm nội dung đã chuẩn hoá – dùng phát hiện câu trùng."""
-        body = self.stem + "||" + "||".join(self.choices)
+        # sắp xếp phương án ⇒ câu chỉ đảo thứ tự phương án vẫn bị coi là trùng
+        body = self.stem + "||" + "||".join(sorted(self.choices))
         body = re.sub(r"\\(left|right|displaystyle|dfrac|tfrac)", lambda m: "frac" if "frac" in m.group(1) else "", body)
         body = re.sub(r"[\s{}$]", "", body).lower()
         return hashlib.sha1(body.encode("utf-8")).hexdigest()

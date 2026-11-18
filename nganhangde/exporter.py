@@ -10,6 +10,12 @@ from .parser import Question
 DEFAULT_TEMPLATE = "de_thi.tex"
 
 
+def plain_answer(a: str) -> str:
+    """Bỏ kí hiệu LaTeX khỏi đáp án trả lời ngắn: '$0{,}92$' → '0,92', '$-4$' → '-4'."""
+    a = a.replace("{,}", ",").replace("\\dfrac", "").replace("\\frac", "")
+    return a.replace("$", "").replace("{", "").replace("}", "").strip()
+
+
 def load_template(path: str | None = None) -> str:
     if path:
         with open(path, encoding="utf-8") as f:
@@ -76,8 +82,22 @@ def export_versions(versions: list[ExamVersion], out_dir: str, *, template_path:
         for v in versions:
             for s in SECTION_ORDER:
                 for i, q in enumerate(v.sections.get(s) or [], 1):
-                    w.writerow([v.code, s, i, q.answer_text, q.id_code])
+                    w.writerow([v.code, s, i, plain_answer(q.answer_text), q.id_code])
     files.append(csv_path)
+    # bảng đáp án dạng ngang (mỗi mã đề một dòng) – tiện dán vào phần mềm chấm thi/Excel
+    wide_path = os.path.join(out_dir, "dap_an_bang.csv")
+    with open(wide_path, "w", encoding="utf-8-sig", newline="") as f:
+        w = csv.writer(f)
+        cols = [(s, i) for s in SECTION_ORDER if s != "TL"
+                for i in range(1, max((len(v.sections.get(s) or []) for v in versions), default=0) + 1)]
+        w.writerow(["Mã đề"] + [f"{s}{i}" for s, i in cols])
+        for v in versions:
+            row = [v.code]
+            for s, i in cols:
+                qs = v.sections.get(s) or []
+                row.append(plain_answer(qs[i - 1].answer_text) if i <= len(qs) else "")
+            w.writerow(row)
+    files.append(wide_path)
     return files
 
 

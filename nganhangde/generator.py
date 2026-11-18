@@ -96,17 +96,25 @@ def _split_itemch(solution: str):
     return solution[:inner_start] + inner[:pos[0]], items, solution[e:]
 
 
-def shuffle_choices(q: Question, rng: random.Random) -> Question:
+def is_locked(q: Question) -> bool:
+    return any(LOCK_RE.search(c) for c in q.choices)
+
+
+def shuffle_choices(q: Question, rng: random.Random, target: int | None = None) -> Question:
+    """Trộn phương án/ý. `target`: (chỉ TN) vị trí muốn đặt đáp án đúng – dùng để cân bằng A/B/C/D."""
     q = copy.deepcopy(q)
-    if q.qtype not in ("TN", "DS") or len(q.choices) < 2:
+    if q.qtype not in ("TN", "DS") or len(q.choices) < 2 or is_locked(q):
         return q
-    if any(LOCK_RE.search(c) for c in q.choices):
-        return q
-    perm = list(range(len(q.choices)))
+    n = len(q.choices)
+    perm = list(range(n))
     rng.shuffle(perm)
+    if q.qtype == "TN" and target is not None and sum(q.correct) == 1 and target < n:
+        right = q.correct.index(True)
+        k = perm.index(right)
+        perm[k], perm[target] = perm[target], perm[k]   # đưa đáp án đúng về vị trí target
     if q.qtype == "DS":
         parts = _split_itemch(q.solution)
-        if parts is None or len(parts[1]) != len(q.choices):
+        if parts is None or len(parts[1]) != n:
             return q  # không trộn được lời giải tương ứng ⇒ giữ nguyên thứ tự ý
         head, items, tail = parts
         items = [items[i].strip() for i in perm]
@@ -117,24 +125,129 @@ def shuffle_choices(q: Question, rng: random.Random) -> Question:
     return q
 
 
+@dataclass
+class MixOptions:
+    """Tuỳ chọn trộn đề."""
+    shuffle_q: bool = True          # trộn thứ tự câu trong từng phần
+    shuffle_tn: bool = True         # trộn phương án câu trắc nghiệm
+    shuffle_ds: bool = True         # trộn thứ tự ý câu đúng/sai
+    balance: bool = True            # cân bằng số đáp án A/B/C/D trong mỗi đề
+    first_original: bool = False    # mã đề đầu tiên giữ nguyên thứ tự gốc (đề gốc)
+
+
+def _mix_section(qs: list[Question], rng: random.Random, opt: MixOptions, keep_order: bool) -> list[Question]:
+    qs = list(qs)
+    if opt.shuffle_q and not keep_order:
+        rng.shuffle(qs)
+    if keep_order:
+        return [copy.deepcopy(q) for q in qs]
+    # vị trí đích cho đáp án TN: lặp A,B,C,D rồi xáo ⇒ các chữ cái gần như đều nhau
+    free = [q for q in qs if q.qtype == "TN" and len(q.choices) == 4 and not is_locked(q)]
+    targets = []
+    if opt.balance and opt.shuffle_tn:
+        targets = [i % 4 for i in range(len(free))]
+        rng.shuffle(targets)
+    out, k = [], 0
+    for q in qs:
+        if q.qtype == "TN":
+            if not opt.shuffle_tn:
+                out.append(copy.deepcopy(q))
+                continue
+            t = None
+            if targets and q in free:
+                t = targets[k]
+                k += 1
+            out.append(shuffle_choices(q, rng, t))
+        elif q.qtype == "DS" and opt.shuffle_ds:
+            out.append(shuffle_choices(q, rng))
+        else:
+            out.append(copy.deepcopy(q))
+    return out
+
+
+def mix_versions(sections: dict[str, list[Question]], codes: list[str], rng: random.Random,
+                 opt: MixOptions | None = None) -> list[ExamVersion]:
+    """Trộn một bộ câu đã chọn thành nhiều mã đề."""
+    opt = opt or MixOptions()
+    out = []
+    for i, code in enumerate(codes):
+        v = ExamVersion(code)
+        keep = opt.first_original and i == 0
+        for s in SECTION_ORDER:
+            v.sections[s] = _mix_section(sections.get(s, []), rng, opt, keep)
+        out.append(v)
+    return out
+
+
 def make_versions(bank: Bank, rules: list[Rule], n_versions: int = 4, *,
                   codes: list[str] | None = None, seed: int | None = None,
                   same_questions: bool = True, shuffle_q: bool = True,
-                  shuffle_opts: bool = True, prefer_unused: bool = False) -> list[ExamVersion]:
+                  shuffle_opts: bool = True, prefer_unused: bool = False,
+                  options: MixOptions | None = None) -> list[ExamVersion]:
     rng = random.Random(seed)
     if not codes:
         codes = [str(101 + i) for i in range(n_versions)]
-    base = pick_questions(bank, rules, rng, prefer_unused) if same_questions else None
-    versions = []
+    opt = options or MixOptions(shuffle_q=shuffle_q, shuffle_tn=shuffle_opts, shuffle_ds=shuffle_opts)
+    if same_questions:
+        return mix_versions(pick_questions(bank, rules, rng, prefer_unused), codes, rng, opt)
+    out = []
     for code in codes:
-        picked = base if same_questions else pick_questions(bank, rules, rng, prefer_unused)
-        v = ExamVersion(code)
-        for s in SECTION_ORDER:
-            qs = list(picked.get(s, []))
-            if shuffle_q:
-                rng.shuffle(qs)
-            if shuffle_opts:
-                qs = [shuffle_choices(q, rng) for q in qs]
-            v.sections[s] = qs
-        versions.append(v)
-    return versions
+        out += mix_versions(pick_questions(bank, rules, rng, prefer_unused), [code], rng, opt)
+    return out
+
+
+def sections_from_questions(qs: list[Question]) -> dict[str, list[Question]]:
+    """Gom các câu (vd đọc từ 1 file đề) theo phần TN/DS/KQ/TL, giữ thứ tự trong file."""
+    out = {s: [] for s in SECTION_ORDER}
+    for q in qs:
+        out[q.qtype].append(q)
+    return out
+
+
+# ---------------------------------------------------------------- báo cáo
+def answer_distribution(v: ExamVersion) -> dict[str, int]:
+    """Số câu TN có đáp án A/B/C/D trong một mã đề."""
+    d = {c: 0 for c in "ABCD"}
+    for q in v.sections.get("TN", []):
+        a = q.answer_text
+        if a in d:
+            d[a] += 1
+    return d
+
+
+def overlap_report(versions: list[ExamVersion]):
+    """Tỉ lệ câu trùng giữa từng cặp mã đề (theo nội dung câu)."""
+    sets = [{q.fingerprint for q in v.all_questions()} for v in versions]
+    out = []
+    for i in range(len(versions)):
+        for j in range(i + 1, len(versions)):
+            n = max(len(sets[i]), 1)
+            out.append((versions[i].code, versions[j].code, len(sets[i] & sets[j]) / n))
+    return out
+
+
+def matrix_from_questions(qs: list[Question], level: str = "bai") -> list[Rule]:
+    """Lập ma trận từ một đề có sẵn: đếm số câu theo (loại, ID ở mức `level`, mức độ).
+
+    level: 'dang' (đúng dạng), 'bai' (cùng bài), 'chuong' (cùng chương).
+    """
+    from collections import OrderedDict
+    from .idcode import parse_id
+    cnt: OrderedDict = OrderedDict()
+    for q in qs:
+        idc = parse_id(q.id_code) if q.id_code else None
+        if not idc:
+            key = (q.qtype, "*", None)
+        else:
+            base = idc.lop + idc.mon + idc.chuong
+            if level == "chuong":
+                pat = base + "*"
+            elif level == "bai":
+                pat = base + "?" + idc.bai + "*"
+            else:
+                pat = base + "?" + idc.bai + ("-" + idc.dang if idc.dang else "*")
+            key = (q.qtype, pat, idc.muc_do)
+        cnt[key] = cnt.get(key, 0) + 1
+    rules = [Rule(t, n, pat, md) for (t, pat, md), n in cnt.items()]
+    order = {s: i for i, s in enumerate(SECTION_ORDER)}
+    return sorted(rules, key=lambda r: order[r.qtype])

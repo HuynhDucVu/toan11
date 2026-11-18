@@ -6,6 +6,9 @@
     python -m nganhangde check de1.tex                # soát lỗi soạn thảo
     python -m nganhangde make ma_tran.json -n 4 -o out # sinh 4 mã đề
     python -m nganhangde export --id "0D8*" -o chuong8.tex
+    python -m nganhangde shuffle de.tex -n 4 -o out   # trộn trực tiếp 1 file đề
+    python -m nganhangde idmap --load map_id.txt      # nạp giải nghĩa ID
+    python -m nganhangde backup saoluu.db             # sao lưu kho
     python -m nganhangde gui                          # mở giao diện cửa sổ
 """
 from __future__ import annotations
@@ -16,7 +19,7 @@ import sys
 
 from .db import Bank
 from .exporter import export_questions, export_versions
-from .generator import NotEnoughQuestions, Rule, make_versions
+from .generator import MixOptions, NotEnoughQuestions, Rule, make_versions
 from .idcode import parse_id
 from .parser import parse_file, validate
 
@@ -83,6 +86,37 @@ def cmd_make(bank: Bank, a):
         print("Đã ghi", p)
 
 
+def cmd_idmap(bank: Bank, a):
+    from .idmap import load_map, save_map
+    if a.load:
+        m = load_map(a.load)
+        bank.set_idmap(m, replace=a.replace)
+        print(f"Đã nạp {len(m)} mục giải nghĩa ID")
+    if a.save:
+        save_map(bank.idmap(), a.save)
+        print(f"Đã xuất ra {a.save}")
+    if not a.load and not a.save:
+        for k, v in bank.idmap().items():
+            print(f"{k:<10}= {v}")
+
+
+def cmd_shuffle(bank, a):
+    from .tools import shuffle_file
+    from .generator import answer_distribution
+    codes = a.codes.split(",") if a.codes else [str(101 + i) for i in range(a.n)]
+    opt = MixOptions(shuffle_q=not a.keep_order, shuffle_ds=not a.no_ds, balance=not a.no_balance)
+    vs, files = shuffle_file(a.file, [c.strip() for c in codes], a.out, seed=a.seed, options=opt,
+                             template_path=a.template)
+    for v in vs:
+        print(f"Mã {v.code}: đáp án TN {answer_distribution(v)}")
+    print(f"Đã ghi {len(files)} file vào {a.out}")
+
+
+def cmd_backup(bank: Bank, a):
+    bank.backup(a.dest)
+    print(f"Đã sao lưu {bank.count()} câu ra {a.dest}")
+
+
 def cmd_export(bank: Bank, a):
     qs = bank.search(**_filters(a))
     export_questions(qs, a.out, not a.no_solution)
@@ -107,6 +141,22 @@ def main(argv=None):
         if name == "export":
             p.add_argument("-o", "--out", required=True)
             p.add_argument("--no-solution", action="store_true")
+    p = sub.add_parser("idmap", help="giải nghĩa ID: nạp/xuất file .txt")
+    p.add_argument("--load")
+    p.add_argument("--save")
+    p.add_argument("--replace", action="store_true")
+    p = sub.add_parser("shuffle", help="trộn trực tiếp 1 file đề .tex thành nhiều mã đề")
+    p.add_argument("file")
+    p.add_argument("-n", type=int, default=4)
+    p.add_argument("--codes", help="vd 132,209,357,485")
+    p.add_argument("-o", "--out", default="de_tron")
+    p.add_argument("--seed", type=int)
+    p.add_argument("--template")
+    p.add_argument("--keep-order", action="store_true", help="không trộn thứ tự câu")
+    p.add_argument("--no-ds", action="store_true", help="không trộn ý câu Đúng/Sai")
+    p.add_argument("--no-balance", action="store_true", help="không cân bằng đáp án A/B/C/D")
+    p = sub.add_parser("backup")
+    p.add_argument("dest")
     p = sub.add_parser("make")
     p.add_argument("matrix", help="file ma trận .json")
     p.add_argument("-n", type=int, default=4, help="số mã đề")
@@ -126,7 +176,8 @@ def main(argv=None):
     bank = Bank(a.db or "nganhang.db")
     try:
         {"import": cmd_import, "list": cmd_list, "stats": cmd_stats, "check": cmd_check,
-         "make": cmd_make, "export": cmd_export}[a.cmd](bank, a)
+         "make": cmd_make, "export": cmd_export, "idmap": cmd_idmap, "shuffle": cmd_shuffle,
+         "backup": cmd_backup}[a.cmd](bank, a)
     finally:
         bank.close()
 

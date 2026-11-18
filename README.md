@@ -2,10 +2,11 @@
 
 Phần mềm quản lý ngân hàng câu hỏi Toán định dạng `ex_test`. Các chức năng:
 
-* nhập file `.tex`;
+* nhập file `.tex`, giải nghĩa ID theo chương/bài/dạng, tìm câu tương tự;
 * phân loại theo ID `[0D2N1-2]`;
 * lọc câu và chống câu trùng;
-* trộn đề theo ma trận;
+* trộn đề theo ma trận hoặc trộn trực tiếp từ file, cân bằng đáp án A/B/C/D;
+* sao lưu, gộp và tách kho;
 * xuất mã đề, lời giải và đáp án.
 
 **Dùng file exe trên Windows:** nhấp đúp `build_exe.bat` (cần Python 3.10+) để tạo `dist\NganHangDe.exe`.

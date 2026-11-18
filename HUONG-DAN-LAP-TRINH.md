@@ -12,7 +12,7 @@ viết bằng LaTeX (khung `ex_test`). Các chức năng chính giống nhóm ph
 
 > **Lưu ý.** Mã nguồn của MyLT không được công bố, và phần mềm đó thuộc về tác giả của nó.
 > Vì vậy phần mềm ở đây được **viết lại từ đầu**: chức năng tương tự, nhưng không sao chép
-> giao diện hay mã của MyLT. Nếu MyLT có chức năng nào chưa có ở đây, xem mục 11 để tự bổ sung.
+> giao diện hay mã của MyLT. Nếu MyLT có chức năng nào chưa có ở đây, xem mục 11 (đối chiếu) và mục 12 (hướng phát triển).
 
 Mã nguồn hoàn chỉnh nằm trong thư mục `nganhangde/` và chạy được ngay.
 
@@ -38,7 +38,8 @@ nganhangde/
 ├── db.py         # Bước 4: lưu, tìm, lọc trong SQLite; chống trùng bằng mã băm
 ├── generator.py  # Bước 5: chọn câu theo ma trận, trộn câu, trộn phương án, tạo mã đề
 ├── exporter.py   # Bước 6: điền vào file mẫu .tex, xuất đề, lời giải và đáp án .csv
-├── tools.py      # công cụ trên file .tex: lọc ID, tìm trùng, xoá lời giải, đổi ID
+├── tools.py      # công cụ trên file .tex: lọc ID, tìm trùng, xoá lời giải, đổi ID, lấy đáp án, trộn file
+├── idmap.py      # đọc/ghi file giải nghĩa ID (Map ID)
 ├── cli.py        # Bước 7a: dòng lệnh
 ├── gui_qt.py     # Bước 7b: giao diện chính (PySide6/Qt)
 ├── gui.py        #          giao diện dự phòng (Tkinter)
@@ -158,6 +159,19 @@ Mỗi dòng được xử lí như sau:
 * *Không trộn phương án* khi có phương án kiểu «Cả A, B đều đúng» hay «Tất cả đều sai»
   (xem `LOCK_RE`).
 
+* *Cân bằng đáp án:* với mỗi mã đề, các vị trí đích A, B, C, D được lặp đều rồi xáo trộn,
+  sau đó gán cho từng câu TN. Phép hoán vị được chỉnh để đáp án đúng rơi vào vị trí đích
+  (xem `_mix_section`). Kết quả: 12 câu thì mỗi chữ cái có đúng 3 câu.
+* `MixOptions` bật/tắt từng thao tác:
+  * trộn câu;
+  * trộn phương án trắc nghiệm;
+  * trộn ý câu Đúng/Sai;
+  * cân bằng đáp án;
+  * giữ mã đề đầu là đề gốc.
+* `matrix_from_questions` dựng ma trận từ một đề có sẵn bằng cách đếm số câu theo
+  (loại câu, ID ở mức bài/dạng/chương, mức độ). Dùng để «ra đề tương đương đề năm ngoái».
+* `overlap_report` tính tỉ lệ câu trùng giữa từng cặp mã đề. `answer_distribution` đếm số câu A/B/C/D.
+
 Có hai chế độ tạo mã đề:
 
 * `same_questions=True`: mọi mã đề dùng cùng một bộ câu và chỉ hoán vị. Đây là kiểu đề kiểm tra tập trung.
@@ -172,8 +186,10 @@ Có hai chế độ tạo mã đề:
 * Mỗi mã đề sinh ra hai file:
   * `de_<mã>.tex`: chỉ có đề, không có lời giải;
   * `loigiai_<mã>.tex`: có lời giải và bảng đáp án.
-* Toàn bộ đáp án của mọi mã đề được ghi vào `dap_an.csv`, mở được bằng Excel.
-  File này dùng để nhập vào phần mềm chấm thi.
+* Đáp án được ghi ra hai file CSV, mở được bằng Excel:
+  * `dap_an.csv`: mỗi câu một dòng;
+  * `dap_an_bang.csv`: mỗi mã đề một dòng, tiện dán vào phần mềm chấm thi.
+  Đáp án trả lời ngắn được ghi dạng số thường, ví dụ `0,92`.
 
 ## 9. Bước 7: giao diện
 
@@ -186,6 +202,9 @@ python -m nganhangde list --id "0H9*" --type TN        # lọc
 python -m nganhangde stats                             # thống kê lớp/chương/loại/mức độ
 python -m nganhangde make ma_tran_mau.json -n 4 -o de_xuat --seed 2026
 python -m nganhangde export --id "0D8*" -o chuong8.tex  # trích câu ra file .tex
+python -m nganhangde shuffle de.tex --codes 132,209,357,485 -o de_tron   # trộn thẳng 1 file đề
+python -m nganhangde idmap --load idmap_mau_lop10.txt  # nạp giải nghĩa ID
+python -m nganhangde backup saoluu.db                  # sao lưu kho
 python -m nganhangde gui                               # mở giao diện cửa sổ
 ```
 
@@ -194,9 +213,9 @@ python -m nganhangde gui                               # mở giao diện cửa 
 
 | Tab | Nội dung |
 |---|---|
-| 📚 **Ngân hàng câu hỏi** | Bên trái là **cây chương** (Lớp → Phân môn → Chương, có số câu) và **bộ lọc** (loại câu, mức độ, mẫu ID, từ khoá). Ở giữa là bảng câu hỏi, sắp xếp được theo cột; câu có lỗi hiện chữ đỏ. Bên dưới là tab *Thông tin* và tab *Mã LaTeX* có tô màu |
-| 📝 **Tạo đề** | Bên trái là thông tin đề (tên, trường, thời gian, số mã đề, danh sách mã, seed, thư mục xuất, file mẫu). Bên phải là ma trận đề, có cột «Kho có» |
-| 🛠 **Công cụ** | Làm việc trực tiếp trên file `.tex`, không cần nạp vào kho: soát lỗi, tìm câu trùng (giữa các file và với kho), thống kê theo ID, lọc câu theo ID ra file mới, đổi ID hàng loạt, xoá lời giải, nạp vào kho |
+| 📚 **Ngân hàng câu hỏi** | Bên trái là **cây chương**, hiện tên chương lấy từ bảng giải nghĩa ID, và **bộ lọc** (loại câu, mức độ, mẫu ID, từ khoá). Ở giữa là bảng câu hỏi. Bên dưới có ba tab: *Thông tin* (giải nghĩa đủ chương → bài → dạng), *Mã LaTeX*, và *Câu tương tự* (các câu cùng dạng, cùng mức độ; nhấp đúp để sửa) |
+| 📝 **Tạo đề** | Bên trái: thông tin đề và **tuỳ chọn trộn** (trộn câu, trộn A–D, trộn ý Đúng/Sai, cân bằng đáp án, giữ đề gốc). Bên phải: ma trận đề có cột «Kho có» và nút **Ma trận từ đề có sẵn…**. Tạo xong sẽ hiện bảng phân bố đáp án A/B/C/D và tỉ lệ trùng giữa các mã đề |
+| 🛠 **Công cụ** | Làm việc trực tiếp trên file `.tex`: soát lỗi, tìm câu trùng, thống kê theo ID, lọc câu theo ID, đổi ID hàng loạt, **trộn đề trực tiếp từ file**, lấy bảng đáp án, thêm nguồn cho mọi câu, gộp và sắp xếp theo ID, xoá lời giải, nạp vào kho |
 | 📊 **Thống kê** | Các ô tổng số câu theo loại, và bảng số câu theo chương × mức độ |
 
 Các công cụ trong tab Công cụ được viết ở `tools.py` (có kiểm thử), không phụ thuộc giao diện.
@@ -210,6 +229,9 @@ Các công cụ trong tab Công cụ được viết ở `tools.py` (có kiểm 
   * biên dịch PDF nếu máy có `xelatex`;
   * mở thư mục kết quả sau khi tạo xong.
 * Phần mềm nhớ kho đang dùng và các thông số tạo đề lần trước (`QSettings`).
+* Menu **Tệp** có thêm: *Sao lưu kho*, *Gộp kho khác vào*, *Tách câu đã chọn ra kho mới*.
+  Menu **Công cụ** có thêm: *Giải nghĩa ID (Map ID)*, nhập và xuất bằng file `.txt`.
+  Xem file mẫu `idmap_mau_lop10.txt`.
 
 Kĩ thuật chính trong `gui_qt.py`:
 
@@ -274,7 +296,32 @@ Nếu đẩy một tag dạng `v1.0.0`, file exe được gắn luôn vào trang
 
 Biên dịch đề đã xuất: `xelatex de_101.tex` (cần gói `ex_test` trong cùng thư mục hoặc trong TeX).
 
-## 11. Hướng phát triển thêm
+## 11. Đối chiếu chức năng với MyLT
+
+Bảng dưới lập từ tên các thành phần giao diện trong file `MyLT.exe`. Mã nguồn MyLT không được
+đọc hay sao chép; phần mềm này tự viết các chức năng tương ứng.
+
+| Nhóm chức năng của MyLT | Phần mềm này |
+|---|---|
+| Ngân hàng: nhập file, lọc Lớp/Môn/Chương/Bài/Dạng/Mức độ, tìm theo ID | ✅ |
+| Giải nghĩa ID (Map ID) | ✅ |
+| Câu tương tự | ✅ |
+| Sao lưu kho, gộp kho (Joiner), tách kho (Extract) | ✅ |
+| Soát lỗi, tìm câu trùng | ✅ |
+| Tạo đề theo ma trận, nhiều mã đề, danh sách mã đề | ✅ |
+| Ma trận từ đề có sẵn | ✅ |
+| Cân bằng tỉ lệ đáp án | ✅ |
+| Không trộn câu / không trộn ý Đúng/Sai | ✅ |
+| Kiểm tra tỉ lệ trùng giữa các đề | ✅ |
+| Đáp án ra bảng Excel (CSV) | ✅ |
+| Công cụ trên file: lọc ID, đổi ID, thêm nguồn, sắp xếp, lấy đáp án, xoá lời giải, trộn đề từ file | ✅ |
+| Đổi một câu trong đề đã sinh | ⏳ chưa có (hiện phải tạo lại với seed khác) |
+| Phiếu trả lời trắc nghiệm, mã QR, đề online (Azota, HTML, Moodle XML) | ⏳ chưa có |
+| Chuyển Word ↔ LaTeX, xem PDF trong phần mềm | ⏳ chưa có (gợi ý ở mục 12) |
+| Vẽ hình TikZ, đồ thị, bảng biến thiên, biểu đồ | ⏳ chưa có (nên làm thành mô-đun riêng) |
+| Sinh câu hỏi bằng AI, sinh số ngẫu nhiên | ⏳ chưa có |
+
+## 12. Hướng phát triển thêm
 
 | Tính năng | Gợi ý cách làm |
 |---|---|

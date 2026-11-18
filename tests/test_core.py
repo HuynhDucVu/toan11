@@ -88,7 +88,7 @@ def test_make_versions_and_export(bank, tmp_path):
     ids = [sorted(q.db_id for q in v.all_questions()) for v in vs]
     assert ids[0] == ids[1] == ids[2] and len(ids[0]) == 11
     files = export_versions(vs, str(tmp_path / "out"))
-    assert len(files) == 7
+    assert len(files) == 8
     de = open(files[0], encoding="utf-8").read()
     assert "\\loigiai" not in de and "Mã đề 101" in de
 
@@ -114,3 +114,56 @@ def test_tools(tmp_path):
     assert tools.convert_ids(SAMPLE, str(out3), tools.parse_mapping("0H9 = 0H4\n0D2->0D5")) == 11
     ids = [q.id_code for q in parse_file(str(out3))]
     assert "0H4H3-3" in ids and "0D5N1-2" in ids and not any(i.startswith("0H9") for i in ids)
+
+
+def test_balance_and_options(bank):
+    from collections import Counter
+    from nganhangde.generator import MixOptions, answer_distribution, overlap_report
+    rules = [Rule("TN", 12), Rule("DS", 4)]
+    vs = make_versions(bank, rules, 4, seed=3, options=MixOptions(balance=True))
+    for v in vs:
+        d = answer_distribution(v)
+        assert max(d.values()) - min(d.values()) <= 1          # 12 câu ⇒ mỗi chữ 3 câu
+    assert all(r == 1.0 for _, _, r in overlap_report(vs))       # cùng bộ câu
+    # không trộn ý Đúng/Sai ⇒ đáp án DS giữ nguyên như gốc
+    orig = {q.fingerprint: q.answer_text for q in bank.search(qtype="DS")}
+    vs = make_versions(bank, rules, 2, seed=1, options=MixOptions(shuffle_ds=False))
+    assert all(orig[q.fingerprint] == q.answer_text for v in vs for q in v.sections["DS"])
+    # đề gốc giữ nguyên thứ tự phương án
+    vs = make_versions(bank, rules, 2, seed=1, options=MixOptions(first_original=True))
+    assert all(q.answer_text == bank.get(q.db_id).answer_text for q in vs[0].all_questions())
+
+
+def test_matrix_from_exam(bank):
+    from nganhangde.generator import matrix_from_questions
+    rules = matrix_from_questions(parse_file(SAMPLE), "bai")
+    assert sum(r.count for r in rules) == 22
+    vs = make_versions(bank, rules, 1, seed=0)                    # kho đủ câu để dựng lại
+    assert len(list(vs[0].all_questions())) == 22
+
+
+def test_bank_extras(bank, tmp_path):
+    from nganhangde.idmap import parse_map_text
+    bank.set_idmap(parse_map_text("0D2 = Chương 2\n[0D21] Bài 1\n0D21-2: Dạng 2\n# chú thích"))
+    assert bank.id_names("0D2N1-2") == ["Chương 2", "Bài 1", "Dạng 2"]
+    q = bank.search(id_like="0D2N1-2")[0]
+    assert len(bank.similar(q)) == 1
+    bank.backup(str(tmp_path / "bk.db"))
+    other = Bank(str(tmp_path / "khac.db"))
+    assert other.merge_from(str(tmp_path / "bk.db")) == (22, 0)
+    assert other.idmap()["0D2"] == "Chương 2"
+    other.close()
+    assert bank.export_subset([1, 2, 3], str(tmp_path / "tach.db")) == 3
+
+
+def test_file_tools(tmp_path):
+    from nganhangde import tools
+    ans = tools.get_answers([SAMPLE])
+    assert ans[0][1:] == ("TN", 1, "0D2N1-2", "D") and ans[12][1:3] == ("DS", 1)
+    out = tmp_path / "nguon.tex"
+    assert tools.add_tag(SAMPLE, str(out), "THPT ABC") == 22
+    assert all("THPT ABC" in q.tags for q in parse_file(str(out)))
+    assert tools.add_tag(str(out), str(tmp_path / "x.tex"), "THPT ABC") == 0
+    assert tools.sort_by_id([SAMPLE], str(tmp_path / "sx.tex")) == 22
+    vs, files = tools.shuffle_file(SAMPLE, ["001", "002"], str(tmp_path / "tron"), seed=5)
+    assert [v.code for v in vs] == ["001", "002"] and len(list(vs[0].all_questions())) == 22

@@ -122,3 +122,62 @@ def parse_mapping(text: str) -> dict[str, str]:
         if m:
             out[m.group(1).upper()] = m.group(2).upper()
     return out
+
+
+# ---------------------------------------------------------------- công cụ bổ sung
+def get_answers(paths: list[str]):
+    """Lấy bảng đáp án từ file đề: [(file, phần, số câu trong phần, ID, đáp án)]."""
+    out = []
+    for p in paths:
+        counters = Counter()
+        for q in parse_file(p):
+            counters[q.qtype] += 1
+            out.append((p, q.qtype, counters[q.qtype], q.id_code, q.answer_text))
+    return out
+
+
+def add_tag_text(text: str, tag: str) -> tuple[str, int]:
+    """Chèn nhãn %[tag] (vd nguồn đề) vào dòng \\begin{ex} của mọi câu chưa có nhãn đó."""
+    n = 0
+
+    def fix(m):
+        nonlocal n
+        first, sep, rest = m.group(0).partition("\n")
+        if f"%[{tag}]" in first:
+            return m.group(0)
+        n += 1
+        env_end = first.index("}") + 1           # sau \begin{ex}
+        return first[:env_end] + f"%[{tag}]" + first[env_end:] + sep + rest
+
+    return ENV_RE.sub(fix, text), n
+
+
+def add_tag(path: str, out_path: str, tag: str) -> int:
+    with open(path, encoding="utf-8") as f:
+        text, n = add_tag_text(f.read(), tag)
+    with open(out_path, "w", encoding="utf-8") as f:
+        f.write(text)
+    return n
+
+
+def sort_by_id(paths: list[str], out_path: str) -> int:
+    """Gộp các file và sắp xếp câu theo loại câu rồi theo ID."""
+    order = {"TN": 0, "DS": 1, "KQ": 2, "TL": 3}
+    qs = [q for p in paths for q in parse_file(p)]
+    qs.sort(key=lambda q: (order[q.qtype], q.id_code or "~"))
+    with open(out_path, "w", encoding="utf-8") as f:
+        f.write("\n".join(q.raw for q in qs) + "\n")
+    return len(qs)
+
+
+def shuffle_file(path: str, codes: list[str], out_dir: str, *, seed=None, options=None,
+                 template_path=None, ten_de="ĐỀ KIỂM TRA", truong="", thoi_gian=90):
+    """Trộn trực tiếp một file đề .tex thành nhiều mã đề (không cần nạp vào kho)."""
+    import random
+
+    from .exporter import export_versions
+    from .generator import mix_versions, sections_from_questions
+    versions = mix_versions(sections_from_questions(parse_file(path)), codes, random.Random(seed), options)
+    files = export_versions(versions, out_dir, template_path=template_path, ten_de=ten_de,
+                            truong=truong, thoi_gian=thoi_gian)
+    return versions, files

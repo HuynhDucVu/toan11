@@ -1,0 +1,18 @@
+# Giải nghĩa ID mẫu – Toán 10 (chỉnh lại theo chương trình/sách của trường)
+# khoá = lớp(0=10) + phân môn(D/H) + chương [+ bài [-dạng]]
+0        = Lớp 10
+0D       = Đại số và Xác suất thống kê
+0H       = Hình học
+0D2      = Chương 2. Bất phương trình bậc hai
+0D21     = Bài 1. Dấu của tam thức bậc hai
+0D21-2   = Dạng 2. Giải bất phương trình bậc hai
+0D8      = Chương 8. Đại số tổ hợp
+0D82     = Bài 2. Hoán vị, chỉnh hợp và tổ hợp
+0D83     = Bài 3. Nhị thức Newton
+0D0      = Chương 10 (mã 0). Xác suất
+0D01     = Bài 1. Không gian mẫu và biến cố
+0D02     = Bài 2. Xác suất của biến cố
+0H9      = Chương 9. Phương pháp toạ độ trong mặt phẳng
+0H93     = Bài 3. Phương trình đường thẳng
+0H94     = Bài 4. Phương trình đường tròn
+0H95     = Bài 5. Ba đường conic

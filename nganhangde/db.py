@@ -35,6 +35,11 @@ CREATE TABLE IF NOT EXISTS questions (
 );
 CREATE INDEX IF NOT EXISTS ix_q_code ON questions(id_code);
 CREATE INDEX IF NOT EXISTS ix_q_filter ON questions(qtype, lop, chuong, muc_do);
+-- Giải nghĩa ID (MapID): '0D2' → 'Chương 2. Bất phương trình', '0D21' → 'Bài 1 ...', '0D21-2' → 'Dạng 2 ...'
+CREATE TABLE IF NOT EXISTS idmap (
+    key  TEXT PRIMARY KEY,
+    name TEXT NOT NULL
+);
 """
 
 
@@ -140,6 +145,70 @@ class Bank:
             "SELECT lop, mon, chuong, qtype, muc_do, COUNT(*) AS n FROM questions "
             "GROUP BY lop, mon, chuong, qtype, muc_do ORDER BY lop, mon, chuong, qtype, muc_do"
         ).fetchall()
+
+    # ---------- câu tương tự ----------
+    def similar(self, q: Question, same_level: bool = True) -> list[Question]:
+        """Câu cùng dạng (cùng ID bỏ qua mức độ nếu same_level=False), cùng loại câu."""
+        idc = parse_id(q.id_code) if q.id_code else None
+        if not idc:
+            return []
+        pat = idc.lop + idc.mon + idc.chuong + ("?" if not same_level else q.id_code[3]) + idc.bai
+        pat += ("-" + idc.dang) if idc.dang else "*"
+        return [x for x in self.search(qtype=q.qtype, id_like=pat) if x.db_id != q.db_id]
+
+    # ---------- giải nghĩa ID ----------
+    def idmap(self) -> dict[str, str]:
+        return dict(self.con.execute("SELECT key, name FROM idmap ORDER BY key").fetchall())
+
+    def set_idmap(self, mapping: dict[str, str], replace: bool = False):
+        if replace:
+            self.con.execute("DELETE FROM idmap")
+        self.con.executemany("INSERT OR REPLACE INTO idmap(key, name) VALUES (?, ?)",
+                             [(k.upper(), v) for k, v in mapping.items() if k.strip() and v.strip()])
+        self.con.commit()
+
+    def id_names(self, code: str) -> list[str]:
+        """Các tên giải nghĩa từ khái quát đến chi tiết cho một ID, vd ['Chương 2 ...', 'Bài 1 ...']."""
+        idc = parse_id(code) if code else None
+        if not idc:
+            return []
+        m = self.idmap()
+        keys = [idc.lop, idc.lop + idc.mon, idc.lop + idc.mon + idc.chuong,
+                idc.lop + idc.mon + idc.chuong + idc.bai]
+        if idc.dang:
+            keys.append(keys[-1] + "-" + idc.dang)
+        return [m[k] for k in keys if k in m]
+
+    # ---------- sao lưu / gộp / tách ----------
+    def backup(self, dest: str):
+        """Sao lưu toàn bộ kho sang file .db khác (an toàn cả khi đang mở)."""
+        out = sqlite3.connect(dest)
+        with out:
+            self.con.backup(out)
+        out.close()
+
+    def merge_from(self, other_path: str) -> tuple[int, int]:
+        """Gộp câu hỏi (và giải nghĩa ID) từ kho khác; trả về (thêm, trùng)."""
+        other = Bank(other_path)
+        added = dup = 0
+        try:
+            for r in other.con.execute("SELECT * FROM questions"):
+                if self.add(other.row_to_question(r), r["source_file"]):
+                    added += 1
+                else:
+                    dup += 1
+            self.set_idmap(other.idmap())
+        finally:
+            other.close()
+        return added, dup
+
+    def export_subset(self, ids, dest: str) -> int:
+        """Tách các câu đã chọn ra một kho mới."""
+        out = Bank(dest)
+        n = sum(1 for i in ids if (q := self.get(i)) and out.add(q, "tach-kho"))
+        out.set_idmap(self.idmap())
+        out.close()
+        return n
 
     def count(self) -> int:
         return self.con.execute("SELECT COUNT(*) FROM questions").fetchone()[0]
