@@ -9,6 +9,8 @@
     python -m nganhangde shuffle de.tex -n 4 -o out   # trộn trực tiếp 1 file đề
     python -m nganhangde idmap --load map_id.txt      # nạp giải nghĩa ID
     python -m nganhangde backup saoluu.db             # sao lưu kho
+    python -m nganhangde idmap --load Map_ID.tex      # nạp Map ID (định dạng gạch ngang)
+    python -m nganhangde suggest-id de.tex --scope 0 --auto 0.45 -o de_ganID.tex
     python -m nganhangde review de.tex --fix theo-loi-giai --add-conclusion --remove-errors -o de_sach.tex
     python -m nganhangde gui                          # mở giao diện cửa sổ
 """
@@ -169,6 +171,40 @@ def cmd_review(bank: Bank, a):
             print(f"Đã xoá {len(bad)} câu lỗi khỏi kho")
 
 
+def cmd_suggest_id(bank: Bank, a):
+    """Gợi ý ID cho câu (thiếu ID) trong file; --auto NGƯỠNG -o FILE để ghi ID gợi ý có độ giống ≥ ngưỡng."""
+    from . import review as rv
+    from .idsuggest import MapSuggester, Suggester, combine
+    m = bank.idmap()
+    bs = Suggester([q for q in bank.search() if q.id_code.startswith(a.scope)])
+    ms = MapSuggester(m, a.scope)
+    if not len(bs) and not len(ms):
+        sys.exit("Kho chưa có câu có ID và chưa có Map ID – nạp Map ID trước: idmap --load Map_ID.tex")
+    with open(a.file, encoding="utf-8") as f:
+        text = f.read()
+    pairs = []
+    for i, q in enumerate(parse_file(a.file), 1):
+        if q.id_code and not a.all:
+            continue
+        idc = parse_id(q.id_code) if q.id_code else None
+        sg = combine(bs.suggest(q, 3) if len(bs) else [], ms.suggest(q, idc.muc_do if idc else a.level, 3), 3)
+        stem = " ".join(q.stem.split())[:60]
+        print(f"Câu {i:>3} [{q.id_code or '—'}] {stem}")
+        for s_ in sg:
+            print(f"        {s_.id_code:<10} {s_.score:4.0%}  {s_.sample[:70]}")
+        if a.auto is not None and sg and sg[0].score >= a.auto:
+            old = q.raw
+            q.set_id(sg[0].id_code)
+            pairs.append((old, q.raw))
+    if a.auto is not None:
+        if not a.out:
+            sys.exit("Cần -o FILE_MOI.tex để lưu (file gốc giữ nguyên)")
+        text, n = rv.replace_questions_text(text, pairs)
+        with open(a.out, "w", encoding="utf-8") as f:
+            f.write(text)
+        print(f"Đã gán ID gợi ý cho {n} câu (độ giống ≥ {a.auto:.0%}), lưu thành {a.out}. Hãy kiểm tra lại!")
+
+
 def cmd_backup(bank: Bank, a):
     bank.backup(a.dest)
     print(f"Đã sao lưu {bank.count()} câu ra {a.dest}")
@@ -220,6 +256,13 @@ def main(argv=None):
     p.add_argument("--fix", choices=["theo-loi-giai", "theo-dap-an"],
                    help="tự sửa đáp án lệch lời giải (tin lời giải / tin đáp án)")
     p.add_argument("--add-conclusion", action="store_true", help="thêm câu kết luận còn thiếu vào lời giải")
+    p = sub.add_parser("suggest-id", help="gợi ý ID cho câu thiếu ID trong file .tex (kho + Map ID)")
+    p.add_argument("file")
+    p.add_argument("--scope", default="", help="giới hạn phạm vi, vd 0 (lớp 10), 2D")
+    p.add_argument("--level", default="N", choices=list("NHVC"), help="mức độ cho câu chưa có ID")
+    p.add_argument("--all", action="store_true", help="gợi ý cả câu đã có ID")
+    p.add_argument("--auto", type=float, help="tự gán ID gợi ý có độ giống ≥ ngưỡng (0..1)")
+    p.add_argument("-o", "--out")
     p = sub.add_parser("backup")
     p.add_argument("dest")
     p = sub.add_parser("make")
@@ -242,7 +285,7 @@ def main(argv=None):
     try:
         {"import": cmd_import, "list": cmd_list, "stats": cmd_stats, "check": cmd_check,
          "make": cmd_make, "export": cmd_export, "idmap": cmd_idmap, "shuffle": cmd_shuffle,
-         "backup": cmd_backup, "review": cmd_review}[a.cmd](bank, a)
+         "backup": cmd_backup, "review": cmd_review, "suggest-id": cmd_suggest_id}[a.cmd](bank, a)
     finally:
         bank.close()
 

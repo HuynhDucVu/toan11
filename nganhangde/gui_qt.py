@@ -27,7 +27,8 @@ from .db import Bank
 from .exporter import export_questions, export_versions
 from .generator import (MixOptions, NotEnoughQuestions, Rule, answer_distribution, make_versions,
                         matrix_from_questions, overlap_report)
-from .idmap import load_map, parse_map_text, save_map
+from .idmap import IdTree, dash_duplicates, parse_map_text, save_map, to_dash_text
+from .idsuggest import MapSuggester, Suggester, combine
 from . import review as rv
 from .idcode import LOP, MON, parse_id
 from .parser import parse_file, parse_tex, validate
@@ -156,6 +157,8 @@ class MainWindow(QMainWindow):
         self._act(m, "Thêm câu mới", self.add_question, "Ctrl+N")
         self._act(m, "Sửa câu", self.edit_question, "F2")
         self._act(m, "Xoá câu", self.delete_questions, QKeySequence.StandardKey.Delete)
+        m.addSeparator()
+        self._act(m, "Gán ID cho câu đã chọn / câu thiếu ID…", self.assign_ids, "F3")
         m = mb.addMenu("Đề &thi")
         self._act(m, "Tạo đề theo ma trận…", self.open_generator, "Ctrl+G")
         self._act(m, "Rà soát đáp án và lời giải…", self.open_review, "Ctrl+R")
@@ -172,6 +175,7 @@ class MainWindow(QMainWindow):
         self.addToolBar(tb)
         for text, fn in (("📥 Nhập .tex", self.import_files), ("➕ Thêm câu", self.add_question),
                          ("✏️ Sửa", self.edit_question), ("🗑 Xoá", self.delete_questions),
+                         ("🏷 Gán ID", self.assign_ids),
                          ("📤 Xuất câu", self.export_selected), ("🎲 Tạo đề", self.open_generator),
                          ("✅ Rà soát", self.open_review), ("📊 Thống kê", self.show_stats)):
             tb.addAction(text, fn)
@@ -472,6 +476,19 @@ class MainWindow(QMainWindow):
         if p:
             n = self.bank.export_subset(ids, p)
             QMessageBox.information(self, "Tách kho", f"Đã chép {n} câu sang\n{p}")
+
+    def assign_ids(self):
+        ids = self.selected_ids()
+        if ids:
+            qs = [self.bank.get(i) for i in ids]
+        else:
+            qs = [q for q in self.bank.search() if not q.id_code]
+            if not qs:
+                QMessageBox.information(self, "Gán ID", "Hãy chọn các câu cần gán/đổi ID trong bảng "
+                                        "(kho hiện không có câu nào thiếu ID).")
+                return
+        if AssignIdDialog(self, qs, [f"Kho #{q.db_id}" for q in qs]).exec():
+            self.refresh()
 
     def edit_idmap(self):
         if IdMapDialog(self).exec():
@@ -966,24 +983,27 @@ class ResultDialog(QDialog):
 
 
 class IdMapDialog(QDialog):
-    """Sửa bảng giải nghĩa ID: khoá (0D2, 0D21, 0D21-2…) → tên chương/bài/dạng."""
+    """Sửa bảng giải nghĩa ID theo định dạng Map ID phân cấp bằng gạch ngang (dùng chung với file Map_ID.tex)."""
 
     def __init__(self, win: MainWindow):
         super().__init__(win)
         self.win = win
         self.setWindowTitle("Giải nghĩa ID (Map ID)")
-        self.resize(760, 560)
+        self.resize(820, 640)
         lay = QVBoxLayout(self)
-        lay.addWidget(QLabel("Mỗi dòng: <b>khoá = tên</b>. Khoá gồm lớp + môn + chương [+ bài [-dạng]], bỏ kí tự mức độ.<br>"
-                             "Ví dụ: <code>0D2 = Chương 2. Bất phương trình</code>, "
-                             "<code>0D21 = Bài 1. Dấu tam thức</code>, <code>0D21-2 = Dạng 2 …</code>"))
+        lay.addWidget(QLabel("Định dạng phân cấp: <code>-[0] Lớp 10</code>, <code>----[D] Môn</code>, "
+                             "<code>-------[1] Chương</code>, <code>----------[1] Bài</code>, "
+                             "<code>-------------[1] Dạng</code> (1/4/7/10/13 gạch). Dòng bắt đầu bằng % là chú thích.<br>"
+                             "Có thể nạp thẳng file <b>Map_ID.tex</b> đang dùng với các phần mềm khác."))
         self.ed = QPlainTextEdit()
         self.ed.setFont(QFont("Consolas", 11))
-        m = win.bank.idmap()
-        self.ed.setPlainText("\n".join(f"{k:<10}= {v}" for k, v in m.items()))
+        self.ed.setPlainText(to_dash_text(win.bank.idmap()))
         lay.addWidget(self.ed)
+        self.info = QLabel()
+        lay.addWidget(self.info)
+        self.ed.textChanged.connect(self.update_info)
         row = QHBoxLayout()
-        for text, fn in (("Nhập từ file .txt…", self.load), ("Xuất ra file .txt…", self.export)):
+        for text, fn in (("Nạp file Map ID (.tex/.txt)…", self.load), ("Xuất file Map ID…", self.export)):
             b = QPushButton(text)
             b.clicked.connect(fn)
             row.addWidget(b)
@@ -996,21 +1016,372 @@ class IdMapDialog(QDialog):
         row.addWidget(ok)
         row.addWidget(cancel)
         lay.addLayout(row)
+        self.update_info()
+
+    def update_info(self):
+        m = parse_map_text(self.ed.toPlainText())
+        n = {lv: 0 for lv in range(1, 6)}
+        for k in m:
+            if not k.startswith("#"):
+                n[len(k.split("-")[0]) + ("-" in k)] += 1
+        dups = dash_duplicates(self.ed.toPlainText())
+        txt = (f"{n[1]} lớp · {n[2]} môn · {n[3]} chương · {n[4]} bài · {n[5]} dạng")
+        if dups:
+            txt += (f" — <span style='color:#c00000'>{len(dups)} mã bị khai báo trùng (giữ mục đầu): "
+                    + "; ".join(f"{k} «{a}» / «{b}»" for k, a, b in dups[:5]) + "</span>")
+        self.info.setText(txt)
 
     def load(self):
-        p, _ = QFileDialog.getOpenFileName(self, "Chọn file giải nghĩa ID", "", "Văn bản (*.txt);;Tất cả (*.*)")
-        if p:
-            cur = parse_map_text(self.ed.toPlainText())
-            cur.update(load_map(p))
-            self.ed.setPlainText("\n".join(f"{k:<10}= {v}" for k, v in sorted(cur.items())))
+        p, _ = QFileDialog.getOpenFileName(self, "Chọn file Map ID", "",
+                                           "Map ID (*.tex *.txt);;Tất cả (*.*)")
+        if not p:
+            return
+        with open(p, encoding="utf-8-sig") as f:
+            text = f.read()
+        new = parse_map_text(text)
+        if not new:
+            QMessageBox.warning(self, "Map ID", "Không đọc được mục nào trong file này.")
+            return
+        cur = parse_map_text(self.ed.toPlainText())
+        if cur and QMessageBox.question(self, "Map ID", f"File có {len(new)} mục. Thay toàn bộ bảng hiện tại?\n"
+                                        "(Chọn No để gộp thêm vào bảng hiện tại)") != QMessageBox.StandardButton.Yes:
+            cur.update(new)
+            new = cur
+        self.ed.setPlainText(to_dash_text(new))
+        dups = dash_duplicates(text)
+        if dups:
+            QMessageBox.warning(self, "Map ID có mã trùng", "Các mã sau được khai báo 2 lần, phần mềm giữ mục đầu:\n\n"
+                                + "\n".join(f"{k}: «{a}» / «{b}»" for k, a, b in dups))
 
     def export(self):
-        p, _ = QFileDialog.getSaveFileName(self, "Xuất file giải nghĩa ID", "map_id.txt", "Văn bản (*.txt)")
+        p, _ = QFileDialog.getSaveFileName(self, "Xuất file Map ID", "Map_ID.tex", "Map ID (*.tex);;Văn bản (*.txt)")
         if p:
             save_map(parse_map_text(self.ed.toPlainText()), p)
 
     def save(self):
         self.win.bank.set_idmap(parse_map_text(self.ed.toPlainText()), replace=True)
+        self.accept()
+
+
+# =====================================================================
+class IdPicker(QWidget):
+    """Bộ chọn ID theo Map ID: Lớp → Môn → Chương → Bài → Dạng + Mức độ. Mỗi ô có lựa chọn «giữ nguyên»."""
+    KEEP = None
+    LABELS = ("Lớp", "Môn", "Chương", "Bài", "Dạng")
+
+    def __init__(self, mapping: dict[str, str]):
+        super().__init__()
+        self.tree = IdTree(mapping)
+        lay = QFormLayout(self)
+        lay.setContentsMargins(0, 0, 0, 0)
+        self.cbs = []
+        for i, lb in enumerate(self.LABELS):
+            cb = QComboBox()
+            cb.setMinimumWidth(320)
+            cb.currentIndexChanged.connect(lambda _=0, i=i: self._changed(i))
+            lay.addRow(lb, cb)
+            self.cbs.append(cb)
+        self.cb_md = QComboBox()
+        self.cb_md.addItem("(giữ nguyên)", self.KEEP)
+        for k, v in TEN_MUC.items():
+            self.cb_md.addItem(f"[{k}] {v}", k)
+        lay.addRow("Mức độ", self.cb_md)
+        self.preview = QLabel()
+        lay.addRow("ID", self.preview)
+        self.cb_md.currentIndexChanged.connect(self._show)
+        self._fill(0)
+
+    def _fill(self, i):
+        for j in range(i, 5):
+            cb = self.cbs[j]
+            cb.blockSignals(True)
+            cb.clear()
+            cb.addItem("(giữ nguyên)", self.KEEP)
+            parts = self.parts()[:j]
+            if len(parts) == j and all(p is not self.KEEP for p in parts):
+                for code, name in self.tree.children(parts):
+                    cb.addItem(f"[{code}] {name}", code)
+            cb.blockSignals(False)
+        self._show()
+
+    def _changed(self, i):
+        if i < 4:
+            self._fill(i + 1)
+        self._show()
+
+    def parts(self):
+        return [cb.currentData() for cb in self.cbs]
+
+    def level(self):
+        return self.cb_md.currentData()
+
+    def _show(self):
+        p = ["?" if x is self.KEEP else x for x in self.parts()]
+        md = self.level() or "?"
+        self.preview.setText(f"<b>{p[0]}{p[1]}{p[2]}{md}{p[3]}-{p[4]}</b> &nbsp; (? = giữ nguyên theo ID cũ)")
+
+    def apply_to(self, old_id: str) -> str | None:
+        """Ghép phần đã chọn với ID cũ; trả về None nếu còn phần chưa xác định."""
+        idc = parse_id(old_id) if old_id else None
+        old = [idc.lop, idc.mon, idc.chuong, idc.bai, idc.dang] if idc else [None] * 5
+        p = [o if x is self.KEEP else x for x, o in zip(self.parts(), old)]
+        md = self.level() or (idc.muc_do if idc else None)
+        if any(x is None for x in p[:4]) or md is None:
+            return None
+        return f"{p[0]}{p[1]}{p[2]}{md}{p[3]}" + (f"-{p[4]}" if p[4] else "")
+
+
+class AssignIdDialog(QDialog):
+    """Gán ID cho nhiều câu: gợi ý tự động (kho + Map ID), chọn theo Map ID, chỉ đổi mức độ; lưu vào kho hoặc file mới."""
+    COLS = ["", "Câu", "ID hiện tại", "ID mới", "Độ giống", "Nội dung"]
+
+    def __init__(self, win: MainWindow, questions, labels, source_file: str | None = None):
+        super().__init__(win)
+        self.win, self.qs, self.labels, self.src = win, questions, labels, source_file
+        self.setWindowTitle("Gán ID" + (f" – {os.path.basename(source_file)}" if source_file else " – kho câu hỏi"))
+        self.resize(1250, 760)
+        self.mapping = win.bank.idmap()
+        self.sugs = [[] for _ in questions]
+        lay = QVBoxLayout(self)
+        if not [k for k in self.mapping if not k.startswith("#")]:
+            lay.addWidget(QLabel("<span style='color:#c00000'>Kho chưa có Map ID – vào <b>Công cụ → Giải nghĩa ID</b> "
+                                 "để nạp file Map_ID.tex thì mới chọn ID theo tên chương/bài/dạng và gợi ý theo tên được.</span>"))
+        top = QHBoxLayout()
+        lay.addLayout(top, 1)
+
+        left = QVBoxLayout()
+        top.addLayout(left, 3)
+        self.t = QTableWidget(len(questions), len(self.COLS))
+        self.t.setHorizontalHeaderLabels(self.COLS)
+        self.t.verticalHeader().setVisible(False)
+        self.t.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+        for c, w_ in enumerate((30, 110, 90, 100, 70)):
+            self.t.setColumnWidth(c, w_)
+        self.t.horizontalHeader().setSectionResizeMode(5, QHeaderView.ResizeMode.Stretch)
+        for r, (q, lb) in enumerate(zip(questions, labels)):
+            chk = QTableWidgetItem()
+            chk.setFlags(Qt.ItemFlag.ItemIsUserCheckable | Qt.ItemFlag.ItemIsEnabled | Qt.ItemFlag.ItemIsSelectable)
+            chk.setCheckState(Qt.CheckState.Unchecked)
+            self.t.setItem(r, 0, chk)
+            for c, v in ((1, lb), (2, q.id_code or "—"), (3, ""), (4, ""), (5, " ".join(q.stem.split())[:200])):
+                it = QTableWidgetItem(v)
+                if c != 3:
+                    it.setFlags(it.flags() & ~Qt.ItemFlag.ItemIsEditable)
+                self.t.setItem(r, c, it)
+        self.t.itemSelectionChanged.connect(self.on_select)
+        left.addWidget(self.t)
+        row = QHBoxLayout()
+        for text, fn in (("Chọn hết", lambda: self.set_all(True)), ("Bỏ chọn", lambda: self.set_all(False)),
+                         ("Chọn câu thiếu ID", self.check_missing)):
+            b = QPushButton(text)
+            b.clicked.connect(fn)
+            row.addWidget(b)
+        row.addStretch()
+        left.addLayout(row)
+
+        right = QVBoxLayout()
+        top.addLayout(right, 2)
+        g = QGroupBox("1. Gợi ý tự động")
+        gl = QFormLayout(g)
+        self.cb_scope = QComboBox()
+        self.cb_scope.addItem("Mọi lớp", "")
+        tree = IdTree(self.mapping)
+        for code, name in tree.children([]):
+            self.cb_scope.addItem(name, code)
+        self.cb_def_md = QComboBox()
+        for k, v in TEN_MUC.items():
+            self.cb_def_md.addItem(f"{v} (nếu câu chưa có mức độ)", k)
+        b = QPushButton("Tìm gợi ý cho các câu")
+        b.clicked.connect(self.compute)
+        gl.addRow("Phạm vi", self.cb_scope)
+        gl.addRow("Mức độ", self.cb_def_md)
+        gl.addRow("", b)
+        self.sp_thr = QSpinBox()
+        self.sp_thr.setRange(5, 100)
+        self.sp_thr.setValue(35)
+        self.sp_thr.setSuffix(" %")
+        b2 = QPushButton("Nhận gợi ý tốt nhất cho câu đã chọn có độ giống ≥")
+        b2.clicked.connect(self.accept_best)
+        h = QHBoxLayout()
+        h.addWidget(b2)
+        h.addWidget(self.sp_thr)
+        gl.addRow(h)
+        self.sug_list = QTableWidget(0, 3)
+        self.sug_list.setHorizontalHeaderLabels(["ID gợi ý", "Giống", "Theo"])
+        self.sug_list.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch)
+        self.sug_list.verticalHeader().setVisible(False)
+        self.sug_list.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+        self.sug_list.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+        self.sug_list.setMaximumHeight(130)
+        self.sug_list.doubleClicked.connect(self.use_suggestion)
+        gl.addRow(QLabel("Gợi ý cho câu đang chọn (nhấp đúp để dùng):"))
+        gl.addRow(self.sug_list)
+        right.addWidget(g)
+
+        g = QGroupBox("2. Chọn ID theo Map ID rồi áp cho câu đã chọn")
+        gl = QVBoxLayout(g)
+        self.picker = IdPicker(self.mapping)
+        gl.addWidget(self.picker)
+        b = QPushButton("Áp ID cho các câu đã chọn")
+        b.clicked.connect(self.apply_picker)
+        gl.addWidget(b)
+        gl.addWidget(QLabel("<i>Để «giữ nguyên» ở mọi ô và chỉ chọn Mức độ ⇒ chỉ đổi mức độ.</i>"))
+        right.addWidget(g)
+
+        self.detail = QLabel()
+        self.detail.setWordWrap(True)
+        right.addWidget(self.detail)
+        right.addStretch()
+
+        row = QHBoxLayout()
+        self.l_count = QLabel()
+        row.addWidget(self.l_count)
+        row.addStretch()
+        ok = QPushButton("Lưu vào kho" if not source_file else "Lưu thành file mới…")
+        ok.setObjectName("primary")
+        ok.clicked.connect(self.save)
+        cancel = QPushButton("Đóng")
+        cancel.clicked.connect(self.reject)
+        row.addWidget(ok)
+        row.addWidget(cancel)
+        lay.addLayout(row)
+        self.t.itemChanged.connect(self.update_count)
+        self.check_missing()
+        self.update_count()
+
+    # --- tiện ích
+    def set_all(self, v):
+        for r in range(self.t.rowCount()):
+            self.t.item(r, 0).setCheckState(Qt.CheckState.Checked if v else Qt.CheckState.Unchecked)
+
+    def check_missing(self):
+        for r, q in enumerate(self.qs):
+            self.t.item(r, 0).setCheckState(Qt.CheckState.Unchecked if q.id_code else Qt.CheckState.Checked)
+
+    def checked_rows(self):
+        return [r for r in range(self.t.rowCount()) if self.t.item(r, 0).checkState() == Qt.CheckState.Checked]
+
+    def set_new(self, r, code, score=None):
+        self.t.item(r, 3).setText(code)
+        self.t.item(r, 3).setForeground(QColor("#0b7a0b") if parse_id(code) else QColor("#c00000"))
+        if score is not None:
+            self.t.item(r, 4).setText(f"{score:.0%}")
+
+    def update_count(self, *_):
+        n = sum(1 for r in range(self.t.rowCount()) if self.t.item(r, 3) and self.t.item(r, 3).text().strip())
+        self.l_count.setText(f"{n} câu có ID mới · {len(self.checked_rows())} câu đang chọn")
+
+    # --- gợi ý
+    def compute(self):
+        prefix = self.cb_scope.currentData() or ""
+        bank_items = [q for q in self.win.bank.search() if q.id_code.startswith(prefix)]
+        bs = Suggester(bank_items) if bank_items else None
+        ms = MapSuggester(self.mapping, prefix)
+        rows = self.checked_rows() or list(range(len(self.qs)))
+        for r in rows:
+            q = self.qs[r]
+            idc = parse_id(q.id_code) if q.id_code else None
+            md = idc.muc_do if idc else self.cb_def_md.currentData()
+            b = bs.suggest(q, 3, exclude_db_id=q.db_id) if bs and len(bs) else []
+            m = ms.suggest(q, md, 3) if len(ms) else []
+            self.sugs[r] = combine(b, m, 4)
+            if self.sugs[r]:
+                self.t.item(r, 4).setText(f"{self.sugs[r][0].score:.0%}")
+                self.t.item(r, 4).setToolTip(self.sugs[r][0].id_code)
+        self.on_select()
+
+    def on_select(self):
+        rows = sorted({i.row() for i in self.t.selectedIndexes()})
+        self.sug_list.setRowCount(0)
+        if not rows:
+            return
+        r = rows[0]
+        q = self.qs[r]
+        names = self.win.bank.id_names(q.id_code) if q.id_code else []
+        self.detail.setText("<b>Câu đang chọn:</b> " + " ".join(q.stem.split())[:300]
+                            + ("<br><b>ID hiện tại:</b> " + " › ".join(names) if names else ""))
+        sg = self.sugs[r]
+        self.sug_list.setRowCount(len(sg))
+        for i, x in enumerate(sg):
+            src = (f"câu #{x.db_id} trong kho: {x.sample}" if x.db_id is not None else f"Map ID: {x.sample}")
+            for c, v in enumerate((x.id_code, f"{x.score:.0%}", src)):
+                it = QTableWidgetItem(v)
+                it.setToolTip(src)
+                self.sug_list.setItem(i, c, it)
+
+    def use_suggestion(self, idx):
+        rows = sorted({i.row() for i in self.t.selectedIndexes()})
+        if rows:
+            x = self.sugs[rows[0]][idx.row()]
+            self.set_new(rows[0], x.id_code, x.score)
+            self.update_count()
+
+    def accept_best(self):
+        thr = self.sp_thr.value() / 100
+        n = 0
+        for r in self.checked_rows():
+            if self.sugs[r] and self.sugs[r][0].score >= thr:
+                self.set_new(r, self.sugs[r][0].id_code, self.sugs[r][0].score)
+                n += 1
+        self.update_count()
+        QMessageBox.information(self, "Gợi ý", f"Đã điền ID gợi ý cho {n} câu (độ giống ≥ {thr:.0%}). "
+                                "Kiểm tra lại cột «ID mới» trước khi lưu – có thể sửa trực tiếp trong ô.")
+
+    def apply_picker(self):
+        rows = self.checked_rows()
+        bad = 0
+        for r in rows:
+            cur = self.t.item(r, 3).text().strip() or self.qs[r].id_code
+            new = self.picker.apply_to(cur)
+            if new:
+                self.set_new(r, new)
+            else:
+                bad += 1
+        self.update_count()
+        if bad:
+            QMessageBox.warning(self, "Gán ID", f"{bad} câu chưa có ID cũ nên phải chọn đủ Lớp, Môn, Chương, Bài "
+                                "và Mức độ (không để «giữ nguyên»).")
+
+    # --- lưu
+    def save(self):
+        changes, invalid = [], []
+        for r, q in enumerate(self.qs):
+            new = self.t.item(r, 3).text().strip().upper()
+            if not new or new == q.id_code:
+                continue
+            if not parse_id(new):
+                invalid.append(f"{self.labels[r]}: «{new}»")
+                continue
+            changes.append((q, new))
+        if invalid:
+            QMessageBox.warning(self, "ID sai dạng", "Các ID sau không đúng dạng 0D2N1-2:\n" + "\n".join(invalid[:15]))
+            return
+        if not changes:
+            QMessageBox.information(self, "Gán ID", "Chưa có câu nào được đặt ID mới (cột «ID mới»).")
+            return
+        if self.src is None:
+            for q, new in changes:
+                q.set_id(new)
+                self.win.bank.update(q.db_id, q)
+            self.win.build_tree()
+            self.win.refresh()
+            QMessageBox.information(self, "Gán ID", f"Đã gán ID cho {len(changes)} câu trong kho.")
+        else:
+            base, ext = os.path.splitext(self.src)
+            out, _ = QFileDialog.getSaveFileName(self, "Lưu file đã gán ID", base + "_ganID" + ext, "LaTeX (*.tex)")
+            if not out:
+                return
+            with open(self.src, encoding="utf-8") as f:
+                text = f.read()
+            pairs = []
+            for q, new in changes:
+                old_raw = q.raw
+                q.set_id(new)
+                pairs.append((old_raw, q.raw))
+            text, n = rv.replace_questions_text(text, pairs)
+            with open(out, "w", encoding="utf-8") as f:
+                f.write(text)
+            QMessageBox.information(self, "Gán ID", f"Đã gán ID cho {n} câu, lưu thành\n{out}\n(file gốc giữ nguyên)")
         self.accept()
 
 
@@ -1398,6 +1769,7 @@ class ToolsPanel(QWidget):
         gl = QGridLayout(g)
         for k, (text, fn) in enumerate((("Lấy bảng đáp án", self.get_answers), ("Thêm nguồn cho mọi câu…", self.add_tag),
                                         ("Gộp và sắp xếp theo ID…", self.sort_ids), ("Xoá lời giải…", self.erase_solutions),
+                                        ("🏷 Gán ID cho file…", self.assign_ids_file),
                                         ("Nạp các file vào kho", self.import_to_bank))):
             b = QPushButton(text)
             b.clicked.connect(fn)
@@ -1538,6 +1910,13 @@ class ToolsPanel(QWidget):
                                         truong=gp.e_truong.text(), thoi_gian=gp.e_tg.value())
         self.tool_mix.save()
         self.show_result("Trộn đề từ file", f"<p>File: {os.path.basename(ps[0])}</p>" + versions_report_html(vs, out))
+
+    def assign_ids_file(self):
+        ps = self.paths()
+        if not ps:
+            return
+        qs = parse_file(ps[0])
+        AssignIdDialog(self.win, qs, [f"Câu {i}" for i in range(1, len(qs) + 1)], source_file=ps[0]).exec()
 
     def get_answers(self):
         rows = tools.get_answers(self.paths())

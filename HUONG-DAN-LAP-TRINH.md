@@ -39,7 +39,8 @@ nganhangde/
 ├── generator.py  # Bước 5: chọn câu theo ma trận, trộn câu, trộn phương án, tạo mã đề
 ├── exporter.py   # Bước 6: điền vào file mẫu .tex, xuất đề, lời giải và đáp án .csv
 ├── tools.py      # công cụ trên file .tex: lọc ID, tìm trùng, xoá lời giải, đổi ID, lấy đáp án, trộn file
-├── idmap.py      # đọc/ghi file giải nghĩa ID (Map ID)
+├── idmap.py      # đọc/ghi Map ID (định dạng gạch ngang và «khoá = tên»), cây chọn ID
+├── idsuggest.py  # gợi ý ID: câu giống trong kho (TF-IDF) + tên chương/bài/dạng trong Map ID
 ├── review.py     # rà soát đáp án – lời giải – LaTeX, xoá câu sai
 ├── cli.py        # Bước 7a: dòng lệnh
 ├── gui_qt.py     # Bước 7b: giao diện chính (PySide6/Qt)
@@ -234,6 +235,59 @@ Cách dùng:
 * **Dòng lệnh:** `python -m nganhangde review de.tex --remove-errors -o de_sach.tex` cho file;
   `python -m nganhangde review --remove-errors` để xoá câu lỗi trong kho.
 
+## 7c. Map ID và gán ID (`idmap.py`, `idsuggest.py`)
+
+**Map ID** là file `Map_ID.tex` phân cấp bằng gạch ngang. Số gạch cho biết cấp:
+
+| Số gạch | Cấp |
+|---|---|
+| 1 | lớp |
+| 4 | môn |
+| 7 | chương |
+| 10 | bài |
+| 13 | dạng |
+
+Dòng không có gạch, ví dụ `[N] Nhận biết`, là tên mức độ.
+
+`parse_dash_text` duyệt từng dòng, giữ một «đường dẫn hiện tại» `[lớp, môn, chương, bài, dạng]`, rồi sinh khoá bỏ kí tự mức độ:
+`0`, `0D`, `0D1`, `0D11`, `0D11-1`. Với mã khai báo trùng thì giữ mục đầu; `dash_duplicates` liệt kê các mã trùng để cảnh báo.
+`to_dash_text` xuất ngược lại đúng định dạng này.
+
+**Gợi ý ID** lấy từ hai nguồn:
+
+1. `Suggester` – **câu giống trong kho**:
+   * tách từ, kể cả cụm 2 từ như `tập_nghiệm` hay `tiêu_cự`, và lệnh LaTeX;
+   * đánh trọng số TF-IDF, đo độ giống cosine qua chỉ mục ngược để chạy nhanh với kho lớn;
+   * lấy ID của các câu giống nhất. Kho càng nhiều câu có ID thì gợi ý càng đúng.
+2. `MapSuggester` – **tên trong Map ID**:
+   * mỗi dạng là một «tài liệu» ghép tên chương, tên bài và tên dạng (tên dạng có trọng số cao nhất);
+   * so với chữ trong đề bài, phương án và đầu lời giải;
+   * dùng được ngay cả khi kho trống; có thể giới hạn phạm vi theo lớp.
+
+Hai nguồn được gộp lại bằng `combine`. Trước khi so, cách bỏ dấu cũ/mới được chuẩn hoá (`toạ` ≡ `tọa`),
+và vài từ đồng nghĩa được quy về một (`Niu-tơn` ≡ `Newton`). Chữ cái đơn lẻ trong công thức bị bỏ qua để tránh khớp nhầm.
+
+**Gán ID:** `Question.set_id` đổi ID và sửa luôn nhãn `%[...]` trên dòng `\begin{ex}` của khối gốc.
+Nhờ vậy khi lưu file, chỉ dòng đó thay đổi.
+
+Hộp thoại **Gán ID** (`AssignIdDialog`) có:
+
+* bảng câu với cột «ID mới» sửa được trực tiếp;
+* nút gợi ý, kèm ngưỡng độ giống;
+* bộ chọn `IdPicker`: các ô Lớp → Môn → Chương → Bài → Dạng → Mức độ nối tầng theo Map ID.
+  Ô nào để «giữ nguyên» thì lấy phần đó từ ID cũ, nên chỉ chọn Mức độ là đổi riêng mức độ.
+
+Dòng lệnh:
+
+```bash
+python -m nganhangde idmap --load Map_ID.tex
+python -m nganhangde suggest-id de.tex --scope 0 --auto 0.45 -o de_ganID.tex
+```
+
+**Lưu ý:** gợi ý chỉ để tham khảo. Thử trên đề mẫu lớp 10, phần lớn câu được gợi ý đúng chương,
+nhưng vẫn có câu gợi ý đầu tiên bị lệch (ví dụ «viết phương trình đường tròn» bị gợi ý «đường thẳng»).
+Vì vậy phải duyệt lại trước khi lưu.
+
 ## 8. Bước 6: xuất đề (`exporter.py`)
 
 * File mẫu `templates/de_thi.tex` có các chỗ trống: `<<TEN_DE>>`, `<<MA_DE>>`, `<<NOI_DUNG>>`, `<<MODE>>`, …
@@ -366,7 +420,8 @@ Bảng dưới lập từ tên các thành phần giao diện trong file `MyLT.e
 | Nhóm chức năng của MyLT | Phần mềm này |
 |---|---|
 | Ngân hàng: nhập file, lọc Lớp/Môn/Chương/Bài/Dạng/Mức độ, tìm theo ID | ✅ |
-| Giải nghĩa ID (Map ID) | ✅ |
+| Giải nghĩa ID (Map ID), nạp thẳng file Map_ID.tex | ✅ |
+| Gán ID / đổi mức độ cho nhiều câu, gợi ý ID tự động | ✅ (gợi ý tự động là phần thêm) |
 | Câu tương tự | ✅ |
 | Sao lưu kho, gộp kho (Joiner), tách kho (Extract) | ✅ |
 | Soát lỗi, tìm câu trùng | ✅ |

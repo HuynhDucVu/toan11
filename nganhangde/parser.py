@@ -56,6 +56,22 @@ class Question:
         body = re.sub(r"[\s{}$]", "", body).lower()
         return hashlib.sha1(body.encode("utf-8")).hexdigest()
 
+    def set_id(self, new_id: str):
+        """Đổi/gán ID, cập nhật cả khối LaTeX gốc (raw) để xuất file giữ nguyên phần còn lại."""
+        new_id = new_id.strip().upper()
+        old = self.id_code
+        self.id_code = new_id
+        if not self.raw:
+            return
+        first, sep, rest = self.raw.partition("\n")
+        if old and f"%[{old}]" in first:
+            first = first.replace(f"%[{old}]", f"%[{new_id}]", 1)
+        elif old:
+            first = re.sub(r"%\[" + re.escape(old) + r"\]", f"%[{new_id}]", first, count=1, flags=re.I)
+        else:
+            first = first + f"%[{new_id}]"
+        self.raw = first + sep + rest
+
     def to_latex(self, with_solution: bool = True) -> str:
         """Dựng lại khối LaTeX từ các trường (sau khi đã trộn phương án)."""
         head = "\\begin{%s}" % self.env

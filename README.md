@@ -3,7 +3,7 @@
 Phần mềm quản lý ngân hàng câu hỏi Toán định dạng `ex_test`. Các chức năng:
 
 * nhập file `.tex`, giải nghĩa ID theo chương/bài/dạng, tìm câu tương tự;
-* phân loại theo ID `[0D2N1-2]`;
+* phân loại theo ID `[0D2N1-2]`, nạp file Map ID dạng gạch ngang, **gán ID** cho nhiều câu và **gợi ý ID tự động**;
 * lọc câu và chống câu trùng;
 * **rà soát đáp án và lời giải** (đáp án lệch lời giải, Đúng/Sai ngược, đáp án trả lời ngắn sai dạng, lỗi LaTeX), **tự sửa** và bỏ câu sai;
 * trộn đề theo ma trận hoặc trộn trực tiếp từ file, cân bằng đáp án A/B/C/D;
