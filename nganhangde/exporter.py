@@ -41,6 +41,14 @@ class ExportOptions:
     online_solution: bool = True      # bài online: hiện lời giải sau khi nộp
     moodle: bool = False              # file Moodle XML (bộ câu của đề)
     word: bool = False                # file Word .docx mỗi mã đề (cần pandoc)
+    diem: dict | None = None          # thang điểm tuỳ chỉnh (xem scoring.Scoring.from_dict)
+    omr_profile: str = "tnmaker"      # mẫu file đáp án phần mềm chấm: tnmaker | ngang | mau (theo file mẫu)
+    omr_template: str = ""            # file .xlsx mẫu đáp án của phần mềm chấm (khi omr_profile = 'mau')
+    qr_answers: bool = False          # in mã QR chứa đáp án trong file lời giải
+
+    def scoring_obj(self):
+        from .scoring import Scoring
+        return Scoring.from_dict(self.diem)
 
 
 def plain_answer(a: str) -> str:
@@ -89,24 +97,15 @@ def version_body(v: ExamVersion, with_solution: bool, opt: "ExportOptions | None
     return "\n".join(parts)
 
 
-def scoring_tex(v: ExamVersion) -> str:
+def scoring_tex(v: ExamVersion, sc=None) -> str:
+    from .scoring import DEFAULT
     n = {s: len(v.sections.get(s) or []) for s in SECTION_ORDER}
-    rows = []
-    if n["TN"]:
-        rows.append(f"Phần I: mỗi câu đúng {SCORING['TN']:g} điểm ({n['TN']} câu, tối đa {n['TN'] * SCORING['TN']:g} điểm).")
-    if n["DS"]:
-        d = SCORING["DS"]
-        rows.append(f"Phần II: mỗi câu đúng 1 ý được {d[1]:g}; 2 ý được {d[2]:g}; 3 ý được {d[3]:g}; "
-                    f"cả 4 ý được {d[4]:g} điểm ({n['DS']} câu, tối đa {n['DS'] * d[4]:g} điểm).")
-    if n["KQ"]:
-        rows.append(f"Phần III: mỗi câu đúng {SCORING['KQ']:g} điểm ({n['KQ']} câu, tối đa {n['KQ'] * SCORING['KQ']:g} điểm).")
-    total = n["TN"] * SCORING["TN"] + n["DS"] * SCORING["DS"][4] + n["KQ"] * SCORING["KQ"]
-    rows.append(f"Tổng điểm phần trắc nghiệm: {total:g} điểm.")
-    return "\\section*{Thang điểm}\n" + "\\\\\n".join(rows) + "\n"
+    return "\\section*{Thang điểm}\n" + "\\\\\n".join((sc or DEFAULT).lines(n)) + "\n"
 
 
-def score_ds(n_correct: int) -> float:
-    return SCORING["DS"].get(n_correct, 0.0)
+def score_ds(n_correct: int, sc=None) -> float:
+    from .scoring import DEFAULT
+    return (sc or DEFAULT).ds_score(n_correct)
 
 
 def fill(template: str, **kw) -> str:
@@ -143,11 +142,17 @@ def export_versions(versions: list[ExamVersion], out_dir: str, *, template_path:
             body = version_body(v, sol, opt)
             if sol:
                 body += "\n\\section*{Bảng đáp án}\n" + answer_table_tex(v)
+                if opt.qr_answers:
+                    from .omr import qr_tex
+                    body += "\n" + qr_tex(v)
                 if opt.scoring:
-                    body += "\n" + scoring_tex(v)
+                    body += "\n" + scoring_tex(v, opt.scoring_obj())
             path = os.path.join(out_dir, f"{prefix}_{v.code}.tex")
+            text = fill(tpl, MODE=mode, NOI_DUNG=body, **common)
+            if "\\qrcode" in body and "{qrcode}" not in text:
+                text = text.replace("\\begin{document}", "\\usepackage{qrcode}\n\\begin{document}", 1)
             with open(path, "w", encoding="utf-8") as f:
-                f.write(fill(tpl, MODE=mode, NOI_DUNG=body, **common))
+                f.write(text)
             files.append(path)
     csv_path = os.path.join(out_dir, "dap_an.csv")
     with open(csv_path, "w", encoding="utf-8-sig", newline="") as f:
@@ -175,17 +180,22 @@ def export_versions(versions: list[ExamVersion], out_dir: str, *, template_path:
     if opt.answers_xlsx:
         from .tnmaker import write_answer_xlsx
         try:
-            files.append(write_answer_xlsx(versions, os.path.join(out_dir, "dap_an_TNMaker.xlsx"), opt))
+            if opt.omr_profile == "mau" and opt.omr_template:
+                from .omr import fill_template
+                files.append(fill_template(versions, opt.omr_template,
+                                           os.path.join(out_dir, "dap_an_phieu_cham.xlsx"), opt))
+            else:
+                files.append(write_answer_xlsx(versions, os.path.join(out_dir, "dap_an_TNMaker.xlsx"), opt))
         except ImportError:
             pass        # thiếu openpyxl: vẫn có 2 file CSV
     if opt.online_html:
         from .online import export_html
         files += export_html(versions, out_dir, ten_de=ten_de, thoi_gian=int(thoi_gian),
-                             show_solution=opt.online_solution)
+                             show_solution=opt.online_solution, scoring=opt.scoring_obj())
     if opt.moodle and versions:
         from .online import export_moodle
         files.append(export_moodle(list(versions[0].all_questions()), os.path.join(out_dir, "moodle.xml"),
-                                   category=ten_de))
+                                   category=ten_de, scoring=opt.scoring_obj()))
     if opt.word:
         from .wordconv import export_docx, PandocMissing
         for v in versions:

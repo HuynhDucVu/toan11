@@ -12,7 +12,7 @@ import base64
 import html
 import json
 
-from .exporter import SCORING, plain_answer
+from .exporter import plain_answer
 from .generator import SECTION_ORDER, ExamVersion
 from .htmlconv import MATHJAX_MACROS, dollar_to_paren, latex_to_html
 
@@ -41,7 +41,6 @@ mjx-container{max-width:100%}.q>div,.opt span,.ds>div,.sol{min-width:0;overflow-
 
 JS = r"""
 const K = JSON.parse(atob(DATA));            // đáp án
-const S = {TN:0.25, KQ:0.5, DS:{0:0,1:0.1,2:0.25,3:0.5,4:1}};
 let left = MINUTES*60, timer = setInterval(()=>{ left--; const m=Math.max(0,Math.floor(left/60)), s=Math.max(0,left%60);
   document.getElementById('timer').textContent = String(m).padStart(2,'0')+':'+String(s).padStart(2,'0');
   if(left<=0){ clearInterval(timer); submit(true); } },1000);
@@ -105,7 +104,9 @@ def _q_html(q, s: str, i: int, qid: str) -> str:
     return "".join(body)
 
 
-def version_html(v: ExamVersion, *, ten_de="ĐỀ KIỂM TRA", thoi_gian=90, show_solution=True) -> str:
+def version_html(v: ExamVersion, *, ten_de="ĐỀ KIỂM TRA", thoi_gian=90, show_solution=True, scoring=None) -> str:
+    from .scoring import DEFAULT
+    sc = scoring or DEFAULT
     key, parts = {}, []
     for s in SECTION_ORDER:
         qs = v.sections.get(s) or []
@@ -132,11 +133,11 @@ def version_html(v: ExamVersion, *, ten_de="ĐỀ KIỂM TRA", thoi_gian=90, sho
 </head><body><header><h1>{title}</h1><span id="timer">{thoi_gian:02d}:00</span></header><main>
 <div class="card">Họ và tên: <input type="text" id="hs" placeholder="Nhập họ tên" style="width:min(320px,100%)">
 <div id="score" style="margin-top:8px"></div>
-<div style="color:var(--mut);font-size:14px;margin-top:6px">Thang điểm: Phần I {_vn(SCORING['TN'])}/câu · Phần II đúng 1/2/3/4 ý
-được 0,1/0,25/0,5/1 · Phần III {_vn(SCORING['KQ'])}/câu. Hết giờ bài tự nộp.</div></div>
+<div style="color:var(--mut);font-size:14px;margin-top:6px">Thang điểm: Phần I {_vn(sc.tn)}/câu · Phần II đúng 1/2/3/4 ý
+được {sc.ds_text()} · Phần III {_vn(sc.kq)}/câu. Hết giờ bài tự nộp.</div></div>
 {''.join(parts)}</main>
 <footer><button id="submit" onclick="submit(false)">Nộp bài</button></footer>
-<script>const DATA="{data}", MINUTES={int(thoi_gian)}, SHOW_SOL={'true' if show_solution else 'false'};{JS}</script>
+<script>const DATA="{data}", MINUTES={int(thoi_gian)}, SHOW_SOL={'true' if show_solution else 'false'}, S={sc.js()};{JS}</script>
 </body></html>"""
 
 
@@ -161,7 +162,9 @@ def _mtext(s: str) -> str:
     return _cdata(dollar_to_paren(latex_to_html(s)))
 
 
-def moodle_xml(questions, category: str = "Ngân hàng đề") -> str:
+def moodle_xml(questions, category: str = "Ngân hàng đề", scoring=None) -> str:
+    from .scoring import DEFAULT
+    sc = scoring or DEFAULT
     """Xuất câu hỏi sang Moodle XML: TN → multichoice; Đúng/Sai → cloze (4 ý); trả lời ngắn → shortanswer."""
     out = ['<?xml version="1.0" encoding="UTF-8"?>', "<quiz>",
            f'<question type="category"><category><text>$course$/{html.escape(category)}</text></category></question>']
@@ -173,7 +176,7 @@ def moodle_xml(questions, category: str = "Ngân hàng đề") -> str:
                           for c, ok in zip(q.choices, q.correct))
             out.append(f"<question type='multichoice'><name><text>{name}</text></name>"
                        f"<questiontext format='html'><text>{_mtext(q.stem)}</text></questiontext>{fb}"
-                       f"<defaultgrade>{SCORING['TN']}</defaultgrade><single>true</single>"
+                       f"<defaultgrade>{sc.tn}</defaultgrade><single>true</single>"
                        f"<shuffleanswers>1</shuffleanswers><answernumbering>ABCD</answernumbering>{ans}</question>")
         elif q.qtype == "DS":
             items = "".join(
@@ -189,7 +192,7 @@ def moodle_xml(questions, category: str = "Ngân hàng đề") -> str:
             ans = "".join(f"<answer fraction='100'><text>{html.escape(x)}</text></answer>" for x in alts)
             out.append(f"<question type='shortanswer'><name><text>{name}</text></name>"
                        f"<questiontext format='html'><text>{_mtext(q.stem)}</text></questiontext>{fb}"
-                       f"<defaultgrade>{SCORING['KQ']}</defaultgrade><usecase>0</usecase>{ans}</question>")
+                       f"<defaultgrade>{sc.kq}</defaultgrade><usecase>0</usecase>{ans}</question>")
         else:
             out.append(f"<question type='essay'><name><text>{name}</text></name>"
                        f"<questiontext format='html'><text>{_mtext(q.stem)}</text></questiontext>{fb}</question>")
@@ -197,7 +200,7 @@ def moodle_xml(questions, category: str = "Ngân hàng đề") -> str:
     return "\n".join(out)
 
 
-def export_moodle(questions, path: str, category: str = "Ngân hàng đề") -> str:
+def export_moodle(questions, path: str, category: str = "Ngân hàng đề", scoring=None) -> str:
     with open(path, "w", encoding="utf-8") as f:
-        f.write(moodle_xml(questions, category))
+        f.write(moodle_xml(questions, category, scoring))
     return path

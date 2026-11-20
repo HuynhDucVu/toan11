@@ -7,7 +7,7 @@ Phần mềm quản lý ngân hàng câu hỏi Toán định dạng `ex_test`. C
 * lọc câu, **tìm kiếm không dấu** (FTS5), chống câu trùng; **danh mục ID Toán 6–12 có sẵn**; hỗ trợ ex_test 3.3;
 * **lịch sử ra đề**, tránh lặp câu giữa các bài kiểm tra gần nhau;
 * **rà soát đáp án và lời giải** (đáp án lệch lời giải, Đúng/Sai ngược, đáp án trả lời ngắn sai dạng theo CV 1239, ảnh thiếu, lỗi LaTeX), **tự sửa** và bỏ câu sai;
-* trộn đề theo ma trận hoặc trộn trực tiếp từ file, cân bằng đáp án A/B/C/D, **chuẩn đề tốt nghiệp THPT 2026** (24 mã 0101…0124), **đáp án Excel cho TNMaker**;
+* trộn đề theo ma trận hoặc trộn trực tiếp từ file, cân bằng đáp án A/B/C/D, **chuẩn đề tốt nghiệp THPT 2026** (24 mã 0101…0124), **đáp án Excel cho TNMaker** hoặc theo file mẫu của phần mềm chấm bất kì, mã QR đáp án; **ma trận CV 7991** (Excel/Word), thang điểm tuỳ chỉnh, câu chùm;
 * sao lưu, gộp và tách kho;
 * **sinh câu hỏi số** từ câu mẫu có tham số; **vẽ hình**: bảng biến thiên tự động, đồ thị hàm số, biểu đồ → mã TikZ;
 * xuất mã đề, lời giải và đáp án; **biên dịch PDF** (pdflatex/xelatex, báo lỗi kèm số dòng, gói ex_test rút gọn đi kèm); **bài làm online** (HTML tự chấm, mở được trên điện thoại), **Moodle XML**, **Word ↔ LaTeX** (cần pandoc).

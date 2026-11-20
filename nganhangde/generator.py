@@ -146,6 +146,7 @@ class MixOptions:
     balance: bool = True            # cân bằng số đáp án A/B/C/D trong mỗi đề
     first_original: bool = False    # mã đề đầu tiên giữ nguyên thứ tự gốc (đề gốc)
     sort_by_level: bool = False     # trong mỗi phần xếp câu từ dễ đến khó (N → H → V → C)
+    max_run: int = 3                # tối đa bao nhiêu câu liền nhau cùng đáp án (0 = không giới hạn)
 
 
 LEVEL_ORDER = {"N": 0, "Y": 0, "H": 1, "B": 1, "V": 2, "K": 2, "C": 3, "G": 3}
@@ -155,35 +156,91 @@ def level_rank(q: Question) -> int:
     return LEVEL_ORDER.get(q.id_code[3], 9) if len(q.id_code) >= 4 else 9
 
 
+def group_key(q: Question) -> str:
+    """Nhãn câu chùm (%[chum:TÊN]) – các câu cùng nhãn luôn đứng liền nhau, giữ thứ tự gốc."""
+    for t in q.tags:
+        t = t.strip()
+        if t.lower().startswith("chum:"):
+            return t[5:].strip()
+    return ""
+
+
+def _blocks(qs: list[Question]) -> list[list[Question]]:
+    out, where = [], {}
+    for q in qs:
+        g = group_key(q)
+        if g and g in where:
+            out[where[g]].append(q)
+        else:
+            if g:
+                where[g] = len(out)
+            out.append([q])
+    return out
+
+
+def _letters(qs: list[Question]) -> list[str]:
+    return [q.answer_text if q.qtype == "TN" else "" for q in qs]
+
+
+def _longest_run(seq: list[str]) -> tuple[int, int]:
+    """(độ dài, vị trí bắt đầu) của dãy chữ cái giống nhau liên tiếp dài nhất (bỏ ô rỗng)."""
+    best, at, run, start = 0, 0, 0, 0
+    prev = None
+    for i, x in enumerate(seq):
+        if x and x == prev:
+            run += 1
+        else:
+            run, start = (1, i) if x else (0, i)
+        prev = x or None
+        if run > best:
+            best, at = run, start
+    return best, at
+
+
 def _mix_section(qs: list[Question], rng: random.Random, opt: MixOptions, keep_order: bool) -> list[Question]:
     qs = list(qs)
-    if opt.shuffle_q and not keep_order:
-        rng.shuffle(qs)
-    if opt.sort_by_level and not keep_order:
-        qs.sort(key=level_rank)        # sort ổn định ⇒ vẫn ngẫu nhiên trong cùng mức độ
     if keep_order:
         return [copy.deepcopy(q) for q in qs]
+    blocks = _blocks(qs)
+    if opt.shuffle_q:
+        rng.shuffle(blocks)
+    if opt.sort_by_level:
+        blocks.sort(key=lambda b: min(level_rank(q) for q in b))   # sort ổn định ⇒ vẫn ngẫu nhiên cùng mức
+    qs = [q for b in blocks for q in b]
     # vị trí đích cho đáp án TN: lặp A,B,C,D rồi xáo ⇒ các chữ cái gần như đều nhau
-    free = [q for q in qs if q.qtype == "TN" and len(q.choices) == 4 and not is_locked(q)]
-    targets = []
+    free_idx = [i for i, q in enumerate(qs) if q.qtype == "TN" and len(q.choices) == 4 and not is_locked(q)]
+    target: dict[int, int] = {}
     if opt.balance and opt.shuffle_tn:
-        targets = [i % 4 for i in range(len(free))]
-        rng.shuffle(targets)
-    out, k = [], 0
-    for q in qs:
+        t = [i % 4 for i in range(len(free_idx))]
+        rng.shuffle(t)
+        target = dict(zip(free_idx, t))
+
+    def build(i, q):
         if q.qtype == "TN":
-            if not opt.shuffle_tn:
-                out.append(copy.deepcopy(q))
-                continue
-            t = None
-            if targets and q in free:
-                t = targets[k]
-                k += 1
-            out.append(shuffle_choices(q, rng, t))
-        elif q.qtype == "DS" and opt.shuffle_ds:
-            out.append(shuffle_choices(q, rng))
-        else:
-            out.append(copy.deepcopy(q))
+            return shuffle_choices(q, rng, target.get(i)) if opt.shuffle_tn else copy.deepcopy(q)
+        if q.qtype == "DS" and opt.shuffle_ds:
+            return shuffle_choices(q, rng)
+        return copy.deepcopy(q)
+
+    out = [build(i, q) for i, q in enumerate(qs)]
+    # không quá opt.max_run đáp án giống nhau liên tiếp: đổi vị trí đích giữa 2 câu (giữ cân bằng)
+    if opt.max_run and opt.shuffle_tn and free_idx:
+        for _ in range(200):
+            seq = _letters(out)
+            run, at = _longest_run(seq)
+            if run <= opt.max_run:
+                break
+            i = rng.choice([k for k in range(at, at + run) if k in free_idx] or [None])
+            if i is None:
+                break
+            bad = seq[i]
+            cand = [j for j in free_idx if seq[j] and seq[j] != bad and abs(j - i) > 1]
+            if not cand:
+                break
+            j = rng.choice(cand)
+            ti, tj = "ABCD".index(seq[j]), "ABCD".index(bad)
+            target[i], target[j] = ti, tj
+            out[i], out[j] = shuffle_choices(qs[i], rng, ti), shuffle_choices(qs[j], rng, tj)
     return out
 
 

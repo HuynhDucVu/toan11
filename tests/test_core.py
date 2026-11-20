@@ -326,7 +326,7 @@ def test_thpt2026_options_and_tnmaker(bank, tmp_path):
     assert de.count("\\setcounter{ex}{0}") == 3
     assert "Thí sinh trả lời từ câu 1 đến câu 12" in de and "từ câu 1 đến câu 4" in de and "đến câu 6" in de
     lg = open(files[1], encoding="utf-8").read()
-    assert "Thang điểm" in lg and "Tổng điểm phần trắc nghiệm: 10 điểm" in lg
+    assert "Thang điểm" in lg and "Tổng điểm toàn bài: 10 điểm" in lg
     wb = load_workbook(files[-1])
     ws = wb["Đáp án"]
     rows = list(ws.values)

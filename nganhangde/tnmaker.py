@@ -90,14 +90,15 @@ def write_answer_xlsx(versions: list[ExamVersion], path: str, opt) -> str:
     ws.freeze_panes = "B2"
 
     # Sheet thông tin cấu trúc + thang điểm
-    from .exporter import SCORING
+    from .scoring import DEFAULT, vn
+    sc = opt.scoring_obj() if hasattr(opt, "scoring_obj") else DEFAULT
     info = wb.create_sheet("Thông tin")
     v0 = versions[0] if versions else None
     n = {s: len(v0.sections.get(s) or []) if v0 else 0 for s in SECTION_ORDER}
     info.append(["Số mã đề", len(versions)])
-    info.append(["Phần I – trắc nghiệm 4 phương án", n["TN"], f"{SCORING['TN']:g} điểm/câu"])
-    info.append(["Phần II – Đúng/Sai (4 ý)", n["DS"], "1 ý 0,1 · 2 ý 0,25 · 3 ý 0,5 · 4 ý 1 điểm"])
-    info.append(["Phần III – trả lời ngắn", n["KQ"], f"{SCORING['KQ']:g} điểm/câu"])
+    info.append(["Phần I – trắc nghiệm 4 phương án", n["TN"], f"{vn(sc.tn)} điểm/câu"])
+    info.append(["Phần II – Đúng/Sai (4 ý)", n["DS"], "đúng 1/2/3/4 ý: " + sc.ds_text() + " điểm"])
+    info.append(["Phần III – trả lời ngắn", n["KQ"], f"{vn(sc.kq)} điểm/câu"])
     info.append(["Kí hiệu Đúng/Sai", "/".join(SYMBOLS.get(opt.ds_symbols, SYMBOLS["ĐS"]))])
     info.append(["Dấu thập phân phần III", opt.kq_decimal])
     info.column_dimensions["A"].width = 36

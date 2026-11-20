@@ -18,8 +18,9 @@ SAMPLE = os.path.join(ROOT, "0-1-De-chuan-hoa-1.tex")
 @pytest.fixture(scope="module")
 def app(tmp_path_factory):
     QSettings.setDefaultFormat(QSettings.Format.IniFormat)
-    QSettings.setPath(QSettings.Format.IniFormat, QSettings.Scope.UserScope,
-                      str(tmp_path_factory.mktemp("settings")))
+    d = str(tmp_path_factory.mktemp("settings"))
+    for fmt in (QSettings.Format.IniFormat, QSettings.Format.NativeFormat):   # app dùng NativeFormat
+        QSettings.setPath(fmt, QSettings.Scope.UserScope, d)
     a = QtWidgets.QApplication.instance() or QtWidgets.QApplication([])
     from PySide6.QtWidgets import QMessageBox
     QMessageBox.information = staticmethod(lambda *x, **k: None)
@@ -138,3 +139,29 @@ def test_batches_history_and_avoid(win, app, tmp_path):
     d = gui_qt.IdMapDialog(win)
     d.load_builtin()
     assert "0D" in d.ed.toPlainText() or len(d.ed.toPlainText()) > 1000
+
+
+def test_phase2_options(win, app, tmp_path, monkeypatch):
+    from PySide6.QtGui import QDesktopServices
+    from PySide6.QtWidgets import QFileDialog
+    monkeypatch.setattr(QDesktopServices, "openUrl", staticmethod(lambda *a: True))
+    o = win.gen_panel.opts
+    o.e_kq.setText("0,25")
+    o.e_tl.setText("1; 0,5")
+    o.c_qr.setChecked(True)
+    o.mix.sp_run.setValue(2)
+    e = win.gen_panel.export_options()
+    assert e.diem, (o.e_tn.text(), o.e_ds.text(), o.e_kq.text(), o.l_diem.text())
+    assert e.scoring_obj().kq == 0.25 and e.qr_answers
+    assert o.mix_options().max_run == 2
+    o.e_ds.setText("1;2")                       # sai ⇒ không dùng thang tuỳ chỉnh
+    assert o.export_options().diem is None
+    o.save()
+    p = tmp_path / "mt.xlsx"
+    monkeypatch.setattr(QFileDialog, "getSaveFileName", staticmethod(lambda *a, **k: (str(p), "")))
+    win.gen_panel.export_cv7991()
+    assert p.exists()
+    monkeypatch.setattr(QFileDialog, "getOpenFileName", staticmethod(lambda *a, **k: (str(p), "")))
+    n = win.gen_panel.t.rowCount()
+    win.gen_panel.load_matrix()
+    assert win.gen_panel.t.rowCount() == n

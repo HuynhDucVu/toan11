@@ -5,7 +5,20 @@
 
 Kho câu hỏi `nganhang.db` nằm cạnh file exe. Cập nhật từ bản cũ: chỉ cần thay file exe, kho giữ nguyên.
 
-## Có gì mới ở bản 0.11.0 – Nâng cấp giai đoạn 1 (theo bản nghiên cứu 2026)
+## Có gì mới ở bản 0.12.0 – Giai đoạn 2: ma trận CV 7991, thang điểm, phiếu chấm
+- **Ma trận theo Công văn 7991** (tab Tạo đề → *Ma trận CV 7991…*):
+  - xuất **Excel** (hoặc **Word**, cần pandoc) với hàng là chủ đề, cột là 4 dạng câu × Biết/Hiểu/Vận dụng, tổng số câu, điểm, tỉ lệ;
+  - sheet *Dòng ma trận* sửa được rồi **nạp lại** bằng *Mở ma trận…* (chọn file .xlsx).
+- **Thang điểm tuỳ chỉnh** (Tuỳ chọn trộn đề → tab *Thang điểm*): điểm Phần I, Phần III, thang Phần II (đúng 1/2/3/4 ý), điểm từng câu tự luận. Áp dụng cho thang điểm in trong lời giải, bài online, Moodle, file đáp án.
+- **Câu chùm luôn đi liền nhau:** gắn nhãn `%[chum:TÊN]` cho các câu cùng chùm → khi trộn đề chúng đứng liền và giữ thứ tự.
+- **Không quá 3 câu liền nhau cùng đáp án** (đổi được, 0 = tắt), vẫn giữ cân bằng A/B/C/D.
+- **Phiếu chấm** (tab *Phiếu chấm*):
+  - ngoài TNMaker, điền đáp án **theo file mẫu của bất kì phần mềm chấm nào** (QM, Azota, SmartTest…): chọn file mẫu .xlsx do phần mềm đó xuất ra, phần mềm tự tìm ô «Mã đề»/«Câu» và nhãn câu rồi điền đúng chỗ;
+  - **mã QR đáp án** in cuối file lời giải;
+  - sau khi tạo đề, **kiểm tra đề có vừa phiếu trả lời mẫu 2025** (40 · 8 · 6 câu) và đáp án trả lời ngắn có tô được không.
+- Dòng lệnh: `make … --qr --mau-phieu mau.xlsx --max-run 3`, khoá `"diem"` trong file ma trận; lệnh mới `matrix ma_tran.json -o mt.xlsx`.
+
+## Bản 0.11.0 – Nâng cấp giai đoạn 1 (theo bản nghiên cứu 2026)
 - **Kho tự nâng cấp an toàn:** lần đầu mở kho cũ, phần mềm **tự sao lưu** thành `nganhang.db.bak` rồi mới nâng cấp. Dữ liệu cũ giữ nguyên.
 - **Tìm kiếm không dấu, nhanh hơn:** gõ `tap nghiem` vẫn tìm được «tập nghiệm» (dùng chỉ mục toàn văn FTS5).
 - **Hỗ trợ ex_test 3.3:** giữ đúng `\choiceTF`, `\choiceTFt`, `\shortans`, `\dapso` khi nạp và xuất lại.

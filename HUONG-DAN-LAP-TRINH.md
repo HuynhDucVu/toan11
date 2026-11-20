@@ -43,6 +43,9 @@ nganhangde/
 ├── idsuggest.py  # gợi ý ID: câu giống trong kho (TF-IDF) + tên chương/bài/dạng trong Map ID
 ├── review.py     # rà soát đáp án – lời giải – LaTeX, tự sửa, xoá câu sai
 ├── tnmaker.py    # xuất đáp án Excel cho phần mềm chấm phiếu (TNMaker…)
+├── omr.py        # phiếu chấm: sức chứa phiếu 2025, điền file mẫu đáp án bất kì, mã QR đáp án
+├── scoring.py    # thang điểm tuỳ chỉnh (Phần I–IV)
+├── matrix.py     # ma trận CV 7991: Excel/Word ↔ dòng ma trận
 ├── htmlconv.py   # LaTeX → HTML (giữ công thức cho MathJax)
 ├── online.py     # bài làm online (HTML tự chấm) và Moodle XML
 ├── wordconv.py   # Word ↔ LaTeX qua pandoc
@@ -363,6 +366,30 @@ Nếu mẫu của TNMaker khác, có thể thêm bố cục mới trong `write_a
 Trong giao diện, mục **«Tuỳ chọn trộn đề»** (`ExamOptionsBox`) có 4 thẻ: Mã đề · Trộn · Trình bày · Phiếu chấm TNMaker.
 Nút **⭐ Áp dụng chuẩn đề thi tốt nghiệp THPT 2026** đặt sẵn tất cả các tuỳ chọn trên.
 Dòng lệnh: `python -m nganhangde make ma_tran.json --chuan-2026`, hoặc `shuffle de.tex --chuan-2026`.
+
+## 8b-2. Giai đoạn 2: câu chùm, giới hạn đáp án liền nhau, thang điểm, phiếu chấm, ma trận CV 7991
+
+**Trộn theo khối** (`generator._mix_section`). Câu gắn `%[chum:TÊN]` gom thành một khối (`_blocks`); thứ tự
+các khối được xáo, câu trong khối giữ nguyên. Sau khi đặt đáp án theo danh sách đích A,B,C,D đã xáo (cân bằng),
+vòng lặp sửa **dãy cùng chữ dài hơn `max_run`**: chọn một câu trong dãy và một câu khác có chữ khác,
+**đổi chéo vị trí đích** của hai câu rồi trộn lại phương án. Số lượng mỗi chữ không đổi nên vẫn cân bằng.
+
+**Thang điểm** (`scoring.Scoring`): `tn`, `kq`, `ds` (4 số), `tl` (từng câu). `ExportOptions.diem` là dict
+(nhận cả `"0,25"`), `scoring_obj()` dựng đối tượng. `scoring_tex`, bài online (biến JS `S`), Moodle và sheet
+«Thông tin» đều dùng chung.
+
+**Phiếu chấm** (`omr.py`):
+* `check_capacity` so với phiếu mẫu 2025 (40 · 8 · 6) và kiểm tra đáp án trả lời ngắn ≤ 4 kí tự `0-9 - ,`;
+* `fill_template` mở file mẫu .xlsx của phần mềm chấm, tìm dòng có ô «Mã đề» (mẫu ngang) hoặc cột có ô «Câu»
+  (mẫu dọc), đọc nhãn câu bằng `parse_label` (`I.1`, `II.2b`, `Câu 5`, `7`) rồi điền. Nhãn không có số La Mã
+  đánh số liên tục TN → ĐS → TLN. Không đoán định dạng của từng hãng – dùng chính file mẫu của họ;
+* `qr_tex` sinh `\qrcode{0101|I:ABCD…|II:1010,…|III:0,5;…}` (gói `qrcode` có sẵn trong TeX Live/MiKTeX;
+  `export_versions` tự chèn `\usepackage{qrcode}`).
+
+**Ma trận CV 7991** (`matrix.py`): `build_table` gom dòng ma trận theo chương (3 kí tự đầu của mẫu ID) và
+(dạng câu, cấp độ). Cấp độ lấy từ cột Mức độ hoặc kí tự thứ 4 của ID; «C» tính vào Vận dụng. `export_xlsx` vẽ
+bảng có ô gộp, tổng câu/điểm/tỉ lệ, kèm sheet «Dòng ma trận» để `import_xlsx` nạp lại. `export_docx` đi qua
+HTML → pandoc.
 
 ## 8c. Đề online, Moodle, Word (`htmlconv.py`, `online.py`, `wordconv.py`)
 

@@ -83,7 +83,11 @@ def _exam_opts(a):
                      balance=not getattr(a, "no_balance", False))
     exp = ExportOptions(renumber=std, official_titles=std, scoring=std,
                         tnmaker_layout=a.tnmaker_layout, ds_style=a.tnmaker_ds,
-                        online_html=a.online, moodle=a.moodle, word=a.word)
+                        online_html=a.online, moodle=a.moodle, word=a.word,
+                        qr_answers=getattr(a, "qr", False),
+                        omr_profile="mau" if getattr(a, "mau_phieu", None) else "tnmaker",
+                        omr_template=getattr(a, "mau_phieu", None) or "")
+    mix.max_run = getattr(a, "max_run", 3)
     return mix, exp
 
 
@@ -106,6 +110,9 @@ def _add_exam_flags(p):
     p.add_argument("--moodle", action="store_true", help="thêm file Moodle XML")
     p.add_argument("--word", action="store_true", help="thêm file Word .docx mỗi mã đề (cần pandoc)")
     p.add_argument("--pdf", action="store_true", help="biên dịch luôn các file đề/lời giải ra PDF")
+    p.add_argument("--qr", action="store_true", help="in mã QR đáp án trong file lời giải")
+    p.add_argument("--mau-phieu", metavar="FILE.xlsx", help="file mẫu đáp án của phần mềm chấm (QM, Azota…)")
+    p.add_argument("--max-run", type=int, default=3, help="tối đa số câu liền nhau cùng đáp án (0 = bỏ qua)")
 
 
 def cmd_make(bank: Bank, a):
@@ -114,6 +121,7 @@ def cmd_make(bank: Bank, a):
     rules = [Rule.from_dict(r) for r in cfg["rules"]]
     from .generator import THPT_2026, check_structure, make_codes
     mix, exp = _exam_opts(a)
+    exp.diem = cfg.get("diem")          # thang điểm tuỳ chỉnh trong file ma trận
     codes = cfg.get("ma_de")
     if a.chuan_2026:
         for d in check_structure(rules):
@@ -128,11 +136,32 @@ def cmd_make(bank: Bank, a):
     files = export_versions(vs, a.out, template_path=a.template or cfg.get("template"),
                             ten_de=cfg.get("ten_de", "ĐỀ KIỂM TRA"),
                             truong=cfg.get("truong", ""), thoi_gian=cfg.get("thoi_gian", 90), options=exp)
+    from .omr import check_capacity
+    for w_ in check_capacity(vs):
+        print("! Phiếu trả lời:", w_)
     bank.mark_used({q.db_id for v in vs for q in v.all_questions()})
     bank.log_batch(vs, ten_de=cfg.get("ten_de", ""), seed=a.seed, matrix=cfg.get("rules"), out_dir=a.out)
     for p in files:
         print("Đã ghi", p)
     _maybe_pdf(a, files)
+
+
+def cmd_matrix(bank: Bank, a):
+    from . import matrix
+    if a.src.lower().endswith(".xlsx"):
+        rules = matrix.import_xlsx(a.src)
+        with open(a.out, "w", encoding="utf-8") as f:
+            json.dump({"rules": [{"qtype": r.qtype, "id": r.id, "muc_do": r.muc_do, "text": r.text, "count": r.count}
+                                 for r in rules]}, f, ensure_ascii=False, indent=2)
+        print(f"Đã nạp {len(rules)} dòng ma trận → {a.out}")
+        return
+    with open(a.src, encoding="utf-8") as f:
+        cfg = json.load(f)
+    from .scoring import Scoring
+    rules = [Rule.from_dict(r) for r in cfg["rules"]]
+    fn = matrix.export_docx if a.out.lower().endswith(".docx") else matrix.export_xlsx
+    fn(rules, a.out, bank.idmap(), Scoring.from_dict(cfg.get("diem")), cfg.get("ten_de", ""))
+    print("Đã ghi", a.out)
 
 
 def cmd_idmap(bank: Bank, a):
@@ -398,6 +427,9 @@ def main(argv=None):
     p.add_argument("--all", action="store_true", help="gán lại cả câu đã có ID")
     p = sub.add_parser("backup")
     p.add_argument("dest")
+    p = sub.add_parser("matrix", help="ma trận CV 7991: .json → .xlsx/.docx, hoặc nạp .xlsx → .json")
+    p.add_argument("src", help="ma_tran.json hoặc file Excel ma trận")
+    p.add_argument("-o", "--out", required=True, help=".xlsx / .docx (xuất) hoặc .json (nạp từ Excel)")
     p = sub.add_parser("make")
     p.add_argument("matrix", help="file ma trận .json")
     p.add_argument("-n", type=int, default=4, help="số mã đề")
@@ -422,7 +454,8 @@ def main(argv=None):
         {"import": cmd_import, "list": cmd_list, "stats": cmd_stats, "check": cmd_check,
          "make": cmd_make, "export": cmd_export, "idmap": cmd_idmap, "shuffle": cmd_shuffle,
          "backup": cmd_backup, "review": cmd_review, "suggest-id": cmd_suggest_id,
-         "word2tex": cmd_word2tex, "tex2word": cmd_tex2word, "pdf": cmd_pdf, "ai-id": cmd_ai_id}[a.cmd](bank, a)
+         "word2tex": cmd_word2tex, "tex2word": cmd_tex2word, "pdf": cmd_pdf, "ai-id": cmd_ai_id,
+         "matrix": cmd_matrix}[a.cmd](bank, a)
     except AIError as e:
         sys.exit(f"Lỗi: {e}")
     finally:

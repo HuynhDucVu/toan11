@@ -139,6 +139,7 @@ class GeneratorPanel(QWidget):
                          ("Mở ma trận…", self.load_matrix), ("Lưu ma trận…", self.save_matrix),
                          ("Ma trận từ đề có sẵn…", self.matrix_from_exam),
                          ("In ma trận đặc tả…", self.print_matrix),
+                         ("Ma trận CV 7991…", self.export_cv7991),
                          ("Kiểm tra số câu", self.update_avail)):
             b = QPushButton(text)
             b.clicked.connect(fn)
@@ -248,8 +249,21 @@ class GeneratorPanel(QWidget):
                              " – <span style='color:#c00000'>có dòng thiếu câu</span>"))
 
     def load_matrix(self):
-        p, _ = QFileDialog.getOpenFileName(self, "Mở ma trận", "", "Ma trận (*.json)")
+        p, _ = QFileDialog.getOpenFileName(self, "Mở ma trận", "", "Ma trận (*.json *.xlsx)")
         if not p:
+            return
+        if p.lower().endswith(".xlsx"):
+            from ...matrix import import_xlsx
+            try:
+                rules = import_xlsx(p)
+            except ValueError as e:
+                QMessageBox.warning(self, "Nạp ma trận", str(e))
+                return
+            self.t.setRowCount(0)
+            for r in rules:
+                self.add_row({"qtype": r.qtype, "id": r.id, "muc_do": r.muc_do or "", "text": r.text or "",
+                              "count": r.count})
+            self.update_avail()
             return
         with open(p, encoding="utf-8") as f:
             cfg = json.load(f)
@@ -317,7 +331,7 @@ class GeneratorPanel(QWidget):
             files = export_versions(vs, out, template_path=self.e_tpl[0].text() or None,
                                     ten_de=self.e_ten.text(), truong=self.e_truong.text(),
                                     thoi_gian=self.e_tg.value(), options=self.export_options())
-        except OSError as e:
+        except (OSError, ValueError) as e:
             QMessageBox.critical(self, "Lỗi ghi file", str(e))
             return
         self.win.bank.mark_used({q.db_id for v in vs for q in v.all_questions()})
@@ -358,6 +372,27 @@ class GeneratorPanel(QWidget):
             from ...exporter import matrix_spec
             matrix_spec(self.win.bank, [Rule.from_dict(r) for r in rd], p)
             QDesktopServices.openUrl(QUrl.fromLocalFile(p))
+
+    def export_cv7991(self):
+        rd = self.rules_dicts()
+        if not rd:
+            return
+        p, _ = QFileDialog.getSaveFileName(self, "Ma trận theo CV 7991", "ma_tran_CV7991.xlsx",
+                                           "Excel (*.xlsx);;Word (*.docx)")
+        if not p:
+            return
+        from ... import matrix
+        rules = [Rule.from_dict(r) for r in rd]
+        sc = self.export_options().scoring_obj()
+        try:
+            if p.lower().endswith(".docx"):
+                matrix.export_docx(rules, p, self.win.bank.idmap(), sc, self.e_ten.text())
+            else:
+                matrix.export_xlsx(rules, p, self.win.bank.idmap(), sc, self.e_ten.text())
+        except Exception as e:      # pandoc thiếu, file đang mở…
+            QMessageBox.warning(self, "Ma trận CV 7991", str(e))
+            return
+        QDesktopServices.openUrl(QUrl.fromLocalFile(p))
 
     def apply_thpt2026(self):
         self.opts.apply_thpt2026()

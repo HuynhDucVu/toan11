@@ -244,10 +244,14 @@ class ToolsPanel(QWidget):
         if not out:
             return
         gp = self.win.gen_panel
-        vs, _files = tools.shuffle_file(ps[0], codes, out, options=self.tool_opts.mix_options(),
-                                        export_options=self.tool_opts.export_options(),
-                                        template_path=gp.e_tpl[0].text() or None, ten_de=gp.e_ten.text(),
-                                        truong=gp.e_truong.text(), thoi_gian=gp.e_tg.value())
+        try:
+            vs, _files = tools.shuffle_file(ps[0], codes, out, options=self.tool_opts.mix_options(),
+                                            export_options=self.tool_opts.export_options(),
+                                            template_path=gp.e_tpl[0].text() or None, ten_de=gp.e_ten.text(),
+                                            truong=gp.e_truong.text(), thoi_gian=gp.e_tg.value())
+        except (OSError, ValueError) as e:
+            QMessageBox.warning(self, "Trộn đề", str(e))
+            return
         self.tool_opts.save()
         self.show_result("Trộn đề từ file", f"<p>File: {os.path.basename(ps[0])}</p>" + versions_report_html(vs, out))
 

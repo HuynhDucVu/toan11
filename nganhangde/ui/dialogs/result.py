@@ -23,6 +23,11 @@ def versions_report_html(vs, out_dir) -> str:
         mx = max(r for _, _, r in ov)
         html += (f"<p><b>Tỉ lệ câu trùng giữa các mã đề:</b> cao nhất {mx:.0%}"
                  + (" (cùng bộ câu, chỉ hoán vị)" if mx == 1 else "") + "</p>")
+    from ...omr import check_capacity
+    warn = check_capacity(vs)
+    if warn:
+        html += ("<p style='color:#c00000'><b>Kiểm tra phiếu trả lời (mẫu 2025: 40 · 8 · 6 câu):</b><br>"
+                 + "<br>".join(warn) + "</p>")
     html += ("<p>File: <code>de_*.tex</code> (đề), <code>loigiai_*.tex</code> (lời giải + bảng đáp án), "
              "<code>dap_an.csv</code>, <code>dap_an_bang.csv</code> (mỗi mã đề một dòng).</p>")
     return html
