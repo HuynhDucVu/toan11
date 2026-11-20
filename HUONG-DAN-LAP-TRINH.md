@@ -50,6 +50,8 @@ nganhangde/
 ├── drawgen.py    # mã TikZ: bảng biến thiên, đồ thị, biểu đồ cột/quạt
 ├── pdfbuild.py   # biên dịch PDF: tìm MiKTeX/TeX Live, chạy nhiều lượt, đọc lỗi từ .log
 ├── aiid.py       # gán ID bằng Google Gemini (REST, không cần thư viện ngoài)
+├── updater.py    # tự cập nhật: đọc Releases trên GitHub, tải exe, kiểm tra SHA-256, thay exe
+├── editor.py     # mở file .tex bằng TeXstudio (nhảy tới dòng lỗi)
 ├── templates/nhd_extest.sty   # gói ex_test rút gọn dùng khi máy chưa cài ex_test
 ├── cli.py        # Bước 7a: dòng lệnh
 ├── gui_qt.py     # Bước 7b: giao diện chính (PySide6/Qt)
@@ -520,6 +522,31 @@ Giao diện chạy phần này ở `AiWorker` (QThread), có nút Dừng. Worker
 (`candidates[0].content.parts[0].text`), có cả JSON nằm trong khối \`\`\`json và mã bịa.
 Phần này **chưa được chạy với Gemini thật**, vì máy phát triển không gọi được API của Google.
 
+## 8h. Tự cập nhật và TeXstudio (`updater.py`, `editor.py`)
+
+**Tự cập nhật:**
+
+1. `latest_release()` đọc `api.github.com/repos/…/releases/latest`, lấy số phiên bản, ghi chú,
+   link `NganHangDe.exe` và `digest` (`sha256:…`) mà GitHub tự tính cho mỗi file đính kèm.
+2. `download()` tải theo từng khối, báo tiến trình, có thể huỷ, kiểm tra dung lượng và SHA-256.
+   Mã không khớp thì xoá file và báo lỗi.
+3. Windows **không cho ghi đè file exe đang chạy**. Vì vậy `apply_update()` tạo một file `.bat`
+   (`update_script`), chạy ẩn và tách khỏi phần mềm. Script này:
+   * chờ tiến trình cũ thoát (`tasklist /FI "PID eq …"`, tối đa 60 giây);
+   * sao lưu bản cũ thành `NganHangDe_cu.exe`;
+   * chép bản mới vào chỗ cũ;
+   * mở lại phần mềm, rồi tự xoá.
+4. Phần mềm gọi script rồi thoát ngay.
+
+Đã thử đọc bản phát hành thật và tải thật exe 43 MB (SHA-256 khớp).
+**Bước chạy `.bat` chỉ kiểm thử nội dung script**, chưa chạy trên Windows thật.
+
+Lúc khởi động, `UpdateWorker` (QThread) kiểm tra ngầm sau 3 giây, chỉ với bản exe.
+Bản mới bị người dùng «bỏ qua» thì không hỏi lại.
+
+**TeXstudio:** `find_texstudio()` tìm trong `PATH`, `Program Files`, `LOCALAPPDATA\Programs`.
+`open_in_texstudio(path, line)` dùng tham số `--line` để nhảy tới dòng lỗi lấy từ `pdfbuild`.
+
 ## 9. Bước 7: giao diện
 
 **Dòng lệnh** (`cli.py`):
@@ -656,7 +683,8 @@ Bảng dưới lập từ tên các thành phần giao diện trong file `MyLT.e
 | In ma trận đặc tả | ✅ (`exporter.matrix_spec`) |
 | Lịch sử sửa câu, khôi phục câu đã xoá | ✅ (bảng `history`, `Bank.restore`) |
 | Tìm & thay thế, xoá ID, xoá nguồn, lọc theo nguồn, trích TikZ, câu gần trùng | ✅ (`tools.py`, `Bank.replace_text`) |
-| Kiểm tra cập nhật | ✅ (đọc bản phát hành mới nhất trên GitHub) |
+| Kiểm tra cập nhật, **tự cập nhật** | ✅ (mục 8h – tải exe, kiểm tra SHA-256, tự thay và mở lại) |
+| Mở bằng trình soạn LaTeX (TeXstudio) | ✅ (mục 8h – nhảy tới dòng lỗi) |
 | Đáp án cho phần mềm chấm phiếu (TNMaker) | ✅ file Excel cấu hình được bố cục |
 | Chuẩn đề tốt nghiệp (24 mã, đánh số từng phần, lời dẫn, thang điểm) | ✅ |
 | In phiếu trả lời, mã QR, Azota | ⏳ chưa có (phiếu dùng mẫu của TNMaker) |

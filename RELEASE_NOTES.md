@@ -5,7 +5,20 @@
 
 Kho câu hỏi `nganhang.db` nằm cạnh file exe. Cập nhật từ bản cũ: chỉ cần thay file exe, kho giữ nguyên.
 
-## Có gì mới ở bản 0.9.0 – Gán ID tự động bằng Gemini (AI)
+## Có gì mới ở bản 0.10.0 – Tự cập nhật phiên bản, mở bằng TeXstudio
+- **Tự cập nhật** (menu **Trợ giúp → Cập nhật phần mềm**):
+  - xem ghi chú bản mới, bấm **⬇ Tải và cập nhật ngay**;
+  - phần mềm tải exe mới (có thanh tiến trình) và **kiểm tra mã SHA-256** để chống file hỏng;
+  - sau đó tự đóng, thay bản mới, rồi **tự mở lại**. Bản cũ được giữ lại thành `NganHangDe_cu.exe`.
+- **Tự kiểm tra bản mới mỗi khi mở phần mềm** (tắt được). Có nút *Bỏ qua bản này*.
+- **TeXstudio:**
+  - **Câu hỏi → Mở câu đã chọn trong TeXstudio** (Ctrl+T);
+  - nhấp đúp file biên dịch lỗi → mở TeXstudio **đúng dòng bị lỗi**;
+  - mở đề vừa tạo, mở file trong tab Công cụ.
+  Phần mềm tự tìm TeXstudio; chỉ đường dẫn được trong *Cài đặt biên dịch PDF*. Máy không có TeXstudio thì mở bằng chương trình mặc định.
+- **Lưu ý:** bản 0.9.0 trở về trước chưa có chức năng tự cập nhật, nên cần tải tay bản 0.10.0 một lần. Từ bản này trở đi, phần mềm tự cập nhật.
+
+## Bản 0.9.0 – Gán ID tự động bằng Gemini (AI)
 - **🤖 Gán ID bằng Gemini:**
   - menu **Câu hỏi → Gán ID tự động bằng Gemini** (Shift+F3), hoặc nút 🤖 trong hộp Gán ID;
   - Gemini đọc đề bài, phương án, lời giải và chọn **chương › bài › dạng trong Map ID của thầy/cô**, đánh giá luôn **mức độ** N/H/V/C kèm **độ tin cậy** và **lí do**;

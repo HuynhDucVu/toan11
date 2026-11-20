@@ -172,12 +172,13 @@ class MainWindow(QMainWindow):
         self._act(m, "Tìm câu gần trùng trong kho…", self.near_dups)
         m.addSeparator()
         self._act(m, "Xem PDF câu đã chọn", self.preview_pdf, "F5")
+        self._act(m, "Mở câu đã chọn trong TeXstudio", self.open_texstudio, "Ctrl+T")
         self._act(m, "Biên dịch file .tex → PDF…", self.compile_files)
         self._act(m, "Cài đặt biên dịch PDF…", self.pdf_settings_dialog)
         self._act(m, "Cài đặt Gemini (AI)…", lambda: GeminiSettingsDialog(self).exec())
         self._act(m, "Thống kê ngân hàng", self.show_stats)
         m = mb.addMenu("Trợ &giúp")
-        self._act(m, "Kiểm tra bản cập nhật…", self.check_update)
+        self._act(m, "Cập nhật phần mềm…", self.check_update)
         self._act(m, "Giới thiệu", self.about)
 
         # --- thanh công cụ
@@ -612,26 +613,42 @@ class MainWindow(QMainWindow):
         b.clicked.connect(go)
         dlg.exec()
 
-    def check_update(self):
-        import urllib.request
-        url = "https://api.github.com/repos/HuynhDucVu/toan11/releases/latest"
-        try:
-            with urllib.request.urlopen(urllib.request.Request(url, headers={"User-Agent": "NganHangDe"}),
-                                        timeout=10) as r:
-                data = json.loads(r.read().decode("utf-8"))
-        except Exception as e:  # noqa: BLE001
-            QMessageBox.warning(self, "Cập nhật", f"Không kiểm tra được (cần mạng Internet):\n{e}")
+    def check_update(self, silent=False, rel=None):
+        """Mở hộp cập nhật. silent=True: chỉ hiện khi có bản mới (dùng lúc khởi động)."""
+        from . import updater
+        if rel is None:
+            try:
+                rel = updater.latest_release()
+            except updater.UpdateError as e:
+                if not silent:
+                    QMessageBox.warning(self, "Cập nhật", str(e))
+                return
+        if not updater.is_newer(rel.version, __version__):
+            if not silent:
+                QMessageBox.information(self, "Cập nhật", f"Bạn đang dùng bản mới nhất ({__version__}).")
             return
-        latest = data.get("tag_name", "").lstrip("v")
+        if silent and self.settings.value("update/skip", "") == rel.version:
+            return
+        UpdateDialog(self, rel).exec()
 
-        def ver(x):
-            return tuple(int(p) for p in re.findall(r"\d+", x)[:3])
-        if latest and ver(latest) > ver(__version__):
-            if QMessageBox.question(self, "Có bản mới", f"Đang dùng bản {__version__}. Đã có bản {latest}.\n"
-                                    "Mở trang tải về?") == QMessageBox.StandardButton.Yes:
-                QDesktopServices.openUrl(QUrl(data.get("html_url", "")))
-        else:
-            QMessageBox.information(self, "Cập nhật", f"Bạn đang dùng bản mới nhất ({__version__}).")
+    def open_texstudio(self):
+        from .editor import open_in_texstudio
+        from .exporter import fill, load_template, questions_to_tex
+        ids = self.selected_ids()
+        if not ids:
+            QMessageBox.information(self, "TeXstudio", "Chọn câu cần mở trong bảng.")
+            return
+        import tempfile
+        d = tempfile.mkdtemp(prefix="nhd_tex_")
+        p = os.path.join(d, "cau_hoi.tex")
+        qs = [self.bank.get(i) for i in ids]
+        with open(p, "w", encoding="utf-8") as f:
+            f.write(fill(load_template(self.gen_panel.e_tpl[0].text() or None), MODE="loigiai",
+                         NOI_DUNG=questions_to_tex(qs), TEN_DE="CÂU HỎI TỪ KHO", MA_DE="—"))
+        if not open_in_texstudio(p, custom=self.settings.value("pdf/texstudio", "")):
+            QDesktopServices.openUrl(QUrl.fromLocalFile(p))
+        self.statusBar().showMessage(f"Đã mở {len(qs)} câu ({p}). Sửa xong muốn lưu vào kho: dán lại vào hộp Sửa câu "
+                                     "hoặc nhập lại file .tex.", 15000)
 
     def edit_similar(self, idx):
         db_id = self.sim.item(idx.row(), 0).data(Qt.ItemDataRole.UserRole)
@@ -1674,6 +1691,16 @@ class ResultDialog(QDialog):
         b = QPushButton("Mở thư mục kết quả")
         b.setObjectName("primary")
         b.clicked.connect(lambda: QDesktopServices.openUrl(QUrl.fromLocalFile(os.path.abspath(out_dir))))
+        t = QPushButton("Mở đề đầu tiên trong TeXstudio")
+
+        def open_first():
+            from .editor import open_in_texstudio
+            f = os.path.join(out_dir, f"de_{vs[0].code}.tex") if vs else ""
+            st = getattr(parent, "st", None) or getattr(getattr(parent, "win", None), "settings", None)
+            if f and not open_in_texstudio(f, custom=st.value("pdf/texstudio", "") if st else ""):
+                QDesktopServices.openUrl(QUrl.fromLocalFile(f))
+        t.clicked.connect(open_first)
+        row.addWidget(t)
         c = QPushButton("Đóng")
         c.clicked.connect(self.accept)
         row.addWidget(b)
@@ -2974,6 +3001,7 @@ class ToolsPanel(QWidget):
                                         ("Word → LaTeX…", self.word_to_tex), ("LaTeX → Word…", self.tex_to_word),
                                         ("Bài làm online từ file…", self.file_online),
                                         ("📄 Biên dịch PDF các file", self.file_pdf),
+                                        ("Mở file trong TeXstudio", self.file_texstudio),
                                         ("Nạp các file vào kho", self.import_to_bank))):
             b = QPushButton(text)
             b.clicked.connect(fn)
@@ -3230,6 +3258,12 @@ class ToolsPanel(QWidget):
         self.show_result("Bài làm online", "".join(html_) + "<p>Gửi file HTML cho học sinh (Zalo, email…) – "
                          "mở bằng trình duyệt trên điện thoại hoặc máy tính.</p>")
 
+    def file_texstudio(self):
+        from .editor import open_in_texstudio
+        for p in self.paths()[:5]:
+            if not open_in_texstudio(p, custom=self.win.settings.value("pdf/texstudio", "")):
+                QDesktopServices.openUrl(QUrl.fromLocalFile(p))
+
     def file_pdf(self):
         ps = self.paths()
         if ps:
@@ -3422,6 +3456,101 @@ class GeminiSettingsDialog(QDialog):
         self.accept()
 
 
+class UpdateWorker(QThread):
+    """Kiểm tra bản mới (mode='check') hoặc tải exe (mode='download') ở luồng nền."""
+    progress = Signal(int, int)
+
+    def __init__(self, mode, rel=None):
+        super().__init__()
+        self.mode, self.rel, self.result, self.error = mode, rel, None, ""
+
+    def run(self):
+        from . import updater
+        try:
+            if self.mode == "check":
+                self.result = updater.latest_release()
+            else:
+                self.result = updater.download(self.rel, progress=lambda d, t: self.progress.emit(d, t),
+                                               should_stop=self.isInterruptionRequested)
+        except updater.UpdateError as e:
+            self.error = str(e)
+        except Exception as e:  # noqa: BLE001
+            self.error = f"Lỗi cập nhật: {e}"
+
+
+class UpdateDialog(QDialog):
+    def __init__(self, win: MainWindow, rel):
+        super().__init__(win)
+        from . import updater
+        self.win, self.rel = win, rel
+        self.setWindowTitle(f"Có bản mới {rel.version}")
+        self.resize(720, 560)
+        lay = QVBoxLayout(self)
+        lay.addWidget(QLabel(f"<h3>Đã có bản {rel.version}</h3>Bạn đang dùng bản {__version__}. "
+                             f"Dung lượng tải: {rel.size / 1048576:.1f} MB."))
+        notes = QTextBrowser()
+        notes.setMarkdown(rel.notes.split("\n## Bản ")[0] if rel.notes else "(không có ghi chú)")
+        lay.addWidget(notes, 1)
+        self.bar = QLabel()
+        lay.addWidget(self.bar)
+        row = QHBoxLayout()
+        self.c_auto = QCheckBox("Tự kiểm tra bản mới mỗi khi mở phần mềm")
+        self.c_auto.setChecked(str(win.settings.value("update/auto", True)).lower() == "true")
+        row.addWidget(self.c_auto)
+        row.addStretch()
+        skip = QPushButton("Bỏ qua bản này")
+        skip.clicked.connect(self.skip)
+        page = QPushButton("Mở trang tải")
+        page.clicked.connect(lambda: QDesktopServices.openUrl(QUrl(rel.page)))
+        self.b_go = QPushButton("⬇ Tải và cập nhật ngay")
+        self.b_go.setObjectName("primary")
+        self.b_go.clicked.connect(self.go)
+        can = bool(updater.current_exe()) and os.name == "nt" and bool(rel.exe_url)
+        if not can:
+            self.b_go.setEnabled(False)
+            self.b_go.setToolTip("Tự cập nhật chỉ dùng với bản NganHangDe.exe trên Windows – "
+                                 "bản chạy từ mã nguồn dùng «git pull».")
+        for b in (skip, page, self.b_go):
+            row.addWidget(b)
+        lay.addLayout(row)
+
+    def done(self, r):
+        self.win.settings.setValue("update/auto", self.c_auto.isChecked())
+        super().done(r)
+
+    def skip(self):
+        self.win.settings.setValue("update/skip", self.rel.version)
+        self.reject()
+
+    def go(self):
+        from . import updater
+        dlg = QProgressDialog("Đang tải bản mới…", "Huỷ", 0, 100, self)
+        dlg.setWindowModality(Qt.WindowModality.WindowModal)
+        dlg.setMinimumDuration(0)
+        w = UpdateWorker("download", self.rel)
+        w.progress.connect(lambda d, t: (dlg.setValue(int(100 * d / t) if t else 0),
+                                         dlg.setLabelText(f"Đã tải {d / 1048576:.1f}/{t / 1048576:.1f} MB")))
+        dlg.canceled.connect(w.requestInterruption)
+        w.start()
+        while w.isRunning():
+            QApplication.processEvents()
+            w.wait(50)
+        dlg.close()
+        if w.error:
+            QMessageBox.warning(self, "Cập nhật", w.error)
+            return
+        if QMessageBox.question(self, "Cập nhật", "Đã tải và kiểm tra xong bản mới (SHA-256 khớp).\n"
+                                "Phần mềm sẽ đóng, thay bản mới rồi tự mở lại (bản cũ lưu thành NganHangDe_cu.exe).\n"
+                                "Tiếp tục?") != QMessageBox.StandardButton.Yes:
+            return
+        try:
+            updater.apply_update(w.result)
+        except updater.UpdateError as e:
+            QMessageBox.warning(self, "Cập nhật", str(e))
+            return
+        QApplication.quit()
+
+
 class BuildWorker(QThread):
     """Biên dịch PDF ở luồng nền."""
     progress = Signal(int, int, str)
@@ -3474,7 +3603,7 @@ class PdfResultDialog(QDialog):
         lay = QVBoxLayout(self)
         ok = sum(r.ok for r in results)
         lay.addWidget(QLabel(f"<b>{ok}/{len(results)} file biên dịch thành công.</b> Nhấp đúp một dòng để mở PDF "
-                             "(hoặc file .tex nếu lỗi)."
+                             "(file lỗi mở trong TeXstudio đúng dòng lỗi, nếu máy có TeXstudio)."
                              + ("<br><i>Có file dùng gói ex_test rút gọn đi kèm vì máy chưa cài ex_test – cài ex_test "
                                 "thật (hoặc chỉ thư mục chứa ex_test.sty trong Cài đặt) để có bản in chuẩn.</i>"
                                 if any(r.used_lite for r in results) else "")))
@@ -3500,8 +3629,17 @@ class PdfResultDialog(QDialog):
         lay.addWidget(b)
 
     def open_row(self, idx):
+        from .editor import first_error_line, open_in_texstudio
         r = self.results[idx.row()]
-        QDesktopServices.openUrl(QUrl.fromLocalFile(r.pdf if r.pdf else r.tex))
+        if r.ok and r.pdf:
+            QDesktopServices.openUrl(QUrl.fromLocalFile(r.pdf))
+            return
+        win = self.parent()
+        while win is not None and not hasattr(win, "settings"):
+            win = win.parent()
+        custom = win.settings.value("pdf/texstudio", "") if win is not None else ""
+        if not open_in_texstudio(r.tex, first_error_line(r.errors), custom):
+            QDesktopServices.openUrl(QUrl.fromLocalFile(r.tex))
 
 
 class PdfSettingsDialog(QDialog):
@@ -3523,6 +3661,8 @@ class PdfSettingsDialog(QDialog):
         self.sp_runs.setValue(int(st.value("pdf/runs", 2)))
         self.c_clean = QCheckBox("Xoá file phụ (.aux, .log…) sau khi biên dịch thành công")
         self.c_clean.setChecked(str(st.value("pdf/clean", True)).lower() == "true")
+        self.e_texstudio = self._path(st.value("pdf/texstudio", ""), False,
+                                      "Đường dẫn texstudio.exe (để trống = tự tìm)")
         self.c_open = QCheckBox("Tự mở PDF khi biên dịch 1 file")
         self.c_open.setChecked(str(st.value("pdf/open", True)).lower() == "true")
         f.addRow("Trình biên dịch", self.cb_eng)
@@ -3531,6 +3671,7 @@ class PdfSettingsDialog(QDialog):
         f.addRow("Số lượt chạy", self.sp_runs)
         f.addRow("", self.c_clean)
         f.addRow("", self.c_open)
+        f.addRow("TeXstudio", self.e_texstudio[1])
         self.info = QLabel()
         self.info.setWordWrap(True)
         f.addRow(self.info)
@@ -3575,11 +3716,15 @@ class PdfSettingsDialog(QDialog):
             return
         ext = has_package(eng, "ex_test.sty", [self.e_extest[0].text()])
         vn = has_package(eng, "vietnam.sty")
+        from .editor import find_texstudio
+        ts = find_texstudio(self.e_texstudio[0].text())
         self.info.setText(f"<span style='color:#0b7a0b'>✔ Tìm thấy: {eng}</span><br>"
                           + ("✔ Có gói ex_test" if ext else "⚠ Chưa thấy gói ex_test – sẽ dùng gói rút gọn đi kèm "
                              "(đủ để xem/in thử; nên cài ex_test thật để in chính thức)") + "<br>"
                           + ("✔ Có gói tiếng Việt vntex (pdflatex)" if vn else
-                             "⚠ Chưa thấy gói vietnam (vntex) – với pdflatex cần cài; xelatex thì dùng phông Times New Roman"))
+                             "⚠ Chưa thấy gói vietnam (vntex) – với pdflatex cần cài; xelatex thì dùng phông Times New Roman")
+                          + "<br>" + (f"✔ TeXstudio: {ts}" if ts else "⚠ Chưa thấy TeXstudio (texstudio.org) – "
+                                      "file .tex sẽ mở bằng chương trình mặc định"))
 
     def save(self):
         st = self.win.settings
@@ -3589,6 +3734,7 @@ class PdfSettingsDialog(QDialog):
         st.setValue("pdf/runs", self.sp_runs.value())
         st.setValue("pdf/clean", self.c_clean.isChecked())
         st.setValue("pdf/open", self.c_open.isChecked())
+        st.setValue("pdf/texstudio", self.e_texstudio[0].text())
         self.accept()
 
 
@@ -3603,6 +3749,17 @@ def run(db_path: str | None = None):
         app.setWindowIcon(QIcon(icon))
     w = MainWindow(db_path)
     w.show()
+    auto = str(w.settings.value("update/auto", True)).lower() == "true"
+    if auto and (getattr(sys, "frozen", False) or os.environ.get("NHD_UPDATE_CHECK")):
+        from PySide6.QtCore import QTimer
+        chk = UpdateWorker("check")
+        w._update_worker = chk                    # giữ tham chiếu tới khi xong
+
+        def checked():
+            if chk.result:
+                w.check_update(silent=True, rel=chk.result)
+        chk.finished.connect(checked)
+        QTimer.singleShot(3000, chk.start)        # đợi phần mềm mở xong rồi mới kiểm tra
     return app.exec()
 
 

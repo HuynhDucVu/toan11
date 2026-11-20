@@ -591,3 +591,35 @@ def test_gemini_id():
         aiid.GeminiClient("")
     with pytest.raises(aiid.AIError):                             # phạm vi không có dạng nào
         aiid.classify(c, [circle], m, scope="2")
+
+
+def test_updater_and_editor(tmp_path):
+    import hashlib
+    from nganhangde import updater as up
+    from nganhangde.editor import find_texstudio, first_error_line
+    assert up.is_newer("0.10.0", "0.9.0") and not up.is_newer("0.9.0", "0.9.0") and up.is_newer("v1.0", "0.9.9")
+    blob = b"MZ" + b"x" * 5000
+    src = tmp_path / "NganHangDe.exe"
+    src.write_bytes(blob)
+    good = "sha256:" + hashlib.sha256(blob).hexdigest()
+
+    def fake(url):
+        return {"tag_name": "v9.9.9", "body": "## Có gì mới\n- abc", "html_url": "https://x/rel",
+                "assets": [{"name": "NganHangDe.exe", "browser_download_url": src.as_uri(),
+                            "size": len(blob), "digest": good}]}
+    rel = up.latest_release(fake)
+    assert rel.version == "9.9.9" and rel.sha256 == good.split(":")[1] and rel.size == len(blob)
+    seen = []
+    p = up.download(rel, str(tmp_path / "dl"), progress=lambda d, t: seen.append((d, t)))
+    assert open(p, "rb").read() == blob and seen[-1] == (len(blob), len(blob))
+    rel.sha256 = "0" * 64                                        # mã kiểm tra sai ⇒ xoá file, báo lỗi
+    with pytest.raises(up.UpdateError):
+        up.download(rel, str(tmp_path / "dl2"))
+    assert not os.listdir(tmp_path / "dl2")
+    bat = up.update_script(1234, r"C:\T\new.exe", r"D:\NHD\NganHangDe.exe")
+    assert 'PID eq 1234' in bat and r'copy /Y "C:\T\new.exe" "D:\NHD\NganHangDe.exe"' in bat
+    assert r'"D:\NHD\NganHangDe_cu.exe"' in bat and 'start "" "D:\\NHD\\NganHangDe.exe"' in bat
+    with pytest.raises(up.UpdateError):                          # chạy từ mã nguồn ⇒ không tự thay exe
+        up.apply_update(p)
+    assert first_error_line(["==> x", "Dòng 17: lệnh không tồn tại"]) == 17 and first_error_line([]) is None
+    assert find_texstudio(str(src)) == str(src)

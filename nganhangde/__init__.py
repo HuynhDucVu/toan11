@@ -8,4 +8,4 @@ Các mô-đun:
     generator  – chọn câu theo ma trận, trộn câu/trộn phương án, sinh mã đề
     exporter   – xuất đề, lời giải, bảng đáp án ra .tex/.csv
 """
-__version__ = "0.9.0"
+__version__ = "0.10.0"

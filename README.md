@@ -12,6 +12,7 @@ Phần mềm quản lý ngân hàng câu hỏi Toán định dạng `ex_test`. C
 * xuất mã đề, lời giải và đáp án; **biên dịch PDF** (pdflatex/xelatex, báo lỗi kèm số dòng, gói ex_test rút gọn đi kèm); **bài làm online** (HTML tự chấm, mở được trên điện thoại), **Moodle XML**, **Word ↔ LaTeX** (cần pandoc).
 
 **Tải bản dựng sẵn cho Windows:** trang [Releases](https://github.com/HuynhDucVu/toan11/releases/latest), tải `NganHangDe.exe`.
+Từ bản 0.10.0 phần mềm **tự cập nhật** (Trợ giúp → Cập nhật phần mềm).
 
 **Tự đóng gói exe:** nhấp đúp `build_exe.bat` (cần Python 3.10+) để tạo `dist\NganHangDe.exe`.
 Hoặc chạy GitHub Actions **Build exe**.
