@@ -22,6 +22,8 @@ def selftest() -> int:
         n = b.count()
         b.close()
     import openpyxl  # noqa: F401  – cần cho file đáp án TNMaker
+    import pypdf  # noqa: F401  – PDF → LaTeX (cắt trang)
+    import anthropic  # noqa: F401  – nhà cung cấp AI Claude
     from nganhangde.idmap import builtin_map
     nmap = len(builtin_map())
     ok = "<<NOI_DUNG>>" in tpl and n == 1 and q.answer_text == "A" and nmap > 1000

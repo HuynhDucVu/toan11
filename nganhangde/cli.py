@@ -317,13 +317,30 @@ def cmd_pdf(bank, a):
         sys.exit(1)
 
 
+ENV_KEYS = {"gemini": "GEMINI_API_KEY", "claude": "ANTHROPIC_API_KEY", "openai": "OPENAI_API_KEY",
+            "deepseek": "DEEPSEEK_API_KEY", "grok": "XAI_API_KEY"}
+
+
+def _ai_client(a):
+    from . import ai
+    return ai.make_client(a.provider, os.environ.get(ENV_KEYS[a.provider], ""), a.model or "")
+
+
+def cmd_ai_pdf(bank: Bank, a):
+    """PDF (gốc hoặc bản chụp) → LaTeX ex_test bằng Gemini/Claude, cắt mỗi lần --pages trang."""
+    from . import aitasks
+    props = aitasks.pdf_to_latex(_ai_client(a), a.file, a.pages, progress=lambda i, n: print(f"  phần {i}/{n}…"))
+    with open(a.out, "w", encoding="utf-8") as f:
+        f.write("\n\n".join(p.question.to_latex(True) for p in props) + "\n")
+    bad = sum(not p.ok for p in props)
+    print(f"Đã ghi {len(props)} câu → {a.out}" + (f" ({bad} câu có lỗi rà soát – kiểm tra lại)" if bad else ""))
+
+
 def cmd_ai_id(bank: Bank, a):
-    """Gán ID bằng Gemini cho các câu trong file .tex (khoá API lấy từ biến môi trường GEMINI_API_KEY)."""
-    import os
+    """Gán ID bằng AI cho các câu trong file .tex (khoá API lấy từ biến môi trường, xem ENV_KEYS)."""
     from . import aiid
     from . import review as rv
-    key = os.environ.get("GEMINI_API_KEY", "")
-    client = aiid.GeminiClient(key, a.model)
+    client = _ai_client(a)
     qs = [q for q in parse_file(a.file) if a.all or not q.id_code]
     res = aiid.classify(client, qs, bank.idmap(), scope=a.scope, default_level=a.level, batch=a.batch,
                         progress=lambda i, n: print(f"  {i}/{n} câu…"))
@@ -416,12 +433,20 @@ def main(argv=None):
     p.add_argument("--engine", default="auto", choices=["auto", "pdflatex", "xelatex", "lualatex"])
     p.add_argument("--runs", type=int, default=2)
     p.add_argument("--extest", help="thư mục chứa ex_test.sty")
-    p = sub.add_parser("ai-id", help="gán ID bằng Gemini (đặt GEMINI_API_KEY; cần Map ID trong kho)")
+    p = sub.add_parser("ai-pdf", help="PDF → LaTeX ex_test bằng AI (Gemini/Claude)")
     p.add_argument("file")
+    p.add_argument("-o", "--out", required=True)
+    p.add_argument("--pages", type=int, default=10, help="số trang mỗi lần gửi")
+    p.add_argument("--provider", default="gemini", choices=["gemini", "claude"])
+    p.add_argument("--model", default="")
+    p = sub.add_parser("ai-id", help="gán ID bằng AI (khoá API trong biến môi trường, vd GEMINI_API_KEY, "
+                                     "ANTHROPIC_API_KEY; cần Map ID trong kho)")
+    p.add_argument("file")
+    p.add_argument("--provider", default="gemini", choices=list(ENV_KEYS))
     p.add_argument("-o", "--out", help="file mới đã gán ID (bỏ trống = chỉ in gợi ý)")
     p.add_argument("--scope", default="", help="giới hạn Map ID, vd 0 (lớp 10)")
     p.add_argument("--level", default="N", choices=list("NHVC"))
-    p.add_argument("--model", default="gemini-2.5-flash")
+    p.add_argument("--model", default="", help="bỏ trống = mô hình mặc định của nhà cung cấp")
     p.add_argument("--batch", type=int, default=10)
     p.add_argument("--min-score", type=float, default=0.0, help="chỉ gán khi Gemini tin cậy ≥ ngưỡng (0..1)")
     p.add_argument("--all", action="store_true", help="gán lại cả câu đã có ID")
@@ -454,7 +479,7 @@ def main(argv=None):
         {"import": cmd_import, "list": cmd_list, "stats": cmd_stats, "check": cmd_check,
          "make": cmd_make, "export": cmd_export, "idmap": cmd_idmap, "shuffle": cmd_shuffle,
          "backup": cmd_backup, "review": cmd_review, "suggest-id": cmd_suggest_id,
-         "word2tex": cmd_word2tex, "tex2word": cmd_tex2word, "pdf": cmd_pdf, "ai-id": cmd_ai_id,
+         "word2tex": cmd_word2tex, "tex2word": cmd_tex2word, "pdf": cmd_pdf, "ai-id": cmd_ai_id, "ai-pdf": cmd_ai_pdf,
          "matrix": cmd_matrix}[a.cmd](bank, a)
     except AIError as e:
         sys.exit(f"Lỗi: {e}")

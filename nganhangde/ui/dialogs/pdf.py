@@ -4,7 +4,7 @@ from __future__ import annotations
 import os
 from typing import TYPE_CHECKING
 
-from PySide6.QtCore import QUrl
+from PySide6.QtCore import Qt, QUrl
 from PySide6.QtGui import QColor, QDesktopServices
 from PySide6.QtWidgets import (QAbstractItemView, QCheckBox, QComboBox, QDialog, QFileDialog, QFormLayout,
     QHBoxLayout, QHeaderView, QLabel, QLineEdit, QPushButton, QSpinBox, QTableWidget, QTableWidgetItem,
@@ -62,9 +62,53 @@ class PdfResultDialog(QDialog):
                 t.setItem(r_, c, it)
         t.doubleClicked.connect(self.open_row)
         lay.addWidget(t)
+        self.t = t
+        self.ai_out = QLabel()
+        self.ai_out.setWordWrap(True)
+        self.ai_out.setTextInteractionFlags(self.ai_out.textInteractionFlags() | Qt.TextInteractionFlag.TextSelectableByMouse)
+        lay.addWidget(self.ai_out)
+        from PySide6.QtWidgets import QHBoxLayout
+        row = QHBoxLayout()
+        if any(not r.ok for r in results):
+            a = QPushButton("🤖 Hỏi AI cách sửa lỗi (dòng đang chọn)")
+            a.clicked.connect(self.ask_ai)
+            row.addWidget(a)
+        row.addStretch()
         b = QPushButton("Đóng")
         b.clicked.connect(self.accept)
-        lay.addWidget(b)
+        row.addWidget(b)
+        lay.addLayout(row)
+
+    def ask_ai(self):
+        from ... import aitasks
+        from ..workers import TaskWorker
+        from .ai_settings import ensure_client
+        bad = [r for r in self.results if not r.ok]
+        rows = sorted({i.row() for i in self.t.selectedIndexes()})
+        r = self.results[rows[0]] if rows and not self.results[rows[0]].ok else bad[0]
+        win = self.parent()
+        while win is not None and not hasattr(win, "settings"):
+            win = win.parent()
+        client = ensure_client(win) if win is not None else None
+        if client is None:
+            return
+        self.ai_out.setText("<i>Đang hỏi AI…</i>")
+        w = TaskWorker(aitasks.diagnose_log, client, r.errors or ["lỗi không rõ"], r.tex)
+        w.finished.connect(lambda: self._show_ai(w, r))
+        self._w = w
+        w.start()
+
+    def _show_ai(self, w, r):
+        import html
+        if w.error:
+            self.ai_out.setText(f"<span style='color:#c00000'>{html.escape(w.error)}</span>")
+            return
+        d = w.result or {}
+        fix = (f"<br><b>Sửa dòng {d['dong']} thành:</b> <code>{html.escape(d.get('sua_thanh', ''))}</code>"
+               if d.get("dong") and d.get("sua_thanh") else "")
+        self.ai_out.setText(f"<b>{html.escape(os.path.basename(r.tex))}</b> – <b>Nguyên nhân:</b> "
+                            f"{html.escape(d.get('nguyen_nhan', ''))}<br><b>Cách sửa:</b> "
+                            f"{html.escape(d.get('cach_sua', ''))}{fix}")
 
     def open_row(self, idx):
         from ...editor import first_error_line, open_in_texstudio

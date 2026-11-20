@@ -65,7 +65,8 @@ class MainWindow(BankActionsMixin, QMainWindow):
         self._act(m, "Xoá câu", self.delete_questions, QKeySequence.StandardKey.Delete)
         m.addSeparator()
         self._act(m, "Gán ID cho câu đã chọn / câu thiếu ID…", self.assign_ids, "F3")
-        self._act(m, "Gán ID tự động bằng Gemini…", lambda: self.assign_ids(use_ai=True), "Shift+F3")
+        self._act(m, "Gán ID tự động bằng AI…", lambda: self.assign_ids(use_ai=True), "Shift+F3")
+        self._act(m, "Trợ lý AI (câu tương tự, bù ma trận, PDF → LaTeX, chấm tự luận)…", self.ai_assistant, "Ctrl+I")
         self._act(m, "Tìm và thay thế…", self.find_replace, "Ctrl+H")
         self._act(m, "Khôi phục câu đã xoá…", self.restore_deleted)
         m = mb.addMenu("Đề &thi")
@@ -81,7 +82,7 @@ class MainWindow(BankActionsMixin, QMainWindow):
         self._act(m, "Mở câu đã chọn trong TeXstudio", self.open_texstudio, "Ctrl+T")
         self._act(m, "Biên dịch file .tex → PDF…", self.compile_files)
         self._act(m, "Cài đặt biên dịch PDF…", self.pdf_settings_dialog)
-        self._act(m, "Cài đặt Gemini (AI)…", lambda: GeminiSettingsDialog(self).exec())
+        self._act(m, "Cài đặt AI (Gemini, Claude, OpenAI…)…", lambda: GeminiSettingsDialog(self).exec())
         self._act(m, "Thống kê ngân hàng", self.show_stats)
         m = mb.addMenu("Trợ &giúp")
         self._act(m, "Cập nhật phần mềm…", self.check_update)
@@ -268,6 +269,10 @@ class MainWindow(BankActionsMixin, QMainWindow):
         self.stats_panel.reload()
         if notes:
             self.statusBar().showMessage("  ".join(notes), 20000)
+
+    def ai_assistant(self, tab: int = 0):
+        from .dialogs.ai_assistant import AiAssistantDialog
+        AiAssistantDialog(self, tab).exec()
 
     def show_batches(self):
         from PySide6.QtWidgets import QDialog, QVBoxLayout

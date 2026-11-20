@@ -175,10 +175,10 @@ class AssignIdDialog(QDialog):
         gl.addRow(self.sug_list)
         right.addWidget(g)
 
-        g = QGroupBox("🤖 Gán ID bằng Gemini (AI của Google)")
+        g = QGroupBox("🤖 Gán ID bằng AI (Gemini, Claude, OpenAI…)")
         gl = QVBoxLayout(g)
         row = QHBoxLayout()
-        b = QPushButton("🤖 Gợi ý bằng Gemini cho các câu đã chọn")
+        b = QPushButton("🤖 Gợi ý bằng AI cho các câu đã chọn")
         b.setObjectName("primary")
         b.clicked.connect(self.run_gemini)
         bs = QPushButton("Cài đặt…")
@@ -186,14 +186,14 @@ class AssignIdDialog(QDialog):
         row.addWidget(b, 1)
         row.addWidget(bs)
         gl.addLayout(row)
-        self.c_ai_level = QCheckBox("Gemini đánh giá luôn mức độ (N/H/V/C)")
+        self.c_ai_level = QCheckBox("AI đánh giá luôn mức độ (N/H/V/C)")
         self.c_ai_level.setChecked(True)
         self.c_ai_fill = QCheckBox("Điền luôn kết quả vào cột «ID mới»")
         self.c_ai_fill.setChecked(True)
         gl.addWidget(self.c_ai_level)
         gl.addWidget(self.c_ai_fill)
         note = QLabel("<i>Dùng phạm vi ở mục 1 để giới hạn Map ID gửi đi (nhanh, đỡ tốn hạn mức). Nội dung câu hỏi "
-                      "được gửi tới Google. ID Gemini trả về luôn được đối chiếu với Map ID; mã không có thật bị loại. "
+                      "được gửi tới nhà cung cấp AI đã chọn. ID AI trả về luôn được đối chiếu với Map ID; mã không có thật bị loại. "
                       "Vẫn cần giáo viên duyệt lại trước khi lưu.</i>")
         note.setWordWrap(True)
         gl.addWidget(note)
@@ -285,7 +285,7 @@ class AssignIdDialog(QDialog):
         self.sug_list.setRowCount(len(sg))
         for i, x in enumerate(sg):
             src = (f"câu #{x.db_id} trong kho: {x.sample}" if x.db_id is not None else
-                   x.sample if x.sample.startswith("Gemini") else f"Map ID: {x.sample}")
+                   x.sample if x.sample.startswith("AI:") else f"Map ID: {x.sample}")
             for c, v in enumerate((x.id_code, f"{x.score:.0%}", src)):
                 it = QTableWidgetItem(v)
                 it.setToolTip(src)
@@ -299,22 +299,21 @@ class AssignIdDialog(QDialog):
             self.update_count()
 
     def run_gemini(self):
-        from ... import aiid
+        from ... import ai
         from ...idsuggest import Suggestion
+        from .ai_settings import ensure_client
         st = self.win.settings
-        key, model = st.value("ai/key", ""), st.value("ai/model", aiid.DEFAULT_MODEL)
-        if not key:
-            GeminiSettingsDialog(self.win).exec()
-            key, model = st.value("ai/key", ""), st.value("ai/model", aiid.DEFAULT_MODEL)
-            if not key:
-                return
+        client = ensure_client(self.win)
+        if client is None:
+            return
+        model = f"{ai.provider_name(client.provider)} – {client.model}"
         rows = self.checked_rows() or list(range(len(self.qs)))
         qs = [self.qs[r] for r in rows]
-        dlg = QProgressDialog("Đang hỏi Gemini…", "Dừng", 0, len(qs), self)
-        dlg.setWindowTitle("Gán ID bằng Gemini")
+        dlg = QProgressDialog("Đang hỏi AI…", "Dừng", 0, len(qs), self)
+        dlg.setWindowTitle("Gán ID bằng AI")
         dlg.setWindowModality(Qt.WindowModality.WindowModal)
         dlg.setMinimumDuration(0)
-        worker = AiWorker(aiid.GeminiClient(key, model), qs, self.mapping, self.cb_scope.currentData() or "",
+        worker = AiWorker(client, qs, self.mapping, self.cb_scope.currentData() or "",
                           self.cb_def_md.currentData(), self.c_ai_level.isChecked(),
                           int(st.value("ai/batch", 10)))
         worker.progress.connect(lambda i, n: (dlg.setValue(i), dlg.setLabelText(f"Đã phân loại {i}/{n} câu…")))
@@ -325,23 +324,23 @@ class AssignIdDialog(QDialog):
             worker.wait(50)
         dlg.close()
         if worker.error:
-            QMessageBox.warning(self, "Gemini", worker.error)
+            QMessageBox.warning(self, "AI", worker.error)
             if not worker.results:
                 return
         ok = 0
         for res in worker.results:
             r = rows[res.index]
-            sug = Suggestion(res.id_code or (res.raw_code or "—"), res.score, None, f"Gemini: {res.reason}")
-            self.sugs[r] = [sug] + [x for x in self.sugs[r] if not x.sample.startswith("Gemini")]
+            sug = Suggestion(res.id_code or (res.raw_code or "—"), res.score, None, f"AI: {res.reason}")
+            self.sugs[r] = [sug] + [x for x in self.sugs[r] if not x.sample.startswith("AI:")]
             if res.id_code:
                 ok += 1
                 if self.c_ai_fill.isChecked():
                     self.set_new(r, res.id_code, res.score)
-                    self.t.item(r, 4).setToolTip("Gemini: " + res.reason)
+                    self.t.item(r, 4).setToolTip("AI: " + res.reason)
         self.update_count()
         self.on_select()
-        QMessageBox.information(self, "Gemini", f"Gemini đã phân loại {ok}/{len(worker.results)} câu hợp lệ "
-                                f"(mô hình {model}).\nCột «Độ giống» là độ tin cậy Gemini tự đánh giá – "
+        QMessageBox.information(self, "AI", f"AI đã phân loại {ok}/{len(worker.results)} câu hợp lệ "
+                                f"(mô hình {model}).\nCột «Độ giống» là độ tin cậy AI tự đánh giá – "
                                 "xem lại các câu có độ tin cậy thấp trước khi lưu.")
 
     def accept_best(self):

@@ -52,7 +52,10 @@ nganhangde/
 ├── mathgen.py    # sinh câu hỏi số từ câu mẫu có tham số
 ├── drawgen.py    # mã TikZ: bảng biến thiên, đồ thị, biểu đồ cột/quạt
 ├── pdfbuild.py   # biên dịch PDF: tìm MiKTeX/TeX Live, chạy nhiều lượt, đọc lỗi từ .log
-├── aiid.py       # gán ID bằng Google Gemini (REST, không cần thư viện ngoài)
+├── aiid.py       # gán ID bằng AI; GeminiClient (REST, không cần thư viện ngoài)
+├── ai.py, ai_claude.py, ai_openai_compat.py  # nhiều nhà cung cấp AI: Gemini, Claude, OpenAI, DeepSeek, Grok
+├── aitasks.py    # câu tương tự, bù câu thiếu ma trận, PDF → LaTeX, chấm tự luận, chẩn đoán lỗi biên dịch
+├── drawstudio.py # trục số, miền nghiệm, tiệm cận + tô miền tích phân, hình khối
 ├── updater.py    # tự cập nhật: đọc Releases trên GitHub, tải exe, kiểm tra SHA-256, thay exe
 ├── editor.py     # mở file .tex bằng TeXstudio (nhảy tới dòng lỗi)
 ├── templates/nhd_extest.sty   # gói ex_test rút gọn dùng khi máy chưa cài ex_test
@@ -498,6 +501,20 @@ Giao diện có `PlotView` (QPainter) để **xem trước không cần LaTeX**.
 * đồ thị bậc ba và đồ thị $y=1/x$;
 * biểu đồ cột và biểu đồ quạt.
 
+## 8e-2. Draw Studio (`drawstudio.py`)
+
+* **Trục số** `number_line_tikz("(-inf;-2] U (1;3) U {5}")`: các mốc đặt cách đều theo thứ tự (không theo tỉ lệ),
+  gạch bỏ phần không thuộc tập nghiệm bằng các vạch chéo vẽ tay (không cần thư viện `patterns`).
+* **Miền nghiệm** `region_tikz([...])`: mỗi bpt chuyển về `a x + b y + c ≤ 0` (`_lin` tính hệ số bằng cách thế
+  3 điểm và kiểm tra lại để từ chối biểu thức không bậc nhất). Phần **không thoả** từng bpt được tô xám bằng cách
+  cắt khung chữ nhật (Sutherland–Hodgman `_clip`). `vertices` giao từng cặp đường thẳng, giữ điểm thoả mọi bpt;
+  `optimize` tính F tại đỉnh.
+* **Tiệm cận** `asymptotes`: tiệm cận đứng dùng `_poles`; ngang/xiên ước lượng `a = (f(X₂)−f(X₁))/(X₂−X₁)` tại
+  X = ±10⁶, kiểm tra lại tại 4·10⁶ rồi làm tròn phân số. `graph_plus_tikz` chèn tiệm cận và **miền tích phân**
+  (đa giác giữa đồ thị và Ox hoặc giữa 2 đồ thị) ngay sau lệnh `\clip` để nằm dưới đường cong.
+* **Hình khối** `solid_tikz`: phép chiếu song song (trục sâu 40°, hệ số 0,5), cạnh khuất liệt kê sẵn cho từng hình,
+  đỉnh đặt tên toạ độ TikZ để giáo viên vẽ thêm.
+
 ## 8f. Biên dịch PDF (`pdfbuild.py`)
 
 **Tìm trình biên dịch** (`find_engine`) theo thứ tự:
@@ -567,6 +584,32 @@ Giao diện chạy phần này ở `AiWorker` (QThread), có nút Dừng. Worker
 **Kiểm thử** dùng `transport` giả lập, trả về đúng cấu trúc phản hồi của Google
 (`candidates[0].content.parts[0].text`), có cả JSON nằm trong khối \`\`\`json và mã bịa.
 Phần này **chưa được chạy với Gemini thật**, vì máy phát triển không gọi được API của Google.
+
+## 8g-2. Nhiều nhà cung cấp AI và Trợ lý AI (`ai.py`, `ai_claude.py`, `ai_openai_compat.py`, `aitasks.py`)
+
+Mọi client có chung giao diện `list_models()`, `generate_json(prompt, schema=None)`,
+`generate_from_pdf(pdf_bytes, prompt, schema=None)`; `ai.make_client(provider, key, model)` chọn client:
+
+| Nhà cung cấp | Cách gọi | JSON | PDF |
+|---|---|---|---|
+| Gemini | REST `generateContent` (urllib) | `responseMimeType` + lược đồ trong lời nhắc | `inline_data` application/pdf |
+| Claude | thư viện chính thức `anthropic` (`client.beta.messages.create`) | **structured outputs** `output_config.format = json_schema` | khối `document` base64 |
+| OpenAI, DeepSeek, Grok | REST Chat Completions (urllib) | `response_format: json_object` | không |
+
+Claude: mặc định `claude-opus-5-5`, `output_config.effort` (low/medium/high, mặc định medium), bật
+`fallbacks="default"` (beta `server-side-fallback-2026-07-01`) để máy chủ tự chạy lại bằng mô hình dự phòng khi bị
+bộ lọc an toàn từ chối; vẫn kiểm tra `stop_reason == "refusal"` / `"max_tokens"`. Lỗi được bắt theo lớp
+(`AuthenticationError`, `RateLimitError`, `APIStatusError`, `APIConnectionError`…) và dịch sang tiếng Việt.
+
+Cài đặt lưu theo nhà cung cấp: `ai/provider`, `ai/<p>_key`, `ai/<p>_model` (Gemini giữ khoá cũ `ai/key`).
+Dòng lệnh đọc khoá từ biến môi trường `GEMINI_API_KEY`, `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`,
+`DEEPSEEK_API_KEY`, `XAI_API_KEY`.
+
+`aitasks.py` (việc giao cho AI): `similar` (câu tương tự), `fill_gaps` (bù câu thiếu từng dòng ma trận – dựa câu có
+sẵn, hoặc tên dạng trong Map ID), `pdf_to_latex` (cắt PDF mỗi lần 10 trang bằng `pypdf`), `grade_essay` (chấm tự
+luận, điểm làm tròn 0,25), `diagnose_log` (đọc lỗi biên dịch + đoạn mã quanh dòng lỗi). Câu AI sinh luôn qua
+`review_question` và trả về dạng `Proposal` để giáo viên **duyệt trước khi vào kho**; câu được gắn thẻ `%[AI]`
+hoặc `%[PDF]`. Kiểm thử dùng client giả lập (`tests/test_v13_ai.py`) – **chưa gọi thử API thật** của nhà cung cấp nào.
 
 ## 8h. Tự cập nhật và TeXstudio (`updater.py`, `editor.py`)
 

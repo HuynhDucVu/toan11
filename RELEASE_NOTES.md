@@ -5,7 +5,26 @@
 
 Kho câu hỏi `nganhang.db` nằm cạnh file exe. Cập nhật từ bản cũ: chỉ cần thay file exe, kho giữ nguyên.
 
-## Có gì mới ở bản 0.12.0 – Giai đoạn 2: ma trận CV 7991, thang điểm, phiếu chấm
+## Có gì mới ở bản 0.13.0 – Giai đoạn 3: Trợ lý AI nhiều nhà cung cấp, Draw Studio
+- **Chọn nhà cung cấp AI** (Công cụ → Cài đặt AI): Google Gemini (có hạn mức miễn phí), Anthropic Claude, OpenAI, DeepSeek, Grok. Mỗi nhà cung cấp lưu khoá riêng; nút *Kiểm tra kết nối* tải danh sách mô hình.
+- **Trợ lý AI** (Câu hỏi → Trợ lý AI, Ctrl+I):
+  - **Câu tương tự:** chọn câu trong kho → AI soạn câu mới cùng dạng, cùng ID, có lời giải (tuỳ chọn khó hơn một mức);
+  - **Bù câu thiếu ma trận:** dòng ma trận nào kho chưa đủ câu thì AI soạn thêm cho đủ;
+  - **PDF → LaTeX:** đề PDF (kể cả bản chụp) chuyển sang ex_test, mỗi lần 10 trang (Gemini hoặc Claude); hình được đánh dấu để vẽ lại;
+  - **Chấm tự luận:** dán bài làm hoặc chọn PDF bản chụp, AI chấm theo barem từng ý (điểm gợi ý, giáo viên quyết định).
+  - Mọi câu AI soạn đều được **rà soát tự động** và hiện ra để **duyệt trước khi thêm vào kho**; câu có lỗi được bỏ chọn sẵn.
+- **Hỏi AI cách sửa lỗi biên dịch:** trong hộp kết quả biên dịch PDF có nút 🤖 – AI chỉ nguyên nhân và dòng cần sửa.
+- **Gán ID bằng AI** dùng được với mọi nhà cung cấp, không chỉ Gemini.
+- **Draw Studio** (tab Vẽ hình):
+  - **Trục số:** gõ `(-inf;-2] U (1;3) U {5}` → hình biểu diễn tập nghiệm, gạch bỏ phần không thuộc;
+  - **Miền nghiệm** hệ bất phương trình bậc nhất hai ẩn, kèm **toạ độ các đỉnh và GTLN, GTNN của F = ax + by**;
+  - **Đồ thị:** tự vẽ **tiệm cận đứng, ngang, xiên**; **tô miền tích phân** trên [a; b] (giữa đồ thị và Ox, hoặc giữa hai đồ thị);
+  - **Hình khối:** hình chóp tứ giác đều, chóp có SA ⊥ đáy, chóp tam giác, tứ diện, lăng trụ, hình hộp, lập phương, nón, trụ, cầu (cạnh khuất nét đứt);
+  - nút **Xem trước PDF**.
+- **Lưu ý:** chức năng AI cần Internet và khoá API của nhà cung cấp; nội dung câu hỏi được gửi tới nhà cung cấp đó. AI có thể giải sai – luôn kiểm tra lại.
+- Chưa làm: chuyển công thức **MathType** trong Word (đối tượng OLE) – cần chính MathType để đọc, chưa có cách làm tin cậy.
+
+## Bản 0.12.0 – Giai đoạn 2: ma trận CV 7991, thang điểm, phiếu chấm
 - **Ma trận theo Công văn 7991** (tab Tạo đề → *Ma trận CV 7991…*):
   - xuất **Excel** (hoặc **Word**, cần pandoc) với hàng là chủ đề, cột là 4 dạng câu × Biết/Hiểu/Vận dụng, tổng số câu, điểm, tỉ lệ;
   - sheet *Dòng ma trận* sửa được rồi **nạp lại** bằng *Mở ma trận…* (chọn file .xlsx).

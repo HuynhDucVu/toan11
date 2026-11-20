@@ -1,2 +1,4 @@
 PySide6-Essentials>=6.6
 openpyxl>=3.1
+anthropic>=0.70
+pypdf>=4.0

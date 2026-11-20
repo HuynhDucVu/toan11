@@ -70,3 +70,25 @@ class BuildWorker(QThread):
                 from ..pdfbuild import BuildResult
                 out.append(BuildResult(p, False, errors=[str(e)]))
         self.done.emit(out)
+
+
+class TaskWorker(QThread):
+    """Chạy một hàm bất kì ở luồng nền. Hàm nhận progress=, should_stop= nếu `with_progress`."""
+    progress = Signal(int, int)
+
+    def __init__(self, fn, *args, with_progress=False, **kw):
+        super().__init__()
+        self.fn, self.args, self.kw, self.with_progress = fn, args, kw, with_progress
+        self.result, self.error = None, ""
+
+    def run(self):
+        from ..aiid import AIError
+        kw = dict(self.kw)
+        if self.with_progress:
+            kw.update(progress=lambda i, n: self.progress.emit(i, n), should_stop=self.isInterruptionRequested)
+        try:
+            self.result = self.fn(*self.args, **kw)
+        except AIError as e:
+            self.error = str(e)
+        except Exception as e:  # noqa: BLE001
+            self.error = f"{type(e).__name__}: {e}"

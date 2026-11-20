@@ -42,7 +42,7 @@ class AIResult:
     raw_code: str = ""        # mã Gemini trả về (để báo khi không hợp lệ)
 
 
-def _http(url: str, data: dict | None = None, api_key: str = "", timeout: int = 90) -> dict:
+def _http(url: str, data: dict | None = None, api_key: str = "", timeout: int = 300) -> dict:
     body = json.dumps(data).encode("utf-8") if data is not None else None
     req = urllib.request.Request(url, data=body, method="POST" if body else "GET",
                                  headers={"Content-Type": "application/json", "x-goog-api-key": api_key})
@@ -75,8 +75,12 @@ class GeminiClient:
         return sorted(m["name"].split("/", 1)[1] for m in data.get("models", [])
                       if "generateContent" in m.get("supportedGenerationMethods", []))
 
-    def generate_json(self, prompt: str, retries: int = 2) -> dict:
-        body = {"contents": [{"role": "user", "parts": [{"text": prompt}]}],
+    provider = "gemini"
+
+    def generate_json(self, prompt: str, schema: dict | None = None, retries: int = 2, parts=None) -> dict:
+        if schema:
+            prompt += "\n\nJSON phải đúng lược đồ sau:\n" + json.dumps(schema, ensure_ascii=False)
+        body = {"contents": [{"role": "user", "parts": (parts or []) + [{"text": prompt}]}],
                 "generationConfig": {"temperature": 0.1, "responseMimeType": "application/json"}}
         last = None
         for attempt in range(retries + 1):
@@ -96,6 +100,12 @@ class GeminiClient:
                     continue
                 raise
         raise last
+
+
+    def generate_from_pdf(self, pdf_bytes: bytes, prompt: str, schema: dict | None = None) -> dict:
+        import base64
+        part = {"inline_data": {"mime_type": "application/pdf", "data": base64.b64encode(pdf_bytes).decode("ascii")}}
+        return self.generate_json(prompt, schema, parts=[part])
 
 
 def _loads_json(text: str) -> dict:

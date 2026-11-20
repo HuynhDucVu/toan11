@@ -165,3 +165,45 @@ def test_phase2_options(win, app, tmp_path, monkeypatch):
     n = win.gen_panel.t.rowCount()
     win.gen_panel.load_matrix()
     assert win.gen_panel.t.rowCount() == n
+
+
+def test_ai_assistant(win, app, monkeypatch):
+    import sys
+    sys.path.insert(0, os.path.dirname(__file__))
+    from test_v13_ai import TN, Fake
+    from nganhangde.ui.dialogs import ai_assistant, ai_settings
+    s = ai_settings.AiSettingsDialog(win)
+    s.cb_prov.setCurrentIndex(s.cb_prov.findData("claude"))
+    s.e_key.setText("k")
+    s.save()
+    assert win.settings.value("ai/provider") == "claude" and win.settings.value("ai/claude_key") == "k"
+    win.settings.setValue("ai/provider", "gemini")
+    monkeypatch.setattr(ai_assistant, "ensure_client", lambda w: Fake([TN, TN]))
+    d = ai_assistant.AiAssistantDialog(win)
+    win.table.selectRow(0)
+    d.sp_sim.setValue(2)
+    d.run_similar()
+    assert d.t.rowCount() == 2 and "\\begin{ex}" in d.view.toPlainText()
+    n = win.bank.count()
+    d.add_to_bank()
+    assert win.bank.count() == n + 1                     # 2 câu giống nhau ⇒ 1 câu bị coi là trùng
+    d.check_gaps()
+    d.e_ans.setPlainText("x = 1")
+    d.e_q.setPlainText("Giải phương trình")
+    d.run_grade()
+    assert "0,75" in d.grade_view.toPlainText() or "0.75" in d.grade_view.toPlainText()
+
+
+def test_draw_studio(win, app):
+    d = win.draw_panel
+    d.numline()
+    assert "tikzpicture" in d.code.toPlainText()
+    d.region()
+    assert "GTLN" in d.region_info.toPlainText()
+    d.cb_solid.setCurrentIndex(d.cb_solid.findData("lap_phuong"))
+    d.solid()
+    assert "(Dp)" in d.code.toPlainText()
+    d.e_gx.setText("(x^2+1)/(x-1)")
+    d.e_shade.setText("2; 3")
+    d.graph()
+    assert "x=1" in d.code.toPlainText() and "blue!20" in d.code.toPlainText()

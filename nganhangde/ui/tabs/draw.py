@@ -9,6 +9,7 @@ from PySide6.QtWidgets import (QApplication, QCheckBox, QComboBox, QFileDialog, 
     QHBoxLayout, QLabel, QLineEdit, QPlainTextEdit, QPushButton, QSpinBox, QTabWidget, QTextBrowser, QVBoxLayout,
     QWidget)
 from ..common import latex_editor
+from .draw_studio import DrawStudioMixin
 
 if TYPE_CHECKING:
     from ..main_window import MainWindow
@@ -106,8 +107,8 @@ class PlotView(QWidget):
         p.end()
 
 
-class DrawPanel(QWidget):
-    """Tab «Vẽ hình»: bảng biến thiên (tkz-tab), đồ thị hàm số, biểu đồ cột/quạt → mã TikZ."""
+class DrawPanel(DrawStudioMixin, QWidget):
+    """Tab «Vẽ hình»: bảng biến thiên, đồ thị (tiệm cận, tô miền), biểu đồ, trục số, miền nghiệm, hình khối."""
 
     def __init__(self, win: MainWindow):
         super().__init__()
@@ -118,13 +119,17 @@ class DrawPanel(QWidget):
         self.sub.addTab(self._bbt_tab(), "Bảng biến thiên")
         self.sub.addTab(self._graph_tab(), "Đồ thị hàm số")
         self.sub.addTab(self._chart_tab(), "Biểu đồ cột / quạt")
+        self.sub.addTab(self._numline_tab(), "Trục số")
+        self.sub.addTab(self._region_tab(), "Miền nghiệm")
+        self.sub.addTab(self._solid_tab(), "Hình khối")
         g = QGroupBox("Mã TikZ (dán vào đề bài hoặc lời giải)")
         gl = QVBoxLayout(g)
         self.code = latex_editor()
         self.code.setMaximumHeight(230)
         gl.addWidget(self.code)
         row = QHBoxLayout()
-        for text, fn in (("📋 Chép mã", self.copy), ("Lưu thành file .tex…", self.save)):
+        for text, fn in (("📋 Chép mã", self.copy), ("Lưu thành file .tex…", self.save),
+                         ("Xem trước PDF", self.preview_pdf)):
             b = QPushButton(text)
             b.clicked.connect(fn)
             row.addWidget(b)
@@ -235,6 +240,15 @@ class DrawPanel(QWidget):
         f.addRow("Đánh dấu điểm có x =", self.e_pts)
         f.addRow("Nhãn đồ thị", self.e_glabel)
         f.addRow("", self.c_grid)
+        self.c_asym = QCheckBox("Vẽ tiệm cận (đứng, ngang, xiên)")
+        self.c_asym.setChecked(True)
+        self.e_shade = QLineEdit()
+        self.e_shade.setPlaceholderText("vd 0; 2 – tô miền tích phân trên [0; 2]")
+        self.e_g2 = QLineEdit()
+        self.e_g2.setPlaceholderText("hàm thứ hai g(x) (tuỳ chọn), vd 2x")
+        f.addRow("", self.c_asym)
+        f.addRow("Tô miền trên đoạn", self.e_shade)
+        f.addRow("Hàm thứ hai", self.e_g2)
         b = QPushButton("Vẽ và tạo mã")
         b.setObjectName("primary")
         b.clicked.connect(self.graph)
@@ -257,8 +271,23 @@ class DrawPanel(QWidget):
             self._msg("Khoảng x hoặc y không hợp lệ", False)
             return
         self.gview.show_graph(f, v["xmin"], v["xmax"], v["ymin"], v["ymax"], pts)
-        self.code.setPlainText(dg.graph_tikz(self.e_gx.text(), v["xmin"], v["xmax"], v["ymin"], v["ymax"],
-                                             self.c_grid.isChecked(), self.e_glabel.text(), pts))
+        from ... import drawstudio as ds
+        shade = None
+        if self.e_shade.text().strip():
+            try:
+                a, b = [float(x.replace(",", ".")) for x in self.e_shade.text().replace(";", " ").split()][:2]
+                shade = (min(a, b), max(a, b))
+            except ValueError:
+                self._msg("Đoạn tô miền: nhập 2 số, vd 0; 2", False)
+                return
+        try:
+            self.code.setPlainText(ds.graph_plus_tikz(
+                self.e_gx.text(), v["xmin"], v["xmax"], v["ymin"], v["ymax"], grid=self.c_grid.isChecked(),
+                label=self.e_glabel.text(), points=pts, show_asymptotes=self.c_asym.isChecked(), shade=shade,
+                expr2=self.e_g2.text()))
+        except (dg.FuncError, ValueError) as e:
+            self._msg(str(e), False)
+            return
         self._msg("Đã tạo mã đồ thị.")
 
     # --- biểu đồ
