@@ -21,17 +21,12 @@ from .dialogs.edit import EditDialog
 from .dialogs.idmap import IdMapDialog
 from .dialogs.pdf import PdfResultDialog, PdfSettingsDialog, prepare_tex_for_pdf
 from .dialogs.update import UpdateDialog
-from .tabs.draw import DrawPanel
-from .tabs.generator import GeneratorPanel
-from .tabs.make_question import MakeQuestionPanel
-from .tabs.review import ReviewPanel
-from .tabs.stats import StatsPanel
-from .tabs.tools import ToolsPanel
 from .workers import BuildWorker
 from .bank_actions import BankActionsMixin
+from .layout import LayoutMixin
 
 
-class MainWindow(BankActionsMixin, QMainWindow):
+class MainWindow(LayoutMixin, BankActionsMixin, QMainWindow):
     def __init__(self, db_path: str | None = None):
         super().__init__()
         self.settings = QSettings("NganHangDe", "NganHangDe")
@@ -66,7 +61,8 @@ class MainWindow(BankActionsMixin, QMainWindow):
         m.addSeparator()
         self._act(m, "Gán ID cho câu đã chọn / câu thiếu ID…", self.assign_ids, "F3")
         self._act(m, "Gán ID tự động bằng AI…", lambda: self.assign_ids(use_ai=True), "Shift+F3")
-        self._act(m, "Trợ lý AI (câu tương tự, bù ma trận, PDF → LaTeX, chấm tự luận)…", self.ai_assistant, "Ctrl+I")
+        self._act(m, "Trợ lý AI (câu tương tự, bù ma trận, PDF → LaTeX, chấm tự luận)…", self.ai_assistant,
+                  "Ctrl+Shift+I")
         self._act(m, "Tìm và thay thế…", self.find_replace, "Ctrl+H")
         self._act(m, "Khôi phục câu đã xoá…", self.restore_deleted)
         m = mb.addMenu("Đề &thi")
@@ -106,6 +102,7 @@ class MainWindow(BankActionsMixin, QMainWindow):
         left = QWidget()
         ll = QVBoxLayout(left)
         ll.setContentsMargins(6, 6, 6, 6)
+        ll.addWidget(self._source_box())
         g = QGroupBox("Cây chương")
         gl = QVBoxLayout(g)
         self.tree = QTreeWidget()
@@ -155,17 +152,18 @@ class MainWindow(BankActionsMixin, QMainWindow):
         ll.addWidget(g, 2)
 
         # --- giữa: bảng câu hỏi
-        self.table = QTableWidget(0, 7)
-        self.table.setHorizontalHeaderLabels(["#", "Loại", "ID", "Mức độ", "Đáp án", "Đã dùng", "Nội dung"])
+        self.table = QTableWidget(0, 8)
+        self.table.setHorizontalHeaderLabels(["#", "Loại", "ID", "Mức độ", "Đáp án", "Đã dùng", "Diễn giải ID",
+                                              "Nội dung"])
         self.table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         self.table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         self.table.setAlternatingRowColors(True)
         self.table.verticalHeader().setVisible(False)
         self.table.setSortingEnabled(True)
         hh = self.table.horizontalHeader()
-        for c, w in enumerate((50, 100, 90, 100, 70, 60)):
+        for c, w in enumerate((50, 100, 90, 100, 70, 60, 220)):
             self.table.setColumnWidth(c, w)
-        hh.setSectionResizeMode(6, QHeaderView.ResizeMode.Stretch)
+        hh.setSectionResizeMode(7, QHeaderView.ResizeMode.Stretch)
         self.table.itemSelectionChanged.connect(self.on_select)
         self.table.doubleClicked.connect(lambda *_: self.edit_question())
 
@@ -211,25 +209,13 @@ class MainWindow(BankActionsMixin, QMainWindow):
         # --- cửa sổ chính chia tab
         self.main_tabs = QTabWidget()
         self.main_tabs.setObjectName("mainTabs")
-        self.main_tabs.addTab(split, "📚  Ngân hàng câu hỏi")
-        self.gen_panel = GeneratorPanel(self)
-        self.main_tabs.addTab(self.gen_panel, "📝  Tạo đề")
-        self.review_panel = ReviewPanel(self)
-        self.main_tabs.addTab(self.review_panel, "✅  Rà soát")
-        self.gen_q_panel = MakeQuestionPanel(self)
-        self.main_tabs.addTab(self.gen_q_panel, "🔢  Sinh câu")
-        self.draw_panel = DrawPanel(self)
-        self.main_tabs.addTab(self.draw_panel, "🎨  Vẽ hình")
-        self.tools_panel = ToolsPanel(self)
-        self.main_tabs.addTab(self.tools_panel, "🛠  Công cụ")
-        self.stats_panel = StatsPanel(self)
-        self.main_tabs.addTab(self.stats_panel, "📊  Thống kê")
+        self._build_tabs(split)
         self.main_tabs.currentChanged.connect(self.on_tab_changed)
         self.setCentralWidget(self.main_tabs)
         self.statusBar().showMessage("Sẵn sàng")
 
-    def on_tab_changed(self, idx):
-        w = self.main_tabs.widget(idx)
+    def on_tab_changed(self, _idx):
+        w = self.current_panel()
         if w is self.gen_panel:
             self.gen_panel.update_avail()
         elif w is self.stats_panel:
@@ -244,7 +230,7 @@ class MainWindow(BankActionsMixin, QMainWindow):
         return a
 
     # ---------------------------------------------------------- kho dữ liệu
-    def open_bank(self, path: str):
+    def open_bank(self, path: str, remember: bool = True):
         try:
             os.makedirs(os.path.dirname(os.path.abspath(path)), exist_ok=True)
             bank = Bank(path)
@@ -254,7 +240,8 @@ class MainWindow(BankActionsMixin, QMainWindow):
         if self.bank:
             self.bank.close()
         self.bank = bank
-        self.settings.setValue("db_path", os.path.abspath(path))
+        if remember:
+            self.settings.setValue("db_path", os.path.abspath(path))
         self.setWindowTitle(f"{APP_NAME} – {os.path.abspath(path)}")
         notes = []
         if bank.migrated_from:
@@ -386,12 +373,17 @@ class MainWindow(BankActionsMixin, QMainWindow):
                               lop=tf.get("lop"), mon=tf.get("mon"), chuong=tf.get("chuong"),
                               bai=tf.get("bai"), dang=tf.get("dang"))
         used = dict(self.bank.con.execute("SELECT id, used_count FROM questions").fetchall())
+        names = self.bank.idmap()
         self.table.setSortingEnabled(False)
         self.table.setRowCount(len(qs))
         for r, q in enumerate(qs):
             idc = parse_id(q.id_code) if q.id_code else None
+            expl = ""
+            if idc:
+                kb = idc.lop + idc.mon + idc.chuong + idc.bai
+                expl = names.get(f"{kb}-{idc.dang}") or names.get(kb) or names.get(kb[:3], "")
             vals = [q.db_id, TEN_LOAI[q.qtype], q.id_code, TEN_MUC.get(idc.muc_do, "") if idc else "",
-                    q.answer_text, used.get(q.db_id, 0), " ".join(q.stem.split())]
+                    q.answer_text, used.get(q.db_id, 0), expl, " ".join(q.stem.split())]
             for c, v in enumerate(vals):
                 it = QTableWidgetItem()
                 it.setData(Qt.ItemDataRole.DisplayRole, v)
@@ -620,11 +612,11 @@ class MainWindow(BankActionsMixin, QMainWindow):
         QMessageBox.information(self, "Xuất", f"Đã xuất {len(ids)} câu ra\n{p}")
 
     def check_file(self):
-        self.main_tabs.setCurrentWidget(self.tools_panel)
+        self.show_panel(self.tools_panel)
         self.tools_panel.check_file()
 
     def show_stats(self):
-        self.main_tabs.setCurrentWidget(self.stats_panel)
+        self.show_panel(self.stats_panel)
 
     # ---------------------------------------------------------- PDF
     def pdf_opts(self) -> dict:
@@ -704,10 +696,10 @@ class MainWindow(BankActionsMixin, QMainWindow):
         self.gen_panel.c_pdf.setEnabled(bool(self.engine(quiet=True)))
 
     def open_review(self):
-        self.main_tabs.setCurrentWidget(self.review_panel)
+        self.show_panel(self.review_panel)
 
     def open_generator(self):
-        self.main_tabs.setCurrentWidget(self.gen_panel)
+        self.show_panel(self.gen_panel)
 
     def about(self):
         QMessageBox.about(self, "Giới thiệu",

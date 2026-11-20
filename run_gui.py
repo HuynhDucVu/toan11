@@ -24,6 +24,7 @@ def selftest() -> int:
     import openpyxl  # noqa: F401  – cần cho file đáp án TNMaker
     import pypdf  # noqa: F401  – PDF → LaTeX (cắt trang)
     import anthropic  # noqa: F401  – nhà cung cấp AI Claude
+    import pypdfium2  # noqa: F401  – hoá ảnh hình TikZ
     from nganhangde.idmap import builtin_map
     nmap = len(builtin_map())
     import os as _os

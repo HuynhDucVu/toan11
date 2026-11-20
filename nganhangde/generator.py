@@ -106,14 +106,19 @@ def is_locked(q: Question) -> bool:
     return any(LOCK_RE.search(c) for c in q.choices)
 
 
-def shuffle_choices(q: Question, rng: random.Random, target: int | None = None) -> Question:
+def shuffle_choices(q: Question, rng: random.Random, target: int | None = None, fix_last: bool = False) -> Question:
     """Trộn phương án/ý. `target`: (chỉ TN) vị trí muốn đặt đáp án đúng – dùng để cân bằng A/B/C/D."""
     q = copy.deepcopy(q)
     if q.qtype not in ("TN", "DS") or len(q.choices) < 2 or is_locked(q):
         return q
     n = len(q.choices)
     perm = list(range(n))
-    rng.shuffle(perm)
+    if fix_last and n > 2:
+        head = perm[:-1]
+        rng.shuffle(head)
+        perm = head + [n - 1]
+    else:
+        rng.shuffle(perm)
     if q.qtype == "TN" and target is not None and sum(q.correct) == 1 and target < n:
         right = q.correct.index(True)
         k = perm.index(right)
@@ -147,6 +152,9 @@ class MixOptions:
     first_original: bool = False    # mã đề đầu tiên giữ nguyên thứ tự gốc (đề gốc)
     sort_by_level: bool = False     # trong mỗi phần xếp câu từ dễ đến khó (N → H → V → C)
     max_run: int = 3                # tối đa bao nhiêu câu liền nhau cùng đáp án (0 = không giới hạn)
+    shuffle_kq: bool = True         # trộn thứ tự câu Phần III (trả lời ngắn)
+    fix_ds_last: bool = False       # câu Đúng/Sai: giữ ý d ở cuối (chỉ trộn a, b, c)
+    tn_ratio: str = ""              # tỉ lệ đáp án A:B:C:D mong muốn, vd "3,3,3,3" (trống = chia đều)
 
 
 LEVEL_ORDER = {"N": 0, "Y": 0, "H": 1, "B": 1, "V": 2, "K": 2, "C": 3, "G": 3}
@@ -163,6 +171,22 @@ def group_key(q: Question) -> str:
         if t.lower().startswith("chum:"):
             return t[5:].strip()
     return ""
+
+
+def _ratio_targets(n: int, ratio: str) -> list[int]:
+    """n vị trí đích theo tỉ lệ A:B:C:D (vd '2,4,3,3'); trống ⇒ chia đều."""
+    try:
+        w = [max(0.0, float(x.replace(",", "."))) for x in ratio.replace(":", ";").replace(",", ";").split(";")
+             if x.strip()] if ratio.strip() else []
+    except ValueError:
+        w = []
+    if len(w) != 4 or sum(w) <= 0:
+        return [i % 4 for i in range(n)]
+    exact = [n * x / sum(w) for x in w]
+    cnt = [int(e) for e in exact]
+    for i in sorted(range(4), key=lambda i: exact[i] - cnt[i], reverse=True)[:n - sum(cnt)]:
+        cnt[i] += 1
+    return [i for i in range(4) for _ in range(cnt[i])]
 
 
 def _blocks(qs: list[Question]) -> list[list[Question]]:
@@ -202,8 +226,15 @@ def _mix_section(qs: list[Question], rng: random.Random, opt: MixOptions, keep_o
     if keep_order:
         return [copy.deepcopy(q) for q in qs]
     blocks = _blocks(qs)
-    if opt.shuffle_q:
-        rng.shuffle(blocks)
+    part = qs[0].qtype if qs else ""
+    if opt.shuffle_q and not (part == "KQ" and not opt.shuffle_kq):
+        regions: dict = {}
+        for b in blocks:
+            regions.setdefault(getattr(b[0], "region", 0), []).append(b)
+        blocks = []
+        for r in sorted(regions):                   # trộn trong từng vùng (%VUNG), giữ thứ tự các vùng
+            rng.shuffle(regions[r])
+            blocks += regions[r]
     if opt.sort_by_level:
         blocks.sort(key=lambda b: min(level_rank(q) for q in b))   # sort ổn định ⇒ vẫn ngẫu nhiên cùng mức
     qs = [q for b in blocks for q in b]
@@ -211,7 +242,7 @@ def _mix_section(qs: list[Question], rng: random.Random, opt: MixOptions, keep_o
     free_idx = [i for i, q in enumerate(qs) if q.qtype == "TN" and len(q.choices) == 4 and not is_locked(q)]
     target: dict[int, int] = {}
     if opt.balance and opt.shuffle_tn:
-        t = [i % 4 for i in range(len(free_idx))]
+        t = _ratio_targets(len(free_idx), opt.tn_ratio)
         rng.shuffle(t)
         target = dict(zip(free_idx, t))
 
@@ -219,7 +250,7 @@ def _mix_section(qs: list[Question], rng: random.Random, opt: MixOptions, keep_o
         if q.qtype == "TN":
             return shuffle_choices(q, rng, target.get(i)) if opt.shuffle_tn else copy.deepcopy(q)
         if q.qtype == "DS" and opt.shuffle_ds:
-            return shuffle_choices(q, rng)
+            return shuffle_choices(q, rng, fix_last=opt.fix_ds_last)
         return copy.deepcopy(q)
 
     out = [build(i, q) for i, q in enumerate(qs)]
@@ -304,13 +335,13 @@ def replacement_pool(bank: Bank, rules: list[Rule], q: Question, used_ids: set[i
 
 
 def make_codes(n: int, start: int = 101, digits: int = 3, randomize: bool = False,
-               rng: random.Random | None = None) -> list[str]:
+               rng: random.Random | None = None, step: int = 1) -> list[str]:
     """Sinh danh sách mã đề: liên tiếp từ `start` (vd 0101…0124 với digits=4) hoặc ngẫu nhiên không trùng."""
     if randomize:
         rng = rng or random.Random()
         lo, hi = 10 ** (digits - 1), 10 ** digits - 1
         return [str(x).zfill(digits) for x in sorted(rng.sample(range(lo, hi + 1), n))]
-    return [str(start + i).zfill(digits) for i in range(n)]
+    return [str(start + i * max(1, step)).zfill(digits) for i in range(n)]
 
 
 # Cấu trúc đề thi tốt nghiệp THPT môn Toán (từ 2025, giữ ổn định năm 2026)
@@ -383,3 +414,34 @@ def matrix_from_questions(qs: list[Question], level: str = "bai") -> list[Rule]:
     rules = [Rule(t, n, pat, md) for (t, pat, md), n in cnt.items()]
     order = {s: i for i, s in enumerate(SECTION_ORDER)}
     return sorted(rules, key=lambda r: order[r.qtype])
+
+
+# ---------------------------------------------------------------- đề tương tự đề mẫu
+def similar_exam(bank: Bank, sample: list[Question], rng: random.Random, *, same_level: bool = True,
+                 keep_missing: bool = True, exclude_ids=None) -> tuple[list[Question], list[str]]:
+    """Mỗi câu của đề mẫu được thay bằng một câu cùng ID (cùng dạng, cùng mức độ nếu same_level) lấy từ kho.
+
+    Trả về (bộ câu mới, ghi chú các câu không thay được). Câu không có ID/không có câu thay: giữ nguyên câu mẫu
+    (keep_missing) hoặc bỏ đi.
+    """
+    used = set(exclude_ids or ()) | {q.db_id for q in sample if q.db_id is not None}
+    fps = {q.fingerprint for q in sample}
+    out, notes = [], []
+    for i, q in enumerate(sample, 1):
+        cands = [c for c in bank.similar(q, same_level) if c.qtype == q.qtype and c.db_id not in used
+                 and c.fingerprint not in fps] if q.id_code else []
+        if not cands and same_level and q.id_code:
+            cands = [c for c in bank.similar(q, False) if c.qtype == q.qtype and c.db_id not in used
+                     and c.fingerprint not in fps]
+            if cands:
+                notes.append(f"Câu {i} [{q.id_code}]: không có câu cùng mức độ – lấy câu cùng dạng khác mức độ")
+        if cands:
+            c = rng.choice(cands)
+            used.add(c.db_id)
+            out.append(c)
+        else:
+            notes.append(f"Câu {i} [{q.id_code or 'chưa có ID'}]: kho không có câu tương tự – "
+                         + ("giữ câu mẫu" if keep_missing else "bỏ câu này"))
+            if keep_missing:
+                out.append(q)
+    return out, notes

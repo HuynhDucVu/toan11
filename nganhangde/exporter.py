@@ -46,6 +46,9 @@ class ExportOptions:
     omr_template: str = ""            # file .xlsx mẫu đáp án của phần mềm chấm (khi omr_profile = 'mau')
     qr_answers: bool = False          # in mã QR chứa đáp án trong file lời giải
     gas: bool = False                 # file Apps Script (.gs) tạo Google Form cho mỗi mã đề
+    answers_end: bool = False         # in bảng đáp án ở cuối chính file đề
+    even_pages: bool = False          # chèn trang trống để mỗi đề có số trang chẵn (in 2 mặt không dính đề sau)
+    answer_sheet: bool = False        # file phiếu trả lời: phiếu trắng + phiếu tô sẵn đáp án từng mã (phiếu khoá)
     slides: bool = False              # trình chiếu HTML (mã đề đầu tiên, mỗi câu một trang)
 
     def scoring_obj(self):
@@ -142,6 +145,10 @@ def export_versions(versions: list[ExamVersion], out_dir: str, *, template_path:
         common = dict(TEN_DE=ten_de, TRUONG=truong, THOI_GIAN=thoi_gian, MA_DE=v.code, **(opt.header or {}))
         for mode, prefix, sol in (("dethi", "de", False), ("loigiai", "loigiai", True)):
             body = version_body(v, sol, opt)
+            if not sol and opt.answers_end:
+                body += "\n\\newpage\n\\section*{Đáp án}\n" + answer_table_tex(v)
+            if not sol and opt.even_pages:
+                body += "\n\\clearpage\\ifodd\\value{page}\\else\\hbox{}\\thispagestyle{empty}\\newpage\\fi\n"
             if sol:
                 body += "\n\\section*{Bảng đáp án}\n" + answer_table_tex(v)
                 if opt.qr_answers:
@@ -200,6 +207,14 @@ def export_versions(versions: list[ExamVersion], out_dir: str, *, template_path:
                                    category=ten_de, scoring=opt.scoring_obj(),
                                    base_dir=os.path.dirname(os.path.abspath(template_path)) if template_path
                                    else out_dir))
+    if opt.answer_sheet and versions:
+        from .omr import sheet_document
+        for name, vs_ in (("phieu_tra_loi_trang.tex", None), ("phieu_dap_an_to_san.tex", versions)):
+            p = os.path.join(out_dir, name)
+            with open(p, "w", encoding="utf-8") as f:
+                f.write(sheet_document(vs_, {s: len(versions[0].sections.get(s) or [])
+                                             for s in ("TN", "DS", "KQ")} if vs_ is None else None))
+            files.append(p)
     if opt.gas:
         from .gas import export_gas
         files += export_gas(versions, out_dir, ten_de=ten_de, scoring=opt.scoring_obj())

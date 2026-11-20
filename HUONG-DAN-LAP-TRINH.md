@@ -60,6 +60,9 @@ nganhangde/
 ├── ai.py, ai_claude.py, ai_openai_compat.py  # nhiều nhà cung cấp AI: Gemini, Claude, OpenAI, DeepSeek, Grok
 ├── aitasks.py    # câu tương tự, bù câu thiếu ma trận, PDF → LaTeX, chấm tự luận, chẩn đoán lỗi biên dịch
 ├── drawstudio.py # trục số, miền nghiệm, tiệm cận + tô miền tích phân, hình khối
+├── drawmore.py   # bảng xét dấu, đường tròn lượng giác, đồ thị theo cực trị, vạch chia, điểm gióng
+├── geom.py       # dựng hình phẳng theo bước (điểm, giao, chân đường cao, tâm ngoại/nội tiếp…) → TikZ
+├── exportx.py    # Aiken, Quizizz, MS Forms, Blogger, hoá ảnh TikZ (pypdfium2), đề thường → ex_test
 ├── updater.py    # tự cập nhật: đọc Releases trên GitHub, tải exe, kiểm tra SHA-256, thay exe
 ├── editor.py     # mở file .tex bằng TeXstudio (nhảy tới dòng lỗi)
 ├── templates/nhd_extest.sty   # gói ex_test rút gọn dùng khi máy chưa cài ex_test
@@ -68,7 +71,9 @@ nganhangde/
 ├── data/map_id_toan_6_12.tex  # danh mục ID có sẵn Toán 6–12 (1 504 mục)
 ├── ui/           # Bước 7b: giao diện chính (PySide6/Qt), mỗi file < 40 KB
 │   ├── common.py, app.py, workers.py (QThread), main_window.py, bank_actions.py
-│   ├── tabs/     # generator, exam_options, review, make_question, draw, tools, stats
+│   ├── layout.py # bố cục 10 tab chính, show_panel(), chế độ xem câu hỏi từ file
+│   ├── tabs/     # generator, exam_options, mix_more (tự chọn/theo file/tương tự), panels_more (ma trận,
+│   │             # xuất & chuyển đổi, soạn thảo, thông tin), geometry, draw (+draw_studio), review, tools…
 │   └── dialogs/  # edit, swap, result, idmap, assign_id, ai_settings, update, pdf
 ├── gui_qt.py     # lớp tương thích: re-export mọi tên từ ui/ (mã cũ vẫn chạy)
 ├── gui.py        #          giao diện dự phòng (Tkinter)
@@ -724,6 +729,29 @@ Kĩ thuật chính trong `gui_qt.py`:
 * Cây chương được dựng từ `Bank.stats()`. Mỗi nút giữ một dict bộ lọc (`{"lop": "0", "chuong": "9"}`),
   khi bấm vào nút thì truyền dict đó cho `Bank.search()`.
 * Giao diện chỉ gọi các hàm của phần lõi, không chứa logic xử lí đề.
+
+## 9b. Bố cục 10 tab (bản 0.15)
+
+`LayoutMixin._build_tabs` dựng: Trộn đề (4 tab con) · Câu hỏi · Ma trận · Tiện ích (5 tab con) · Vẽ hình ·
+Đồ thị · BBT & Xét dấu · Biểu diễn nghiệm · Soạn thảo · Thông tin. Mỗi tab vẽ là một `DrawPanel(win, kinds)` chỉ
+dựng các tab con trong `kinds`. Vì panel có thể nằm trong tab con, dùng `win.show_panel(w)` để chuyển tới
+(thay cho `main_tabs.setCurrentWidget`) và `win.current_panel()` để biết panel đang hiện.
+
+**Xem câu hỏi từ file:** `view_files()` nạp các file vào một kho tạm (sao chép Map ID của kho chính) rồi
+`open_bank(tạm, remember=False)` – mọi chức năng lọc/xem/xuất dùng lại nguyên vẹn; `files_to_bank()` gộp kho tạm
+vào kho chính bằng `merge_from`; `back_to_bank()` mở lại kho chính.
+
+**Trộn theo vùng:** `parse_tex` gắn `q.region` theo số dòng `%VUNG` đứng trước câu; `_mix_section` xáo khối câu
+trong từng vùng và giữ thứ tự các vùng. **Tỉ lệ đáp án:** `_ratio_targets` chia số câu theo trọng số A:B:C:D
+(làm tròn theo phần dư lớn nhất); bước «không quá N câu liền nhau» đổi chéo vị trí đích nên giữ nguyên tỉ lệ.
+**Đề tương tự:** `generator.similar_exam` dùng `bank.similar()` (cùng ID, thiếu thì nới mức độ).
+
+**Dựng hình** (`geom.py`): mỗi bước là dict; `build()` tính toạ độ tuần tự (giao hai đường, chân đường vuông góc,
+tâm ngoại tiếp bằng công thức định thức, tâm nội tiếp theo trọng số độ dài cạnh, phép quay) và trả `Scene`;
+`Scene.tikz()` sinh TikZ thuần, `GeomView` vẽ cùng Scene bằng QPainter để xem trước.
+
+**Hoá ảnh TikZ:** biên dịch mọi hình trong một file `standalone` (mỗi hình một trang) rồi `pypdfium2` dựng ảnh;
+PNG được ghi trực tiếp bằng `zlib` (không cần Pillow).
 
 ## 10. Cài đặt, chạy và đóng gói file .exe
 

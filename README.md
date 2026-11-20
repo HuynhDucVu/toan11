@@ -1,6 +1,6 @@
 # toan11 – Ngân hàng đề thi LaTeX
 
-Phần mềm quản lý ngân hàng câu hỏi Toán định dạng `ex_test`. Các chức năng:
+Phần mềm quản lý ngân hàng câu hỏi Toán định dạng `ex_test`, chia 10 tab: Trộn đề · Câu hỏi · Ma trận · Tiện ích · Vẽ hình · Đồ thị · BBT & Xét dấu · Biểu diễn nghiệm · Soạn thảo · Thông tin. Các chức năng:
 
 * nhập file `.tex`, giải nghĩa ID theo chương/bài/dạng, tìm câu tương tự;
 * phân loại theo ID `[0D2N1-2]`, nạp file Map ID dạng gạch ngang, **gán ID** cho nhiều câu, **gợi ý ID tự động** và **gán ID bằng AI** (Gemini, Claude, OpenAI, DeepSeek, Grok);

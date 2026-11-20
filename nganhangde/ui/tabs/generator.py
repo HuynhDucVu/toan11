@@ -35,7 +35,9 @@ class GeneratorPanel(QWidget):
         body = QHBoxLayout()
         outer.addLayout(body, 1)
         lay = QVBoxLayout()
-        body.addWidget(scroll_of(lay), 2)
+        left = scroll_of(lay)
+        left.setMinimumWidth(460)            # đủ rộng cho ô nhập, không bị cắt chữ
+        body.addWidget(left, 2)
 
         g = QGroupBox("Thông tin đề")
         fl = QFormLayout(g)
@@ -134,20 +136,21 @@ class GeneratorPanel(QWidget):
         self.t.verticalHeader().setVisible(False)
         self.t.itemChanged.connect(lambda it: it.column() == 1 and self.update_avail())
         gl.addWidget(self.t)
-        row = QHBoxLayout()
-        for text, fn in (("Thêm dòng", self.add_row), ("Xoá dòng", self.del_row),
-                         ("Mở ma trận…", self.load_matrix), ("Lưu ma trận…", self.save_matrix),
-                         ("Ma trận từ đề có sẵn…", self.matrix_from_exam),
-                         ("In ma trận đặc tả…", self.print_matrix),
-                         ("Ma trận CV 7991…", self.export_cv7991),
-                         ("Kiểm tra số câu", self.update_avail)):
+        from PySide6.QtWidgets import QGridLayout
+        grid = QGridLayout()
+        for k, (text, fn) in enumerate((("Thêm dòng", self.add_row), ("Xoá dòng", self.del_row),
+                                        ("Kiểm tra số câu", self.update_avail), ("Mở ma trận…", self.load_matrix),
+                                        ("Lưu ma trận…", self.save_matrix),
+                                        ("Ma trận từ đề có sẵn…", self.matrix_from_exam),
+                                        ("In ma trận đặc tả…", self.print_matrix),
+                                        ("Ma trận CV 7991…", self.export_cv7991))):
             b = QPushButton(text)
             b.clicked.connect(fn)
-            row.addWidget(b)
-        row.addStretch()
+            grid.addWidget(b, k // 4, k % 4)
+        gl.addLayout(grid)
         self.l_total = QLabel()
-        row.addWidget(self.l_total)
-        gl.addLayout(row)
+        self.l_total.setWordWrap(True)
+        gl.addWidget(self.l_total)
         lay.addWidget(g, 1)
 
         row = QHBoxLayout()

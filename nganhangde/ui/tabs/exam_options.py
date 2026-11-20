@@ -14,7 +14,9 @@ class MixOptionsBox(QWidget):
              ("shuffle_ds", "Trộn thứ tự ý a, b, c, d câu Đúng/Sai", True),
              ("balance", "Cân bằng số đáp án A/B/C/D trong mỗi đề", True),
              ("first_original", "Mã đề đầu tiên giữ nguyên thứ tự (đề gốc)", False),
-             ("sort_by_level", "Trong mỗi phần xếp câu từ dễ đến khó (Nhận biết → Vận dụng cao)", False))
+             ("sort_by_level", "Trong mỗi phần xếp câu từ dễ đến khó (Nhận biết → Vận dụng cao)", False),
+             ("shuffle_kq", "Trộn thứ tự câu Phần III (trả lời ngắn)", True),
+             ("fix_ds_last", "Câu Đúng/Sai: giữ ý d) ở cuối (chỉ trộn a, b, c)", False))
 
     def __init__(self, settings, prefix):
         super().__init__()
@@ -38,15 +40,23 @@ class MixOptionsBox(QWidget):
         row.addWidget(QLabel("câu liền nhau có cùng đáp án (A A A …)"))
         row.addStretch()
         lay.addLayout(row)
+        row = QHBoxLayout()
+        row.addWidget(QLabel("Tỉ lệ đáp án A:B:C:D"))
+        self.e_ratio = QLineEdit(str(self.st.value(f"{prefix}/mix_tn_ratio", "")))
+        self.e_ratio.setPlaceholderText("trống = chia đều; vd 3,3,3,3 hoặc 2,4,3,3")
+        row.addWidget(self.e_ratio)
+        lay.addLayout(row)
         lay.addWidget(QLabel("<i>Câu chùm (gắn nhãn <code>%[chum:TÊN]</code>) luôn đứng liền nhau, giữ thứ tự.</i>"))
 
     def options(self) -> MixOptions:
-        return MixOptions(max_run=self.sp_run.value(), **{k: c.isChecked() for k, c in self.boxes.items()})
+        return MixOptions(max_run=self.sp_run.value(), tn_ratio=self.e_ratio.text().strip(),
+                          **{k: c.isChecked() for k, c in self.boxes.items()})
 
     def save(self):
         for k, c in self.boxes.items():
             self.st.setValue(f"{self.prefix}/mix_{k}", c.isChecked())
         self.st.setValue(f"{self.prefix}/mix_max_run", self.sp_run.value())
+        self.st.setValue(f"{self.prefix}/mix_tn_ratio", self.e_ratio.text())
 
 
 class ExamOptionsBox(QTabWidget):
@@ -81,11 +91,16 @@ class ExamOptionsBox(QTabWidget):
         f.addRow("Cách đánh mã", self.cb_codemode)
         f.addRow("Bắt đầu từ", self.sp_start)
         f.addRow("Độ dài mã", self.cb_digits)
+        self.sp_step = QSpinBox()
+        self.sp_step.setRange(1, 100)
+        self.sp_step.setValue(val("step", 1))
+        f.addRow("Mã đề cách nhau", self.sp_step)
         self.l_preview = QLabel()
         f.addRow("Ví dụ", self.l_preview)
         for w_ in (self.cb_codemode, self.cb_digits):
             w_.currentIndexChanged.connect(self._preview)
         self.sp_start.valueChanged.connect(self._preview)
+        self.sp_step.valueChanged.connect(self._preview)
         if show_codes:
             self.addTab(self.w_codes, "Mã đề")
 
@@ -101,8 +116,11 @@ class ExamOptionsBox(QTabWidget):
         self.c_scoring = QCheckBox("In thang điểm (theo tab «Thang điểm») trong file lời giải")
         self.c_showid = QCheckBox("In ID nhỏ sau mỗi câu trong file lời giải (bản giáo viên)")
         self.c_zip = QCheckBox("Nén toàn bộ kết quả thành 1 file .zip")
+        self.c_ans_end = QCheckBox("In bảng đáp án ở cuối file đề (trang riêng)")
+        self.c_even = QCheckBox("Chèn trang trống để mỗi đề có số trang chẵn (in 2 mặt)")
         for c, k in ((self.c_renum, "renumber"), (self.c_official, "official"), (self.c_scoring, "scoring"),
-                     (self.c_showid, "showid"), (self.c_zip, "zip")):
+                     (self.c_showid, "showid"), (self.c_zip, "zip"), (self.c_ans_end, "ans_end"),
+                     (self.c_even, "even")):
             c.setChecked(val(k, False))
             v.addWidget(c)
         v.addStretch()
@@ -176,6 +194,9 @@ class ExamOptionsBox(QTabWidget):
         note2.setWordWrap(True)
         f.addRow(note2)
         f.addRow(self.c_qr)
+        self.c_sheet = QCheckBox("Phiếu trả lời: phiếu trắng để in + phiếu tô sẵn đáp án từng mã (phiếu khoá)")
+        self.c_sheet.setChecked(val("sheet", False))
+        f.addRow(self.c_sheet)
         self.addTab(w, "Phiếu chấm")
 
         w = QWidget()
@@ -232,7 +253,7 @@ class ExamOptionsBox(QTabWidget):
         rnd = self.cb_codemode.currentData() == "rand"
         if rnd and preview:
             return ["(ngẫu nhiên)"]
-        return make_codes(n, self.sp_start.value(), self.cb_digits.currentData(), rnd)
+        return make_codes(n, self.sp_start.value(), self.cb_digits.currentData(), rnd, step=self.sp_step.value())
 
     def mix_options(self) -> MixOptions:
         return self.mix.options()
@@ -248,7 +269,8 @@ class ExamOptionsBox(QTabWidget):
                              diem=self.diem() if self._check_diem() else None,
                              omr_profile=self.cb_profile.currentData(), omr_template=self.e_omr_tpl.text().strip(),
                              qr_answers=self.c_qr.isChecked(), gas=self.c_gas.isChecked(),
-                             slides=self.c_slides.isChecked())
+                             slides=self.c_slides.isChecked(), answers_end=self.c_ans_end.isChecked(),
+                             even_pages=self.c_even.isChecked(), answer_sheet=self.c_sheet.isChecked())
 
     def apply_thpt2026(self):
         self.cb_codemode.setCurrentIndex(self.cb_codemode.findData("seq"))
@@ -268,6 +290,7 @@ class ExamOptionsBox(QTabWidget):
                       ("ds", self.cb_ds), ("sym", self.cb_sym), ("dec", self.cb_dec), ("profile", self.cb_profile)):
             self.st.setValue(f"{self.prefix}/opt_{k}", w_.currentData())
         self.st.setValue(f"{self.prefix}/opt_start", self.sp_start.value())
+        self.st.setValue(f"{self.prefix}/opt_step", self.sp_step.value())
         for k, e in (("diem_tn", self.e_tn), ("diem_ds", self.e_ds), ("diem_kq", self.e_kq), ("diem_tl", self.e_tl),
                      ("omr_tpl", self.e_omr_tpl)):
             self.st.setValue(f"{self.prefix}/opt_{k}", e.text())
@@ -275,5 +298,6 @@ class ExamOptionsBox(QTabWidget):
         for k, c in (("renumber", self.c_renum), ("official", self.c_official), ("scoring", self.c_scoring),
                      ("xlsx", self.c_xlsx), ("showid", self.c_showid), ("zip", self.c_zip),
                      ("online", self.c_online), ("online_sol", self.c_online_sol), ("moodle", self.c_moodle),
-                     ("word", self.c_word), ("gas", self.c_gas), ("slides", self.c_slides)):
+                     ("word", self.c_word), ("gas", self.c_gas), ("slides", self.c_slides),
+                     ("ans_end", self.c_ans_end), ("even", self.c_even), ("sheet", self.c_sheet)):
             self.st.setValue(f"{self.prefix}/opt_{k}", c.isChecked())

@@ -61,9 +61,9 @@ def test_main_tabs_and_panels(win, app, tmp_path):
     p.run()
     assert len(p.qs) == 3
     # vẽ hình
-    d = win.draw_panel
-    d.bbt_auto()
-    assert "tkzTabVar" in d.code.toPlainText()
+    win.bbt_panel.bbt_auto()
+    assert "tkzTabVar" in win.bbt_panel.code.toPlainText()
+    d = win.graph_panel
     d.graph()
     d.chart()
     assert "\\begin{tikzpicture}" in d.code.toPlainText()
@@ -195,15 +195,30 @@ def test_ai_assistant(win, app, monkeypatch):
 
 
 def test_draw_studio(win, app):
-    d = win.draw_panel
-    d.numline()
-    assert "tikzpicture" in d.code.toPlainText()
-    d.region()
-    assert "GTLN" in d.region_info.toPlainText()
-    d.cb_solid.setCurrentIndex(d.cb_solid.findData("lap_phuong"))
-    d.solid()
-    assert "(Dp)" in d.code.toPlainText()
+    s = win.sol_panel
+    s.numline()
+    assert "tikzpicture" in s.code.toPlainText()
+    s.region()
+    assert "GTLN" in s.region_info.toPlainText()
+    s.trig()
+    assert "circle" in s.code.toPlainText()
+    v = win.solid_panel
+    v.cb_solid.setCurrentIndex(v.cb_solid.findData("lap_phuong"))
+    v.solid()
+    assert "(Dp)" in v.code.toPlainText()
+    b = win.bbt_panel
+    b.sign_auto()
+    assert "tkzTabLine" in b.code.toPlainText()
+    d = win.graph_panel
+    d.e_ext.setText("-1;3;1;-1")
+    d.from_extrema()
+    assert d.e_gx.text() == "x^3 - 3x + 1"
+    d.e_xt.setText("-1, 1")
+    d.graph()
+    assert "dashed] (-1,0)" in d.code.toPlainText()
     d.e_gx.setText("(x^2+1)/(x-1)")
+    d.e_guides.setText("")
+    d.e_xt.setText("")
     d.e_shade.setText("2; 3")
     d.graph()
     assert "x=1" in d.code.toPlainText() and "blue!20" in d.code.toPlainText()
@@ -227,3 +242,54 @@ def test_arena_dialog_and_present(win, app, monkeypatch, tmp_path):
     win.present()
     assert opened and opened[-1].endswith("trinh_chieu.html")
     win.tree.setCurrentItem(win.tree.topLevelItem(0))
+
+
+def test_new_tabs(win, app, monkeypatch, tmp_path):
+    from PySide6.QtGui import QDesktopServices
+    from PySide6.QtWidgets import QFileDialog
+    from nganhangde import gui_qt
+    gui_qt.ResultDialog.exec = lambda self: 0
+    monkeypatch.setattr(QDesktopServices, "openUrl", staticmethod(lambda *a: True))
+    assert win.main_tabs.count() == 10
+    win.show_panel(win.similar_panel)
+    assert win.current_panel() is win.similar_panel
+    win.gen_panel.e_out[0].setText(str(tmp_path / "out"))
+    win.gen_panel.c_pdf.setChecked(False)
+    win.table.selectAll()
+    win.pick_panel.add_selected()
+    assert len(win.pick_panel.basket) == 22
+    win.pick_panel.sp_n.setValue(2)
+    win.pick_panel.generate()
+    assert (tmp_path / "out" / "de_101.tex").exists() or any((tmp_path / "out").glob("de_*.tex"))
+    win.filemix_panel.e_file.setText(SAMPLE)
+    win.filemix_panel.generate()
+    win.similar_panel.e_file.setText(SAMPLE)
+    win.similar_panel.generate()
+    win.matrix_panel.reload()
+    assert win.matrix_panel.t.rowCount() >= 1
+    g = win.geom_panel
+    g.cb_tpl.setCurrentIndex(1)
+    g.load_template()
+    assert "tikzpicture" in g.code.toPlainText()
+    g.cb_kind.setCurrentIndex(g.cb_kind.findData("trung_diem"))
+    g.edits["ten"].setText("M")
+    g.edits["A"].setText("B")
+    g.edits["B"].setText("C")
+    g.add_step()
+    assert "M" in g.view.scene.pts
+    c = win.convert_panel
+    c.e_files.setText(SAMPLE)
+    monkeypatch.setattr(QFileDialog, "getSaveFileName", staticmethod(lambda *a, **k: (str(tmp_path / "x.txt"), "")))
+    c.aiken()
+    assert "ANSWER" in (tmp_path / "x.txt").read_text(encoding="utf-8")
+    e = win.editor_panel
+    e.insert(open(SAMPLE, encoding="utf-8").read())
+    e.review()
+    assert "câu" in e.out.toPlainText()
+    monkeypatch.setattr(QFileDialog, "getOpenFileNames", staticmethod(lambda *a, **k: ([SAMPLE], "")))
+    main = win.bank.path
+    win.view_files()
+    assert win.file_mode and win.bank.path != main and win.table.rowCount() == 22
+    assert any(win.table.item(r, 6).text() for r in range(win.table.rowCount()))
+    win.back_to_bank()
+    assert win.bank.path == main and not win.file_mode

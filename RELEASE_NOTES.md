@@ -11,7 +11,26 @@ Với bản một file:
 
 Kho câu hỏi `nganhang.db` nằm cạnh file exe. Cập nhật từ bản cũ: chỉ cần thay file exe, kho giữ nguyên.
 
-## Có gì mới ở bản 0.14.0 – Giai đoạn 4: phòng thi LAN, Google Forms, trình chiếu, bộ cài
+## Có gì mới ở bản 0.15.0 – Bố cục theo nhóm chức năng, bổ sung theo MyLT 2026
+Cửa sổ chính chia thành 10 tab: **Trộn đề · Câu hỏi · Ma trận · Tiện ích · Vẽ hình · Đồ thị · BBT & Xét dấu · Biểu diễn nghiệm · Soạn thảo · Thông tin**.
+- **Trộn đề** có 4 cách:
+  - *Theo ma trận ID* (như cũ);
+  - *Tự chọn câu*: nhặt từng câu vào «giỏ đề», sắp thứ tự rồi trộn;
+  - *Theo file*: trộn thẳng file .tex; thêm dòng `%VUNG` để **trộn theo vùng** (câu chỉ đổi chỗ trong vùng);
+  - *Đề tương tự*: từ một đề mẫu, mỗi câu được thay bằng câu cùng ID trong kho (mỗi mã đề một bộ khác nhau nếu muốn).
+- **Tuỳ chọn trộn đề** thêm: mã đề cách nhau N; tỉ lệ đáp án A:B:C:D; trộn/không trộn câu trả lời ngắn; giữ ý d) cố định ở câu Đúng/Sai; đáp án ở cuối file đề; chèn trang trống cho đủ số trang chẵn (in 2 mặt); **phiếu trả lời** (phiếu trắng + phiếu tô sẵn đáp án từng mã).
+- **Câu hỏi:** cột **Diễn giải ID**; cây chi tiết tới bài, dạng; nút **Từ file…** để xem/lọc câu trong file .tex mà không cần nạp vào kho, rồi **Nạp vào kho** nếu muốn.
+- **Ma trận:** bảng theo CV 7991 cập nhật ngay theo ma trận đang soạn, điểm từng phần, báo dòng kho còn thiếu, nút bù câu thiếu bằng AI.
+- **Tiện ích → Xuất & chuyển đổi:** Moodle, **Aiken**, **Quizizz** (Excel), **Microsoft Forms** (Word, nhập nhanh), Google Forms, **Blogger**, bài làm online; **phiếu trả lời** (trắng, tô theo đề, tô theo chuỗi đáp án); **hoá ảnh hình TikZ** (PNG); **đề LaTeX gõ thường → ex_test**; Word ↔ LaTeX; trình chiếu.
+- **Vẽ hình:** **dựng hình phẳng theo từng bước** (điểm, trung điểm, giao điểm, chân đường vuông góc, trọng tâm, tâm ngoại/nội tiếp, phép quay, đoạn, đường thẳng, đa giác, đường tròn, elip, đường cong, kí hiệu góc vuông, cung góc, đoạn bằng nhau, tô miền, chữ), xem trước ngay, sửa/đổi thứ tự/xoá bước, lưu và mở lại; 8 hình mẫu; hình khối.
+- **Đồ thị:** 15 mẫu hàm số thường gặp; **đồ thị theo cực trị** (bậc ba, trùng phương); giá trị tuỳ chọn trên Ox, Oy (kể cả π/2, π); **điểm gióng**.
+- **BBT & Xét dấu:** thêm **bảng xét dấu** tự động (tích, thương, đa thức) hoặc nhập tay.
+- **Biểu diễn nghiệm:** trục số, miền nghiệm, **đường tròn lượng giác** (gõ `pi/6 + k2pi` → các điểm ngọn cung).
+- **Soạn thảo:** soạn đề với nút chèn nhanh câu TN, Đúng/Sai, trả lời ngắn, tự luận, công thức; rà soát; biên dịch PDF; nạp vào kho.
+- **Thông tin:** phiên bản, kiểm tra cập nhật, hướng dẫn.
+- Sửa: phím tắt Ctrl+I bị trùng (Nhập file .tex và Trợ lý AI) – Trợ lý AI nay là Ctrl+Shift+I. Nhận «Đáp án: B» đặt sau các phương án khi chuyển Word/LaTeX thường sang ex_test.
+
+## Bản 0.14.0 – Giai đoạn 4: phòng thi LAN, Google Forms, trình chiếu, bộ cài
 - **Phòng thi LAN** (Đề thi → Phòng thi LAN): máy giáo viên phát đề qua Wi-Fi, học sinh làm bài trên điện thoại/máy tính (không cần cài gì, **không cần Internet**). Trang làm bài **không chứa đáp án** – máy giáo viên chấm, xem **bảng điểm trực tiếp**, mở bảng điểm lên máy chiếu, xuất CSV.
 - **Trình chiếu chữa đề** (Đề thi → Trình chiếu, F11): mỗi câu một trang toàn màn hình, phím A hiện đáp án, L hiện lời giải, **B bút vẽ** lên màn hình, T bấm giờ, N nền tối. Cũng xuất được cùng lúc với đề (tab Online / Word).
 - **Google Forms:** xuất file Apps Script (.gs) – dán vào script.google.com, bấm Chạy là có bài kiểm tra trên Google Form (công thức đổi sang chữ thường; Đúng/Sai tách 4 câu; trả lời ngắn chấm tay – giới hạn của Google Forms).

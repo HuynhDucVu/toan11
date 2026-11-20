@@ -208,6 +208,10 @@ def latex_text_to_ex(text: str, tag: str = "") -> list[str]:
                 mode = "ds"
                 continue
             ma = ANS_RE.match(s)
+            if ma and cur["opts"] and re.fullmatch(r"\s*\(?([A-Da-d])\)?\.?\s*", ma.group(2)):
+                letter = re.sub(r"[^A-Da-d]", "", ma.group(2)).upper()      # «Đáp án: B» sau các phương án
+                cur["opts"] = [(L, L.upper() == letter, t) for L, _mk, t in cur["opts"]]
+                continue
             if ma and not cur["opts"] and not cur["ds"]:
                 a = ma.group(2).strip()
                 a = re.sub(r"\s+", "", a)                       # «- 4» → «-4»

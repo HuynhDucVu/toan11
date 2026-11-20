@@ -2,5 +2,6 @@ PySide6-Essentials>=6.6
 openpyxl>=3.1
 anthropic>=0.70
 pypdf>=4.0
+pypdfium2>=4.0
 pyinstaller>=6.0
 pytest

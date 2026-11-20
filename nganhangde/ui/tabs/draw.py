@@ -9,7 +9,7 @@ from PySide6.QtWidgets import (QApplication, QCheckBox, QComboBox, QFileDialog, 
     QHBoxLayout, QLabel, QLineEdit, QPlainTextEdit, QPushButton, QSpinBox, QTabWidget, QTextBrowser, QVBoxLayout,
     QWidget)
 from ..common import latex_editor
-from .draw_studio import DrawStudioMixin
+from .draw_studio import DrawMoreMixin, DrawStudioMixin
 
 if TYPE_CHECKING:
     from ..main_window import MainWindow
@@ -107,21 +107,25 @@ class PlotView(QWidget):
         p.end()
 
 
-class DrawPanel(DrawStudioMixin, QWidget):
+class DrawPanel(DrawMoreMixin, DrawStudioMixin, QWidget):
     """Tab «Vẽ hình»: bảng biến thiên, đồ thị (tiệm cận, tô miền), biểu đồ, trục số, miền nghiệm, hình khối."""
 
-    def __init__(self, win: MainWindow):
+    ALL = ("bbt", "sign", "graph", "chart", "numline", "trig", "region", "solid")
+    NAMES = {"bbt": "Bảng biến thiên", "sign": "Bảng xét dấu", "graph": "Đồ thị hàm số", "chart": "Biểu đồ cột / quạt",
+             "numline": "Trục số", "trig": "Đường tròn lượng giác", "region": "Miền nghiệm", "solid": "Hình khối"}
+
+    def __init__(self, win: MainWindow, kinds=ALL):
         super().__init__()
         self.win = win
+        self.kinds = tuple(kinds)
         lay = QVBoxLayout(self)
         self.sub = QTabWidget()
         lay.addWidget(self.sub, 1)
-        self.sub.addTab(self._bbt_tab(), "Bảng biến thiên")
-        self.sub.addTab(self._graph_tab(), "Đồ thị hàm số")
-        self.sub.addTab(self._chart_tab(), "Biểu đồ cột / quạt")
-        self.sub.addTab(self._numline_tab(), "Trục số")
-        self.sub.addTab(self._region_tab(), "Miền nghiệm")
-        self.sub.addTab(self._solid_tab(), "Hình khối")
+        build = {"bbt": self._bbt_tab, "sign": self._sign_tab, "graph": self._graph_tab, "chart": self._chart_tab,
+                 "numline": self._numline_tab, "trig": self._trig_tab, "region": self._region_tab,
+                 "solid": self._solid_tab}
+        for k in self.kinds:
+            self.sub.addTab(build[k](), self.NAMES[k])
         g = QGroupBox("Mã TikZ (dán vào đề bài hoặc lời giải)")
         gl = QVBoxLayout(g)
         self.code = latex_editor()
@@ -249,6 +253,7 @@ class DrawPanel(DrawStudioMixin, QWidget):
         f.addRow("", self.c_asym)
         f.addRow("Tô miền trên đoạn", self.e_shade)
         f.addRow("Hàm thứ hai", self.e_g2)
+        self._graph_extras(f)
         b = QPushButton("Vẽ và tạo mã")
         b.setObjectName("primary")
         b.clicked.connect(self.graph)
@@ -281,10 +286,11 @@ class DrawPanel(DrawStudioMixin, QWidget):
                 self._msg("Đoạn tô miền: nhập 2 số, vd 0; 2", False)
                 return
         try:
-            self.code.setPlainText(ds.graph_plus_tikz(
+            code = ds.graph_plus_tikz(
                 self.e_gx.text(), v["xmin"], v["xmax"], v["ymin"], v["ymax"], grid=self.c_grid.isChecked(),
                 label=self.e_glabel.text(), points=pts, show_asymptotes=self.c_asym.isChecked(), shade=shade,
-                expr2=self.e_g2.text()))
+                expr2=self.e_g2.text())
+            self.code.setPlainText(self._apply_graph_extras(code))
         except (dg.FuncError, ValueError) as e:
             self._msg(str(e), False)
             return

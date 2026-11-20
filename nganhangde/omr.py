@@ -148,3 +148,113 @@ def fill_template(versions: list[ExamVersion], template: str, out_path: str, opt
                 return out_path
     raise ValueError("Không nhận ra file mẫu: cần một ô tiêu đề «Mã đề» (mẫu ngang) hoặc «Câu» (mẫu dọc) "
                      "trong 15 dòng đầu, kèm các nhãn câu như 1, 2, … hoặc I.1, II.1a, III.1.")
+
+
+# ---------------------------------------------------------------- phiếu trả lời (in / tô sẵn đáp án)
+def _bub(x, y, txt, filled=False, r=0.17):
+    fill = "black" if filled else "white"
+    color = "white" if filled else "black"
+    return (f"\\draw[fill={fill}] ({x:.2f},{y:.2f}) circle ({r});"
+            f"\\node[font=\\tiny,text={color}] at ({x:.2f},{y:.2f}){{{txt}}};")
+
+
+def sheet_tikz(n_tn=40, n_ds=8, n_kq=6, code="", key=None, title="PHIẾU TRẢ LỜI TRẮC NGHIỆM",
+               code_digits=3, sbd_digits=6) -> str:
+    """Phiếu trả lời 3 phần (TN · Đúng/Sai · Trả lời ngắn). key = None (phiếu trắng) hoặc đáp án một mã đề
+    {'TN': ['A', …], 'DS': [[True, False, …], …], 'KQ': ['0,5', …]} để tô sẵn (phiếu khoá cho phần mềm chấm)."""
+    key = key or {}
+    L = ["\\begin{tikzpicture}[x=1cm,y=1cm]",
+         "\\draw[thick] (0,0) rectangle (19,-26.5);",
+         f"\\node[font=\\bfseries\\large] at (9.5,-0.6){{{title}}};",
+         "\\node[anchor=west] at (0.4,-1.4){Họ và tên: \\makebox[7cm]{\\dotfill}};",
+         "\\node[anchor=west] at (0.4,-2.1){Lớp: \\makebox[2.5cm]{\\dotfill}\\quad Phòng: \\makebox[2cm]{\\dotfill}};"]
+    # số báo danh + mã đề
+    def digit_block(x0, label, n, value=""):
+        out = [f"\\node[font=\\small\\bfseries] at ({x0 + (n - 1) * 0.225:.2f},-1.3){{{label}}};"]
+        for j in range(n):
+            ch = value[j] if j < len(value) else ""
+            out.append(f"\\draw ({x0 + j * 0.45 - 0.2:.2f},-1.55) rectangle ({x0 + j * 0.45 + 0.2:.2f},-1.95);")
+            if ch:
+                out.append(f"\\node[font=\\small] at ({x0 + j * 0.45:.2f},-1.75){{{ch}}};")
+            for d in range(10):
+                out.append(_bub(x0 + j * 0.45, -2.3 - d * 0.42, str(d), ch == str(d)))
+        return out
+    L += digit_block(11.0, "Số báo danh", sbd_digits)
+    L += digit_block(14.6 + (6 - sbd_digits) * 0.3, "Mã đề", code_digits, str(code)[-code_digits:] if code else "")
+    # Phần I
+    y0 = -6.9
+    L.append(f"\\node[anchor=west,font=\\bfseries] at (0.3,{y0}){{PHẦN I. Câu trắc nghiệm nhiều phương án lựa chọn}};")
+    tn = key.get("TN") or []
+    cols = max(1, -(-n_tn // 10))
+    for c in range(cols):
+        x0 = 0.9 + c * (18 / max(cols, 4))
+        for j, letter in enumerate("ABCD"):
+            L.append(f"\\node[font=\\scriptsize\\bfseries] at ({x0 + 0.6 + j * 0.45:.2f},{y0 - 0.45}){{{letter}}};")
+        for r in range(10):
+            i = c * 10 + r
+            if i >= n_tn:
+                break
+            y = y0 - 0.9 - r * 0.42
+            L.append(f"\\node[font=\\scriptsize] at ({x0:.2f},{y:.2f}){{{i + 1}}};")
+            for j, letter in enumerate("ABCD"):
+                L.append(_bub(x0 + 0.6 + j * 0.45, y, letter, i < len(tn) and tn[i] == letter))
+    # Phần II
+    y0 = -12.2
+    L.append(f"\\node[anchor=west,font=\\bfseries] at (0.3,{y0}){{PHẦN II. Câu trắc nghiệm đúng sai}};")
+    ds = key.get("DS") or []
+    per_row = 4
+    for i in range(n_ds):
+        bx = 0.9 + (i % per_row) * 4.5
+        by = y0 - 0.6 - (i // per_row) * 2.6
+        L.append(f"\\node[font=\\scriptsize\\bfseries] at ({bx + 0.9:.2f},{by:.2f}){{Câu {i + 1}}};")
+        L.append(f"\\node[font=\\tiny] at ({bx + 0.7:.2f},{by - 0.35:.2f}){{Đúng}};"
+                 f"\\node[font=\\tiny] at ({bx + 1.3:.2f},{by - 0.35:.2f}){{Sai}};")
+        for k, y_ in enumerate("abcd"):
+            yy = by - 0.75 - k * 0.42
+            L.append(f"\\node[font=\\scriptsize] at ({bx:.2f},{yy:.2f}){{{y_})}};")
+            val = ds[i][k] if i < len(ds) and k < len(ds[i]) else None
+            L.append(_bub(bx + 0.7, yy, "", val is True))
+            L.append(_bub(bx + 1.3, yy, "", val is False))
+    # Phần III
+    y0 = -18.0
+    L.append(f"\\node[anchor=west,font=\\bfseries] at (0.3,{y0}){{PHẦN III. Câu trắc nghiệm trả lời ngắn}};")
+    kq = key.get("KQ") or []
+    for i in range(n_kq):
+        bx = 0.9 + i * 3.0
+        ans = (kq[i] if i < len(kq) else "").replace(".", ",")
+        ans = ans if len(ans) <= 4 else ""
+        L.append(f"\\node[font=\\scriptsize\\bfseries] at ({bx + 0.7:.2f},{y0 - 0.5:.2f}){{Câu {i + 1}}};")
+        for j in range(4):
+            ch = ans[j] if j < len(ans) else ""
+            x = bx + j * 0.45
+            L.append(f"\\draw ({x - 0.2:.2f},{y0 - 0.8:.2f}) rectangle ({x + 0.2:.2f},{y0 - 1.2:.2f});")
+            if ch:
+                L.append(f"\\node[font=\\small] at ({x:.2f},{y0 - 1.0:.2f}){{{ch}}};")
+            rows = (["-"] if j == 0 else []) + ([","] if j in (1, 2) else []) + [str(d) for d in range(10)]
+            yy = y0 - 1.5
+            for sym in ["-", ","] + [str(d) for d in range(10)]:
+                if sym in rows:
+                    L.append(_bub(x, yy, sym if sym != "," else "{,}", ch == sym))
+                yy -= 0.42
+    L.append("\\end{tikzpicture}")
+    return "\n".join(L)
+
+
+def sheet_document(versions=None, blank_counts=None, title="PHIẾU TRẢ LỜI TRẮC NGHIỆM") -> str:
+    """Tài liệu LaTeX: mỗi trang một phiếu. versions → phiếu tô sẵn đáp án từng mã; không có → 1 phiếu trắng."""
+    from .exporter import plain_answer
+    pages = []
+    if versions:
+        for v in versions:
+            key = {"TN": [q.answer_text for q in v.sections.get("TN") or []],
+                   "DS": [list(q.correct) for q in v.sections.get("DS") or []],
+                   "KQ": [plain_answer(q.answer_text) for q in v.sections.get("KQ") or []]}
+            n = {s: max(len(v.sections.get(s) or []), 1) for s in ("TN", "DS", "KQ")}
+            pages.append(sheet_tikz(max(n["TN"], 12), n["DS"], n["KQ"], v.code, key, title,
+                                    code_digits=max(3, len(v.code))))
+    else:
+        c = blank_counts or PHIEU_2025
+        pages.append(sheet_tikz(c.get("TN", 40), c.get("DS", 8), c.get("KQ", 6), title=title))
+    return ("\\documentclass{article}\n\\usepackage[utf8]{vietnam}\n\\usepackage{tikz}\n"
+            "\\usepackage[a4paper,margin=1cm]{geometry}\n\\pagestyle{empty}\n\\begin{document}\n"
+            + "\n\\newpage\n".join("\\noindent\\centering\n" + p for p in pages) + "\n\\end{document}\n")

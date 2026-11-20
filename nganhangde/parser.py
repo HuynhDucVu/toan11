@@ -147,11 +147,19 @@ def parse_block(env: str, body: str) -> Question:
     return q
 
 
+REGION_RE = re.compile(r"^[ \t]*%+[ \t]*(?:VUNG|VÙNG|vung|vùng)\b.*$", re.M)
+
+
 def parse_tex(text: str) -> list[Question]:
+    """Tách câu hỏi. Dòng chú thích «%VUNG» chia đề thành các vùng: khi trộn, câu chỉ đổi chỗ trong vùng của nó
+    (nhãn vung:1, vung:2… gắn vào câu)."""
     out = []
+    marks = [m.start() for m in REGION_RE.finditer(text)]
     for m in ENV_RE.finditer(text):
         q = parse_block(m.group(1), m.group(2))
         q.raw = m.group(0)
+        if marks:
+            q.region = sum(1 for p in marks if p < m.start())
         out.append(q)
     return out
 
