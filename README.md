@@ -4,8 +4,9 @@ Phần mềm quản lý ngân hàng câu hỏi Toán định dạng `ex_test`. C
 
 * nhập file `.tex`, giải nghĩa ID theo chương/bài/dạng, tìm câu tương tự;
 * phân loại theo ID `[0D2N1-2]`, nạp file Map ID dạng gạch ngang, **gán ID** cho nhiều câu, **gợi ý ID tự động** và **gán ID bằng Gemini (AI)**;
-* lọc câu và chống câu trùng;
-* **rà soát đáp án và lời giải** (đáp án lệch lời giải, Đúng/Sai ngược, đáp án trả lời ngắn sai dạng, lỗi LaTeX), **tự sửa** và bỏ câu sai;
+* lọc câu, **tìm kiếm không dấu** (FTS5), chống câu trùng; **danh mục ID Toán 6–12 có sẵn**; hỗ trợ ex_test 3.3;
+* **lịch sử ra đề**, tránh lặp câu giữa các bài kiểm tra gần nhau;
+* **rà soát đáp án và lời giải** (đáp án lệch lời giải, Đúng/Sai ngược, đáp án trả lời ngắn sai dạng theo CV 1239, ảnh thiếu, lỗi LaTeX), **tự sửa** và bỏ câu sai;
 * trộn đề theo ma trận hoặc trộn trực tiếp từ file, cân bằng đáp án A/B/C/D, **chuẩn đề tốt nghiệp THPT 2026** (24 mã 0101…0124), **đáp án Excel cho TNMaker**;
 * sao lưu, gộp và tách kho;
 * **sinh câu hỏi số** từ câu mẫu có tham số; **vẽ hình**: bảng biến thiên tự động, đồ thị hàm số, biểu đồ → mã TikZ;

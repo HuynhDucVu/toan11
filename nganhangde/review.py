@@ -166,6 +166,9 @@ def check_ds(q: Question) -> list[Issue]:
     out = []
     if len(q.choices) != 4:
         out.append(Issue(LOI, "so_y", f"Có {len(q.choices)} ý (cần 4)"))
+    if len(q.correct) == 4 and len(set(q.correct)) == 1:
+        out.append(Issue(CANH_BAO, "ds_dong_nhat",
+                         f"Cả 4 ý đều {'Đúng' if q.correct[0] else 'Sai'} – xem lại độ phân hoá của câu"))
     if q.solution:
         marks = _ds_solution_marks(q.solution)
         if marks and len(marks) == len(q.choices):
@@ -186,12 +189,19 @@ def check_kq(q: Question) -> list[Issue]:
     a = plain_number(q.short_answer)
     if not a:
         return [Issue(LOI, "kq_rong", "Chưa có đáp án trả lời ngắn")]
+    if re.search(r"\\[dt]?frac|\d\s*/\s*\d", q.short_answer):
+        out.append(Issue(LOI, "kq_phanso", f"Đáp án «{q.short_answer}» là phân số – phiếu thi (CV 1239) chỉ tô được "
+                                           "số: đổi sang số thập phân và ghi rõ yêu cầu làm tròn trong đề"))
+        return out
     if re.search(r"\d\.\d", q.short_answer):
         out.append(Issue(CANH_BAO, "kq_cham", f"Đáp án «{q.short_answer}» dùng dấu chấm thập phân (phiếu thi dùng dấu phẩy)"))
     if not NUMBER_RE.match(a):
-        out.append(Issue(LOI, "kq_so", f"Đáp án «{q.short_answer}» không phải một số (phiếu thi chỉ tô được số)"))
+        hint = " (có chữ/đơn vị đo – chỉ ghi số)" if re.search(r"[A-Za-zÀ-ỹ]", a.replace("\\", "")) else ""
+        out.append(Issue(LOI, "kq_so", f"Đáp án «{q.short_answer}» không phải một số{hint} – phiếu thi chỉ tô được "
+                                       "chữ số 0–9, dấu - và dấu phẩy"))
     elif len(a) > 4:
-        out.append(Issue(CANH_BAO, "kq_dai", f"Đáp án «{a}» dài {len(a)} kí tự, phiếu thi chỉ có 4 ô"))
+        out.append(Issue(LOI, "kq_dai", f"Đáp án «{a}» dài {len(a)} kí tự, phiếu thi (CV 1239) chỉ có 4 ô – "
+                                        "sửa đề (làm tròn, đổi đơn vị) để đáp án ≤ 4 kí tự kể cả dấu - và dấu phẩy"))
     if q.solution and NUMBER_RE.match(a):
         sol = plain_number(strip_comments(q.solution))
         if not re.search(r"(?<![\d,])" + re.escape(a) + r"(?![\d])", sol):
@@ -200,8 +210,25 @@ def check_kq(q: Question) -> list[Issue]:
     return out
 
 
-def review_question(q: Question) -> list[Issue]:
+GRAPHIC_RE = re.compile(r"\\includegraphics\s*(?:\[[^\]]*\])?\s*\{([^}]+)\}")
+
+
+def missing_graphics(q: Question, base_dir: str) -> list[str]:
+    """Ảnh trong \\includegraphics không tìm thấy (thử thêm đuôi .png .jpg .jpeg .pdf .eps)."""
+    import os
     out = []
+    for name in GRAPHIC_RE.findall(q.stem + " ".join(q.choices) + q.solution):
+        p = os.path.join(base_dir, name.strip())
+        if not any(os.path.exists(p + ext) for ext in ("", ".png", ".jpg", ".jpeg", ".pdf", ".eps")):
+            out.append(name.strip())
+    return out
+
+
+def review_question(q: Question, base_dir: str | None = None) -> list[Issue]:
+    out = []
+    if base_dir:
+        for g in missing_graphics(q, base_dir):
+            out.append(Issue(LOI, "anh", f"Không tìm thấy ảnh «{g}» (\\includegraphics)"))
     if not q.id_code:
         out.append(Issue(CANH_BAO, "id", "Thiếu ID"))
     if not q.solution.strip():

@@ -2,11 +2,13 @@
 from __future__ import annotations
 
 import json
+import os
 import sqlite3
 from datetime import datetime
 
 from .idcode import parse_id
 from .parser import Question
+from .textnorm import search_text
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS questions (
@@ -52,12 +54,106 @@ CREATE TABLE IF NOT EXISTS idmap (
 """
 
 
+SCHEMA_VERSION = 2
+
+
+def _migrate_v2(con, fts_ok: bool):
+    """v1 (≤ 0.10) → v2: tên lệnh gốc, câu chùm, chỉ mục tìm kiếm không dấu (FTS5), tài sản, lịch sử ra đề."""
+    cols = {r[1] for r in con.execute("PRAGMA table_info(questions)")}
+    for col, decl in (("choice_cmd", "TEXT DEFAULT ''"), ("group_id", "TEXT DEFAULT ''"),
+                      ("search_text", "TEXT DEFAULT ''")):
+        if col not in cols:
+            con.execute(f"ALTER TABLE questions ADD COLUMN {col} {decl}")
+    con.executescript("""
+        CREATE INDEX IF NOT EXISTS ix_q_group ON questions(group_id);
+        -- ảnh/hình đi kèm câu hỏi (đường dẫn tương đối, mã băm) – chép theo khi xuất đề
+        CREATE TABLE IF NOT EXISTS assets (
+            id INTEGER PRIMARY KEY AUTOINCREMENT, question_id INTEGER, path TEXT, sha1 TEXT, data BLOB
+        );
+        CREATE INDEX IF NOT EXISTS ix_assets_q ON assets(question_id);
+        -- lịch sử các đợt ra đề: tái lập được bộ đề cũ, tránh lặp câu giữa các bài kiểm tra
+        CREATE TABLE IF NOT EXISTS exam_batches (
+            id INTEGER PRIMARY KEY AUTOINCREMENT, at TEXT, ten_de TEXT, seed TEXT, matrix TEXT,
+            codes TEXT, out_dir TEXT, note TEXT DEFAULT ''
+        );
+        CREATE TABLE IF NOT EXISTS exam_items (
+            batch_id INTEGER, code TEXT, part TEXT, pos INTEGER, question_id INTEGER
+        );
+        CREATE INDEX IF NOT EXISTS ix_items_batch ON exam_items(batch_id);
+        CREATE INDEX IF NOT EXISTS ix_items_q ON exam_items(question_id);
+    """)
+    rows = con.execute("SELECT id, stem, choices, solution, tags, short_answer FROM questions").fetchall()
+    con.executemany("UPDATE questions SET search_text=? WHERE id=?",
+                    [(search_text(r[1], " ".join(json.loads(r[2] or "[]")), r[3], " ".join(json.loads(r[4] or "[]")),
+                                  r[5]), r[0]) for r in rows])
+    con.executemany("UPDATE questions SET group_id=? WHERE id=?",
+                    [(_group_of(json.loads(r[4] or "[]")), r[0]) for r in rows])
+    if fts_ok:
+        con.executescript("""
+            CREATE VIRTUAL TABLE IF NOT EXISTS questions_fts USING fts5(
+                search_text, content='questions', content_rowid='id', tokenize='unicode61');
+            CREATE TRIGGER IF NOT EXISTS q_ai AFTER INSERT ON questions BEGIN
+                INSERT INTO questions_fts(rowid, search_text) VALUES (new.id, new.search_text);
+            END;
+            CREATE TRIGGER IF NOT EXISTS q_ad AFTER DELETE ON questions BEGIN
+                INSERT INTO questions_fts(questions_fts, rowid, search_text) VALUES ('delete', old.id, old.search_text);
+            END;
+            CREATE TRIGGER IF NOT EXISTS q_au AFTER UPDATE ON questions BEGIN
+                INSERT INTO questions_fts(questions_fts, rowid, search_text) VALUES ('delete', old.id, old.search_text);
+                INSERT INTO questions_fts(rowid, search_text) VALUES (new.id, new.search_text);
+            END;
+            INSERT INTO questions_fts(questions_fts) VALUES ('rebuild');
+        """)
+
+
+def _group_of(tags) -> str:
+    """Câu chùm: nhãn %[chum:TEN] (các câu cùng TEN đi liền khối khi trộn)."""
+    for t in tags:
+        if t.lower().startswith("chum:"):
+            return t.split(":", 1)[1].strip()
+    return ""
+
+
+def _fts5_available(con) -> bool:
+    try:
+        con.execute("CREATE VIRTUAL TABLE temp.__fts_probe USING fts5(x)")
+        con.execute("DROP TABLE temp.__fts_probe")
+        return True
+    except sqlite3.OperationalError:
+        return False
+
+
 class Bank:
     def __init__(self, path: str = "nganhang.db"):
         self.path = path
         self.con = sqlite3.connect(path)
         self.con.row_factory = sqlite3.Row
+        self.migrated_from = None
+        self._migrate()
+
+    def _migrate(self):
+        """Nâng cấp lược đồ theo PRAGMA user_version; kho cũ có dữ liệu ⇒ sao lưu .bak trước khi nâng cấp."""
+        ver = self.con.execute("PRAGMA user_version").fetchone()[0]
+        had_table = self.con.execute("SELECT 1 FROM sqlite_master WHERE name='questions'").fetchone() is not None
         self.con.executescript(SCHEMA)
+        self.fts = _fts5_available(self.con)
+        if ver >= SCHEMA_VERSION:
+            self.fts = self.fts and self.con.execute(
+                "SELECT 1 FROM sqlite_master WHERE name='questions_fts'").fetchone() is not None
+            return
+        if had_table and self.path != ":memory:" and os.path.exists(self.path):
+            n = self.con.execute("SELECT COUNT(*) FROM questions").fetchone()[0]
+            if n:
+                self.con.commit()
+                bak = self.path + ".bak"
+                out = sqlite3.connect(bak)
+                with out:
+                    self.con.backup(out)
+                out.close()
+                self.migrated_from = ver or 1
+        with self.con:
+            _migrate_v2(self.con, self.fts)
+            self.con.execute(f"PRAGMA user_version={SCHEMA_VERSION}")
 
     def close(self):
         self.con.close()
@@ -73,7 +169,10 @@ class Bank:
             env=q.env, stem=q.stem,
             choices=json.dumps(q.choices, ensure_ascii=False),
             correct=json.dumps(q.correct), short_answer=q.short_answer,
-            choice_opt=q.choice_opt, solution=q.solution,
+            choice_opt=q.choice_opt, choice_cmd=q.choice_cmd, solution=q.solution,
+            group_id=_group_of(q.tags),
+            search_text=search_text(
+                q.stem, " ".join(q.choices), q.solution, " ".join(q.tags), q.short_answer),
             tags=json.dumps(q.tags, ensure_ascii=False), raw=q.raw or q.to_latex(),
             fingerprint=q.fingerprint,
         )
@@ -149,6 +248,7 @@ class Bank:
             qtype=r["qtype"], stem=r["stem"], choices=json.loads(r["choices"]),
             correct=json.loads(r["correct"]), short_answer=r["short_answer"],
             choice_opt=r["choice_opt"], solution=r["solution"], id_code=r["id_code"],
+            choice_cmd=r["choice_cmd"] if "choice_cmd" in r.keys() else "",
             tags=json.loads(r["tags"]), env=r["env"], raw=r["raw"])
         q.db_id = r["id"]
         return q
@@ -194,8 +294,14 @@ class Bank:
             sql += " AND id_code GLOB ?"
             args.append(id_like.upper())
         if text:
-            sql += " AND (stem LIKE ? OR solution LIKE ? OR tags LIKE ?)"
-            args += [f"%{text}%"] * 3
+            from .textnorm import fts_query
+            fq = fts_query(text)
+            if self.fts and fq:          # tìm toàn văn, gõ có dấu hay không dấu đều được
+                sql += " AND id IN (SELECT rowid FROM questions_fts WHERE questions_fts MATCH ?)"
+                args.append(fq)
+            else:
+                sql += " AND (stem LIKE ? OR solution LIKE ? OR tags LIKE ?)"
+                args += [f"%{text}%"] * 3
         if tag:
             sql += " AND tags LIKE ?"
             args.append(f"%{tag}%")
@@ -274,6 +380,42 @@ class Bank:
         out.set_idmap(self.idmap())
         out.close()
         return n
+
+    # ---------- lịch sử ra đề ----------
+    def log_batch(self, versions, *, ten_de="", seed=None, matrix=None, out_dir="") -> int:
+        cur = self.con.execute(
+            "INSERT INTO exam_batches(at, ten_de, seed, matrix, codes, out_dir) VALUES (?,?,?,?,?,?)",
+            (datetime.now().isoformat(timespec="seconds"), ten_de, "" if seed is None else str(seed),
+             json.dumps(matrix or [], ensure_ascii=False), ",".join(v.code for v in versions), out_dir))
+        bid = cur.lastrowid
+        rows = [(bid, v.code, part, i, q.db_id) for v in versions for part, qs in v.sections.items()
+                for i, q in enumerate(qs, 1) if q.db_id is not None]
+        self.con.executemany("INSERT INTO exam_items VALUES (?,?,?,?,?)", rows)
+        self.con.commit()
+        return bid
+
+    def batches(self, limit: int = 200):
+        return self.con.execute("SELECT b.*, (SELECT COUNT(DISTINCT question_id) FROM exam_items i "
+                                "WHERE i.batch_id=b.id) AS n FROM exam_batches b ORDER BY id DESC LIMIT ?",
+                                (limit,)).fetchall()
+
+    def recent_question_ids(self, last_batches: int = 3) -> set[int]:
+        """Câu đã dùng trong N đợt ra đề gần nhất (để tránh lặp câu giữa các bài kiểm tra gần nhau)."""
+        return {r[0] for r in self.con.execute(
+            "SELECT DISTINCT question_id FROM exam_items WHERE batch_id IN "
+            "(SELECT id FROM exam_batches ORDER BY id DESC LIMIT ?)", (last_batches,))}
+
+    # ---------- tài sản (ảnh/hình) ----------
+    def add_asset(self, question_id: int, path: str, data: bytes) -> int:
+        import hashlib
+        cur = self.con.execute("INSERT INTO assets(question_id, path, sha1, data) VALUES (?,?,?,?)",
+                               (question_id, path, hashlib.sha1(data).hexdigest(), data))
+        self.con.commit()
+        return cur.lastrowid
+
+    def assets(self, question_id: int):
+        return self.con.execute("SELECT id, path, sha1, data FROM assets WHERE question_id=?",
+                                (question_id,)).fetchall()
 
     def count(self) -> int:
         return self.con.execute("SELECT COUNT(*) FROM questions").fetchone()[0]

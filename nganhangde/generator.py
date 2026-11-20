@@ -17,7 +17,9 @@ SECTION_TITLE = {
     "TL": "PHẦN IV. Tự luận",
 }
 # Phương án có nội dung kiểu này thì không trộn (vị trí phương án có ý nghĩa)
-LOCK_RE = re.compile(r"(cả\s+(ba|hai|3|2)|đều\s+(đúng|sai)|tất cả|không có .*nào|A\s*,\s*B)", re.I)
+LOCK_RE = re.compile(r"(cả\s+(ba|hai|bốn|3|2|4)|đều\s+(đúng|sai)|tất cả|không có .*nào|"
+                     r"(đáp án|phương án|kết quả)\s+(khác|trên)|các (đáp án|phương án) trên|"
+                     r"\b[A-D]\s*(,|và|hoặc)\s*[A-D]\b)", re.I)
 ITEMCH_RE = re.compile(r"\\itemch(?![A-Za-z])")
 
 
@@ -59,9 +61,10 @@ class NotEnoughQuestions(Exception):
 
 
 def pick_questions(bank: Bank, rules: list[Rule], rng: random.Random,
-                   prefer_unused: bool = False) -> dict[str, list[Question]]:
+                   prefer_unused: bool = False, exclude_ids=None) -> dict[str, list[Question]]:
+    """exclude_ids: câu không được chọn (vd đã dùng trong các đợt ra đề gần đây)."""
     chosen: dict[str, list[Question]] = {s: [] for s in SECTION_ORDER}
-    used_ids: set[int] = set()
+    used_ids: set[int] = set(exclude_ids or ())
     errors = []
     for r in rules:
         pool = [q for q in bank.search(qtype=r.qtype, id_like=r.id, muc_do=r.muc_do, text=r.text)
@@ -202,7 +205,7 @@ def make_versions(bank: Bank, rules: list[Rule], n_versions: int = 4, *,
                   codes: list[str] | None = None, seed: int | None = None,
                   same_questions: bool = True, shuffle_q: bool = True,
                   shuffle_opts: bool = True, prefer_unused: bool = False,
-                  options: MixOptions | None = None, max_overlap: float | None = None,
+                  options: MixOptions | None = None, max_overlap: float | None = None, exclude_ids=None,
                   sections: dict[str, list[Question]] | None = None) -> list[ExamVersion]:
     """Sinh các mã đề.
 
@@ -216,12 +219,12 @@ def make_versions(bank: Bank, rules: list[Rule], n_versions: int = 4, *,
     if sections is not None:
         return mix_versions(sections, codes, rng, opt)
     if same_questions:
-        return mix_versions(pick_questions(bank, rules, rng, prefer_unused), codes, rng, opt)
+        return mix_versions(pick_questions(bank, rules, rng, prefer_unused, exclude_ids), codes, rng, opt)
     out, chosen_sets = [], []
     for code in codes:
         best, best_ov = None, 2.0
         for _ in range(60 if max_overlap is not None else 1):
-            picked = pick_questions(bank, rules, rng, prefer_unused)
+            picked = pick_questions(bank, rules, rng, prefer_unused, exclude_ids)
             ids = {q.db_id for qs in picked.values() for q in qs}
             ov = max((len(ids & o) / max(len(ids), 1) for o in chosen_sets), default=0.0)
             if ov < best_ov:

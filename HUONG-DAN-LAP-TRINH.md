@@ -54,7 +54,13 @@ nganhangde/
 ├── editor.py     # mở file .tex bằng TeXstudio (nhảy tới dòng lỗi)
 ├── templates/nhd_extest.sty   # gói ex_test rút gọn dùng khi máy chưa cài ex_test
 ├── cli.py        # Bước 7a: dòng lệnh
-├── gui_qt.py     # Bước 7b: giao diện chính (PySide6/Qt)
+├── textnorm.py   # bỏ dấu tiếng Việt, tạo truy vấn FTS5 («tap nghiem» tìm được «tập nghiệm»)
+├── data/map_id_toan_6_12.tex  # danh mục ID có sẵn Toán 6–12 (1 504 mục)
+├── ui/           # Bước 7b: giao diện chính (PySide6/Qt), mỗi file < 40 KB
+│   ├── common.py, app.py, workers.py (QThread), main_window.py, bank_actions.py
+│   ├── tabs/     # generator, exam_options, review, make_question, draw, tools, stats
+│   └── dialogs/  # edit, swap, result, idmap, assign_id, ai_settings, update, pdf
+├── gui_qt.py     # lớp tương thích: re-export mọi tên từ ui/ (mã cũ vẫn chạy)
 ├── gui.py        #          giao diện dự phòng (Tkinter)
 ├── assets/       # biểu tượng app.ico, app.png
 └── templates/de_thi.tex   # file mẫu đề (thay bằng mẫu của trường)
@@ -150,6 +156,18 @@ Bảng `questions` có các cột lấy từ ID (`lop, mon, chuong, muc_do, bai,
 Hai câu chỉ khác nhau về cách gõ thì vẫn bị nhận ra là trùng.
 `search()` lọc bằng SQL. Mẫu ID dùng `GLOB`, ví dụ `0D2?1-*` hay `0D[08]*`.
 
+**Nâng cấp lược đồ (migration).** Phiên bản lược đồ lưu trong `PRAGMA user_version` (`SCHEMA_VERSION = 2`).
+Khi mở kho cũ có dữ liệu, `Bank._migrate()` sao lưu nguyên file thành `nganhang.db.bak` (API backup của SQLite)
+rồi chạy lần lượt `_migrate_v2`… Mỗi bước chỉ *thêm* cột/bảng, không xoá dữ liệu:
+
+* cột `choice_cmd` (giữ đúng lệnh `\choiceTF`/`\choiceTFt`/`\shortans`/`\dapso` khi xuất lại),
+  `group_id` (câu chùm, lấy từ thẻ `%[chum:TÊN]`), `search_text` (nội dung đã bỏ dấu);
+* bảng ảo **FTS5** `questions_fts` (external content) + 3 trigger giữ đồng bộ → tìm kiếm không dấu, rất nhanh.
+  Máy nào SQLite thiếu FTS5 thì tự quay về `LIKE`;
+* `exam_batches`, `exam_items`: **lịch sử ra đề** (đợt nào, mã đề nào, câu nào ở vị trí nào).
+  `recent_question_ids(N)` cho phép tránh lặp câu giữa N bài kiểm tra gần nhất;
+* `assets`: ảnh/hình gắn với câu hỏi.
+
 ## 7. Bước 5: sinh đề và trộn đề (`generator.py`)
 
 **Ma trận** là danh sách các dòng `Rule(qtype, count, id, muc_do)`. Ví dụ:
@@ -198,8 +216,9 @@ Mỗi câu được kiểm tra và trả về danh sách `Issue(level, code, msg
 |---|---|---|
 | Trắc nghiệm | không đủ 4 phương án; không đúng 1 `\True`; phương án rỗng hoặc trùng nhau (so sau khi chuẩn hoá: `\dfrac{1}{2}` ≡ `\frac12`); lời giải ghi «Chọn C» mà `\True` ở B | cuối lời giải có phương án sai mà không thấy đáp án đúng |
 | Đúng/Sai | không đủ 4 ý; mục `\itemch` thứ k mở đầu «Đúng»/«Sai» ngược với đánh dấu `\True` của ý k | số mục `\itemch` khác số ý; có ý không ghi rõ Đúng/Sai |
-| Trả lời ngắn | không có đáp án; đáp án không phải số (phiếu thi chỉ tô được chữ số, dấu `-` và `,`) | đáp án dài quá 4 kí tự; giá trị đáp án không có trong lời giải (thiếu bước kết luận hoặc sai đáp án) |
-| Mọi câu | LaTeX hỏng: ngoặc `{}` lệch, số dấu `$` lẻ, `\begin`/`\end` không khớp, `\left`/`\right` lệch | thiếu ID, thiếu lời giải |
+| Đúng/Sai (thêm) | | cả 4 ý cùng Đúng hoặc cùng Sai (đề dễ đoán) |
+| Trả lời ngắn | không có đáp án; đáp án không phải số (phiếu thi chỉ tô được chữ số, dấu `-` và `,`); **dài quá 4 kí tự**; đáp án dạng phân số `\frac`/`a/b`; có chữ hoặc đơn vị (theo CV 1239) | giá trị đáp án không có trong lời giải (thiếu bước kết luận hoặc sai đáp án) |
+| Mọi câu | LaTeX hỏng: ngoặc `{}` lệch, số dấu `$` lẻ, `\begin`/`\end` không khớp, `\left`/`\right` lệch; `\includegraphics` trỏ tới **file ảnh không tồn tại** (khi rà soát file) | thiếu ID, thiếu lời giải |
 
 Một số kĩ thuật dùng trong `review.py`:
 
@@ -548,6 +567,10 @@ Bản mới bị người dùng «bỏ qua» thì không hỏi lại.
 `open_in_texstudio(path, line)` dùng tham số `--line` để nhảy tới dòng lỗi lấy từ `pdfbuild`.
 
 ## 9. Bước 7: giao diện
+
+Giao diện Qt chia thành gói `ui/` (mỗi tab, mỗi hộp thoại một file). `MainWindow` ghép từ `QMainWindow`
+và mixin `BankActionsMixin`. Kiểm thử `tests/test_gui.py` chạy toàn bộ tab/hộp thoại ở chế độ `offscreen`
+để phát hiện lỗi import khi tái cấu trúc.
 
 **Dòng lệnh** (`cli.py`):
 

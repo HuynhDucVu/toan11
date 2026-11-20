@@ -23,6 +23,8 @@ pyinstaller --noconfirm --clean --onefile --windowed ^
     --icon nganhangde\assets\app.ico ^
     --add-data "nganhangde/templates:nganhangde/templates" ^
     --add-data "nganhangde/assets:nganhangde/assets" ^
+    --add-data "nganhangde/data:nganhangde/data" ^
+    --exclude-module PySide6.QtQml --exclude-module PySide6.QtQuick --exclude-module PySide6.QtWebEngineCore ^
     --exclude-module tkinter ^
     run_gui.py || goto :loi
 

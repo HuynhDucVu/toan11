@@ -28,7 +28,8 @@ class Question:
     choices: list[str] = field(default_factory=list)   # phương án / các ý (đã bỏ \True)
     correct: list[bool] = field(default_factory=list)  # TN: đúng 1 ý; DS: mảng Đ/S
     short_answer: str = ""          # KQ
-    choice_opt: str = ""            # tham số tuỳ chọn của \choice[..] / \choiceTF[..]
+    choice_opt: str = ""            # tham số tuỳ chọn của \choice[..] / \choiceTF[..] / \shortans[..]
+    choice_cmd: str = ""            # tên lệnh gốc nếu khác mặc định: choiceTFt, dapso (ex_test v3.3)
     solution: str = ""              # nội dung \loigiai{...}
     id_code: str = ""
     tags: list[str] = field(default_factory=list)       # các %[...] khác: nguồn, tác giả
@@ -81,12 +82,12 @@ class Question:
         lines = [head + meta, "\t" + self.stem.strip()]
         opt = f"[{self.choice_opt}]" if self.choice_opt else ""
         if self.qtype in ("TN", "DS"):
-            cmd = "\\choice" if self.qtype == "TN" else "\\choiceTF"
+            cmd = "\\" + (self.choice_cmd or ("choice" if self.qtype == "TN" else "choiceTF"))
             lines.append(f"\t{cmd}{opt}")
             for txt, ok in zip(self.choices, self.correct):
                 lines.append("\t{" + ("\\True " if ok else "") + txt + "}")
         elif self.qtype == "KQ":
-            lines.append(f"\t\\shortans{opt}{{{self.short_answer}}}")
+            lines.append(f"\t\\{self.choice_cmd or 'shortans'}{opt}{{{self.short_answer}}}")
         if with_solution and self.solution.strip():
             lines.append("\t\\loigiai{\n" + self.solution.strip("\n").rstrip() + "\n\t}")
         lines.append("\\end{%s}" % self.env)
@@ -116,12 +117,14 @@ def parse_block(env: str, body: str) -> Question:
 
     q = Question(qtype="TL", stem=content.strip(), id_code=id_code, tags=other_tags, env=env)
 
-    for cmd, qtype in (("choiceTF", "DS"), ("choice", "TN")):
+    # ex_test v3.3: \choiceTFt là biến thể bảng của \choiceTF; \dapso là đáp số trả lời ngắn
+    for cmd, qtype in (("choiceTFt", "DS"), ("choiceTF", "DS"), ("choice", "TN")):
         p = find_command(content, cmd)
         if p >= 0:
             opt, args, end = read_command_args(content, p + len(cmd) + 1, None)
             q.qtype = qtype
             q.choice_opt = opt or ""
+            q.choice_cmd = cmd if cmd == "choiceTFt" else ""
             for a in args:
                 txt, ok = strip_true(a)
                 q.choices.append(txt)
@@ -129,13 +132,16 @@ def parse_block(env: str, body: str) -> Question:
             q.stem = (content[:p] + content[end:]).strip()
             break
     else:
-        p = find_command(content, "shortans")
-        if p >= 0:
-            opt, args, end = read_command_args(content, p + len("\\shortans"), 1)
-            q.qtype = "KQ"
-            q.choice_opt = opt or ""
-            q.short_answer = args[0].strip() if args else ""
-            q.stem = (content[:p] + content[end:]).strip()
+        for cmd in ("shortans", "dapso"):
+            p = find_command(content, cmd)
+            if p >= 0:
+                opt, args, end = read_command_args(content, p + len(cmd) + 1, 1)
+                q.qtype = "KQ"
+                q.choice_opt = opt or ""
+                q.choice_cmd = cmd if cmd != "shortans" else ""
+                q.short_answer = args[0].strip() if args else ""
+                q.stem = (content[:p] + content[end:]).strip()
+                break
 
     q.solution = solution
     return q

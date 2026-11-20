@@ -24,6 +24,7 @@ Tên mức độ lưu với khoá '#N', '#H', ...
 """
 from __future__ import annotations
 
+import os
 import re
 
 LINE_RE = re.compile(r"^\s*\[?([0-9][0-9A-Za-z]{0,3}(?:-[0-9A-Za-z]+)?)\]?\s*(?:=|:|\t|\s)\s*(.+?)\s*$")
@@ -151,3 +152,47 @@ class IdTree:
 
     def name(self, parts) -> str:
         return self.m.get(_key(list(parts)), "")
+
+
+# ---------------------------------------------------------------- danh mục đi kèm phần mềm
+BUILTIN_MAP = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "map_id_toan_6_12.tex")
+
+
+def builtin_map() -> dict[str, str]:
+    """Danh mục ID6 Toán 6–12 (GDPT 2018) đi kèm phần mềm – lấy từ file Map ID do giáo viên cung cấp."""
+    return load_map(BUILTIN_MAP) if os.path.exists(BUILTIN_MAP) else {}
+
+
+def to_html(mapping: dict[str, str], title: str = "Tra cứu mã ID") -> str:
+    """Trang HTML tự chứa để tra cứu mã ID: gõ không dấu vẫn tìm được, bấm vào mã để chép."""
+    import html as _h
+    import json as _j
+    from .textnorm import search_text
+    rows = []
+    for k in sorted((k for k in mapping if not k.startswith("#")), key=split_key):
+        parts = split_key(k)
+        path = " › ".join(x for x in (mapping.get("".join(parts[:n]), "") for n in range(1, len(parts) + 1)
+                                      if n <= 4) if x)
+        if "-" in k:
+            path += " › " + mapping[k]
+        level = len(parts) - 1
+        rows.append([k, path, level, search_text(k + " " + path)])
+    data = _j.dumps(rows, ensure_ascii=False)
+    lv = " · ".join(f"<b>{k[1:]}</b> = {_h.escape(v)}" for k, v in mapping.items() if k.startswith("#"))
+    return f"""<!doctype html><html lang="vi"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1"><title>{_h.escape(title)}</title>
+<style>body{{font:15px system-ui,sans-serif;margin:0;background:#f5f7fa}}header{{background:#1f4e79;color:#fff;padding:12px 16px;position:sticky;top:0}}
+input{{font-size:16px;padding:8px;width:min(560px,100%);border-radius:6px;border:0}}main{{padding:8px 16px}}
+.r{{padding:6px 8px;border-bottom:1px solid #e3e8ef;background:#fff;cursor:pointer}}.r:hover{{background:#eef3f8}}
+.k{{font-family:Consolas,monospace;font-weight:700;color:#1f4e79;display:inline-block;min-width:90px}}.l0{{font-weight:700}}
+#n{{color:#555;margin:6px 0}}</style></head><body><header><div style="font-weight:700;margin-bottom:6px">{_h.escape(title)}</div>
+<input id="q" placeholder="Gõ mã hoặc tên (không dấu cũng được), vd: duong tron, 0H94" autofocus>
+<div style="font-size:13px;margin-top:6px">Mức độ: {lv or "N/H/V/C"} – chèn vào vị trí thứ 4 của ID, vd 0H9<b>N</b>4-1. Bấm một dòng để chép mã.</div></header>
+<main><div id="n"></div><div id="list"></div></main>
+<script>const D={data};
+function bo(s){{return s.normalize('NFD').replace(/[\\u0300-\\u036f]/g,'').replace(/đ/g,'d').replace(/Đ/g,'D').toLowerCase()}}
+function show(){{const t=bo(document.getElementById('q').value).split(/\\s+/).filter(Boolean);
+const r=D.filter(x=>t.every(w=>x[3].includes(w))).slice(0,400);
+document.getElementById('n').textContent=r.length+' kết quả'+(r.length==400?' (hiện 400 dòng đầu)':'');
+document.getElementById('list').innerHTML=r.map(x=>`<div class="r l${{x[2]}}" style="padding-left:${{8+x[2]*16}}px" onclick="navigator.clipboard&&navigator.clipboard.writeText('${{x[0]}}')"><span class="k">${{x[0]}}</span> ${{x[1].replace(/</g,'&lt;')}}</div>`).join('')}}
+document.getElementById('q').addEventListener('input',show);show();</script></body></html>"""

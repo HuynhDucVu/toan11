@@ -5,7 +5,23 @@
 
 Kho câu hỏi `nganhang.db` nằm cạnh file exe. Cập nhật từ bản cũ: chỉ cần thay file exe, kho giữ nguyên.
 
-## Có gì mới ở bản 0.10.0 – Tự cập nhật phiên bản, mở bằng TeXstudio
+## Có gì mới ở bản 0.11.0 – Nâng cấp giai đoạn 1 (theo bản nghiên cứu 2026)
+- **Kho tự nâng cấp an toàn:** lần đầu mở kho cũ, phần mềm **tự sao lưu** thành `nganhang.db.bak` rồi mới nâng cấp. Dữ liệu cũ giữ nguyên.
+- **Tìm kiếm không dấu, nhanh hơn:** gõ `tap nghiem` vẫn tìm được «tập nghiệm» (dùng chỉ mục toàn văn FTS5).
+- **Hỗ trợ ex_test 3.3:** giữ đúng `\choiceTF`, `\choiceTFt`, `\shortans`, `\dapso` khi nạp và xuất lại.
+- **Danh mục ID Toán 6–12 có sẵn** (1 504 mục, từ Map ID của thầy/cô):
+  - kho mới tự nạp sẵn, không cần làm gì;
+  - trong **Giải nghĩa ID**: nút *Nạp danh mục có sẵn* và *Xuất trang tra cứu HTML* (tìm không dấu, bấm để chép mã).
+- **Lịch sử ra đề** (menu **Đề thi → Lịch sử ra đề**): mỗi lần tạo đề được ghi lại (tên, mã đề, số câu, thư mục); nhấp đúp để mở thư mục.
+- **Tránh lặp câu giữa các bài kiểm tra:** tab Tạo đề có ô *Tránh câu đã dùng trong N đợt gần nhất*.
+- **Rà soát theo CV 1239:**
+  - trả lời ngắn quá 4 kí tự, dạng phân số, có chữ hoặc đơn vị → báo **Lỗi**;
+  - câu Đúng/Sai có cả 4 ý cùng Đúng (hoặc cùng Sai) → cảnh báo;
+  - ảnh `\includegraphics` không tìm thấy → báo lỗi;
+  - nhận thêm phương án kiểu «Cả A và B», «Các đáp án trên» → không trộn phương án đó.
+- Giao diện được tách thành nhiều phần nhỏ để dễ bảo trì; exe gọn hơn (bỏ các thành phần Qt không dùng).
+
+## Bản 0.10.0 – Tự cập nhật phiên bản, mở bằng TeXstudio
 - **Tự cập nhật** (menu **Trợ giúp → Cập nhật phần mềm**):
   - xem ghi chú bản mới, bấm **⬇ Tải và cập nhật ngay**;
   - phần mềm tải exe mới (có thanh tiến trình) và **kiểm tra mã SHA-256** để chống file hỏng;

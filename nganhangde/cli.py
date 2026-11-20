@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 
 from .db import Bank
@@ -120,13 +121,15 @@ def cmd_make(bank: Bank, a):
         codes = codes or make_codes(THPT_2026["so_ma"], 101, 4)
     try:
         vs = make_versions(bank, rules, a.n, codes=codes, seed=a.seed, options=mix,
-                           same_questions=not a.different, prefer_unused=a.prefer_unused)
+                           same_questions=not a.different, prefer_unused=a.prefer_unused,
+                           exclude_ids=bank.recent_question_ids(a.tranh_dot) if a.tranh_dot else None)
     except NotEnoughQuestions as e:
         sys.exit(f"Không đủ câu:\n{e}")
     files = export_versions(vs, a.out, template_path=a.template or cfg.get("template"),
                             ten_de=cfg.get("ten_de", "ĐỀ KIỂM TRA"),
                             truong=cfg.get("truong", ""), thoi_gian=cfg.get("thoi_gian", 90), options=exp)
     bank.mark_used({q.db_id for v in vs for q in v.all_questions()})
+    bank.log_batch(vs, ten_de=cfg.get("ten_de", ""), seed=a.seed, matrix=cfg.get("rules"), out_dir=a.out)
     for p in files:
         print("Đã ghi", p)
     _maybe_pdf(a, files)
@@ -184,7 +187,7 @@ def cmd_review(bank: Bank, a):
                 print(f"[Sửa] {label}: {'; '.join(done)}")
                 fixes.append((q, nq, path))
                 q = nq
-        iss = rv.review_question(q)
+        iss = rv.review_question(q, os.path.dirname(os.path.abspath(path)) if path else None)
         lv = rv.worst(iss)
         n_err += lv == rv.LOI
         n_warn += lv == rv.CANH_BAO
@@ -403,6 +406,7 @@ def main(argv=None):
     p.add_argument("--template")
     p.add_argument("--different", action="store_true", help="mỗi mã đề một bộ câu khác nhau")
     p.add_argument("--prefer-unused", action="store_true", help="ưu tiên câu ít được dùng")
+    p.add_argument("--tranh-dot", type=int, default=0, metavar="N", help="không lấy câu đã dùng trong N đợt ra đề gần nhất")
     _add_exam_flags(p)
 
     a = ap.parse_args(argv)
