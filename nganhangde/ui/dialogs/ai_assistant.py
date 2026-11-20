@@ -22,9 +22,10 @@ if TYPE_CHECKING:
 
 
 class AiAssistantDialog(QDialog):
-    def __init__(self, win: MainWindow, tab: int = 0):
+    def __init__(self, win: MainWindow, tab: int = 0, questions=None, editor=None):
         super().__init__(win)
         self.win = win
+        self.override_qs, self.editor = questions, editor
         self.props = []
         self.setWindowTitle("Trợ lý AI")
         self.resize(1100, 720)
@@ -43,6 +44,8 @@ class AiAssistantDialog(QDialog):
         self.tabs.addTab(self._tab_gaps(), "Bù câu thiếu ma trận")
         self.tabs.addTab(self._tab_pdf(), "PDF → LaTeX")
         self.tabs.addTab(self._tab_grade(), "Chấm tự luận")
+        self.tabs.addTab(self._tab_numbers(), "Câu đổi số")
+        self.tabs.addTab(self._tab_solution(), "Lời giải AI")
         self.tabs.setCurrentIndex(tab)
         self.tabs.setMaximumHeight(230)
         lay.addWidget(self.tabs)
@@ -73,6 +76,11 @@ class AiAssistantDialog(QDialog):
         for text, fn in (("Thêm câu đã chọn vào kho", self.add_to_bank), ("Lưu ra file .tex…", self.save_tex)):
             b = QPushButton(text)
             b.clicked.connect(fn)
+            row.addWidget(b)
+        if editor is not None:
+            b = QPushButton("Đưa vào trang Soạn thảo")
+            b.setObjectName("primary")
+            b.clicked.connect(self.to_editor)
             row.addWidget(b)
         lay.addLayout(row)
 
@@ -202,8 +210,108 @@ class AiAssistantDialog(QDialog):
         return w.result
 
     def _selected_questions(self):
+        if self.override_qs is not None:
+            return list(self.override_qs)
         ids = self.win.selected_ids()
         return [q for q in (self.win.bank.get(i) for i in ids) if q is not None]
+
+    def _tab_numbers(self):
+        w = QWidget()
+        f = QFormLayout(w)
+        self.sp_num = QSpinBox()
+        self.sp_num.setRange(1, 10)
+        self.sp_num.setValue(3)
+        f.addRow(QLabel("<b>Câu đổi số:</b> giữ nguyên câu chữ, dạng câu và cách giải, chỉ thay số liệu; AI tính lại đáp án "
+                        "và viết lại lời giải. Dùng các câu đang chọn (hoặc các câu trong trang Soạn thảo)."))
+        f.addRow("Số phiên bản mỗi câu", self.sp_num)
+        b = QPushButton("🤖 Tạo câu đổi số")
+        b.setObjectName("primary")
+        b.clicked.connect(self.run_numbers)
+        f.addRow(b)
+        return w
+
+    def _tab_solution(self):
+        w = QWidget()
+        f = QFormLayout(w)
+        self.c_overwrite = QCheckBox("Viết lại cả câu đã có lời giải")
+        f.addRow(QLabel("<b>Lời giải AI:</b> AI tự giải từng câu, viết lời giải vào \\loigiai và <b>so đáp án AI tìm được với "
+                        "đáp án đang đánh dấu</b> – câu lệch được báo lỗi để thầy/cô xem lại (AI không tự sửa đáp án)."))
+        f.addRow(self.c_overwrite)
+        b = QPushButton("🤖 Tạo lời giải và kiểm tra đáp án")
+        b.setObjectName("primary")
+        b.clicked.connect(self.run_solution)
+        f.addRow(b)
+        return w
+
+    def _need_qs(self, title):
+        qs = self._selected_questions()
+        if not qs:
+            QMessageBox.information(self, title, "Chọn câu trong bảng câu hỏi (hoặc mở từ trang Soạn thảo).")
+            return None, None
+        client = ensure_client(self.win)
+        return (qs, client) if client is not None else (None, None)
+
+    def run_numbers(self):
+        from ... import aitasks
+        qs, client = self._need_qs("Câu đổi số")
+        if not qs:
+            return
+        n = self.sp_num.value()
+
+        def job(progress, should_stop):
+            out = []
+            for k, q in enumerate(qs):
+                if should_stop():
+                    break
+                progress(k, len(qs))
+                out += aitasks.number_variants(client, q, n)
+            return out
+        res = self._run(job, progress=True, label="AI đang đổi số…")
+        if res is not None:
+            self._set_props(res)
+            self._mode = "add"
+
+    def run_solution(self):
+        from ... import aitasks
+        qs, client = self._need_qs("Lời giải AI")
+        if not qs:
+            return
+        ow = self.c_overwrite.isChecked()
+        todo = [q for q in qs if ow or not q.solution.strip()] or qs
+
+        def job(progress, should_stop):
+            out = []
+            for k, q in enumerate(todo):
+                if should_stop():
+                    break
+                progress(k, len(todo))
+                out.append(aitasks.make_solution(client, q, overwrite=ow or not q.solution.strip()))
+            return out
+        res = self._run(job, progress=True, label="AI đang giải…")
+        if res is not None:
+            self._set_props(res)
+            self._mode = "replace"
+            bad = sum(1 for p in res if any(i.code == "ai_dap_an" for i in p.issues))
+            if bad:
+                QMessageBox.warning(self, "Lời giải AI", f"Có {bad} câu AI giải ra đáp án KHÁC đáp án đang đánh dấu – "
+                                                        "xem cột «Rà soát» (màu đỏ) và kiểm tra lại các câu này.")
+
+    def to_editor(self):
+        if self.editor is None:
+            return
+        qs = self.chosen()
+        if getattr(self, "_mode", "add") == "replace":
+            text, n = self.editor.ed.toPlainText(), 0
+            for q in qs:
+                if q.raw and q.raw in text:
+                    text = text.replace(q.raw, q.to_latex(True), 1)
+                    n += 1
+            self.editor.ed.setPlainText(text)
+            self.editor.out.append(f"Đã thay lời giải cho {n} câu trong trang soạn thảo.")
+        else:
+            self.editor.ed.appendPlainText("\n" + "\n\n".join(q.to_latex(True) for q in qs))
+            self.editor.out.append(f"Đã thêm {len(qs)} câu đổi số vào cuối trang soạn thảo.")
+        self.accept()
 
     def run_similar(self):
         from ... import aitasks

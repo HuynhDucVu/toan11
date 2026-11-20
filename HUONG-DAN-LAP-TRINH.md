@@ -753,6 +753,14 @@ tâm ngoại tiếp bằng công thức định thức, tâm nội tiếp theo t
 **Hoá ảnh TikZ:** biên dịch mọi hình trong một file `standalone` (mỗi hình một trang) rồi `pypdfium2` dựng ảnh;
 PNG được ghi trực tiếp bằng `zlib` (không cần Pillow).
 
+**Bản 0.16.** `aitasks.number_variants` (câu đổi số: giữ cấu trúc, đổi số liệu) và `aitasks.make_solution` (AI giải câu
+mà không thấy lời giải cũ, so đáp án qua `_norm_ans`; lệch ⇒ Issue `ai_dap_an` mức Lỗi). Bảng «Chọn theo ID»
+(`ui/tabs/id_grid.py`) đọc `bank.id_level_stats()`, mỗi ô số câu ≠ 0 thành một dòng ma trận có mẫu ID đầy đủ
+(`0D2H1-3`, mức độ nằm trong ID). `MixOptions.order` = `matrix` | `id` sắp khối câu sau khi xáo. Bài online nhận
+`style` (màu, chỉ chấp nhận mã #RGB để tránh chèn CSS) và `gform` (POST `formResponse` chế độ `no-cors`);
+`online.parse_prefill_link` đọc số `entry.N` theo từ khoá. `exportx.question_pngs` dựng mỗi câu một trang
+`standalone` (multi=qpage) rồi xuất PNG; `gas.apps_script_images` lấy ảnh từ thư mục Drive (`DriveApp`).
+
 ## 10. Cài đặt, chạy và đóng gói file .exe
 
 **Chạy từ mã nguồn** (cần Python 3.10+):

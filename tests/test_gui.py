@@ -9,7 +9,7 @@ import pytest
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 QtWidgets = pytest.importorskip("PySide6.QtWidgets")
 
-from PySide6.QtCore import QSettings  # noqa: E402
+from PySide6.QtCore import QSettings, Qt  # noqa: E402
 
 ROOT = os.path.dirname(os.path.dirname(__file__))
 SAMPLE = os.path.join(ROOT, "0-1-De-chuan-hoa-1.tex")
@@ -293,3 +293,49 @@ def test_new_tabs(win, app, monkeypatch, tmp_path):
     assert any(win.table.item(r, 6).text() for r in range(win.table.rowCount()))
     win.back_to_bank()
     assert win.bank.path == main and not win.file_mode
+
+
+def test_editor_ai(win, app, monkeypatch):
+    import sys
+    sys.path.insert(0, os.path.dirname(__file__))
+    from test_v13_ai import TN, FakeSolver
+    from nganhangde.ui.dialogs import ai_assistant
+    monkeypatch.setattr(ai_assistant, "ensure_client", lambda w: FakeSolver("B"))
+    monkeypatch.setattr(ai_assistant.AiAssistantDialog, "exec", lambda self: self._auto())
+    e = win.editor_panel
+    e.ed.setPlainText(TN.replace("\\loigiai{$x>1$. Chọn đáp án B.}", "\\loigiai{}"))
+
+    def auto(self):
+        self.run_solution()
+        self.to_editor()
+        return 1
+    ai_assistant.AiAssistantDialog._auto = auto
+    e.ai(6)
+    assert "Ta có $x>1$" in e.ed.toPlainText()
+
+
+def test_id_grid_and_online_settings(win, app):
+    g = win.idgrid_panel
+    g.reload()
+    assert g.t.rowCount() > 0
+    g.cb_quick.setCurrentIndex(g.cb_quick.findData("H"))
+    g.sp_quick.setValue(1)
+    g.quick_fill()
+    rd = g.rules()
+    assert rd and all(r["muc_do"] == "H" and r["count"] == 1 for r in rd)
+    assert g.to_matrix(True) and win.gen_panel.t.rowCount() == len(rd)
+    r0 = next(r for r in range(g.t.rowCount()) if g.t.item(r, 4).flags() & Qt.ItemFlag.ItemIsEditable)
+    g.t.item(r0, 4).setText("99")                 # vượt số câu có ⇒ tự hạ xuống
+    key = g._shown[r0][0]
+    assert g.counts[key]["N"] == g._shown[r0][3]["N"]
+    from nganhangde.ui.dialogs.online_settings import OnlineSettingsDialog, load
+    d = OnlineSettingsDialog(win)
+    d.e_link.setText("https://docs.google.com/forms/d/e/FORMID/viewform?entry.5=TEN&entry.6=DIEM")
+    import nganhangde.ui.dialogs.online_settings as os_
+    os_.QMessageBox.information = staticmethod(lambda *a, **k: None)
+    d.read_link()
+    d.colors["khung"].setText("#123456")
+    d.save()
+    style, gform = load(win.settings)
+    assert style == {"khung": "#123456"} and gform["entries"] == {"ten": "5", "diem": "6"}
+    assert win.gen_panel.export_options().gform["id"] == "FORMID"

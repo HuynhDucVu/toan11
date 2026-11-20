@@ -141,3 +141,28 @@ def test_openai_compat_and_factory(monkeypatch):
     st = {"ai/provider": "grok", "ai/grok_key": "k", "ai/grok_model": "m"}
     cl = ai.client_from_settings(SimpleNamespace(value=lambda k, d=None: st.get(k, d)))
     assert cl.provider == "grok" and cl.model == "m" and cl.base == "https://api.x.ai/v1"
+
+
+class FakeSolver(Fake):
+    def __init__(self, ans):
+        super().__init__()
+        self.ans = ans
+
+    def generate_json(self, prompt, schema=None):
+        if schema and "loi_giai" in schema["properties"]:
+            self.calls.append(("solve", prompt, schema))
+            assert "$x>1$. Chọn" not in prompt            # không lộ lời giải cũ cho AI
+            return {"loi_giai": "Ta có $x>1$. Chọn đáp án " + self.ans + ".", "dap_an": self.ans, "ghi_chu": ""}
+        return super().generate_json(prompt, schema)
+
+
+def test_number_variants_and_solution():
+    from nganhangde import aitasks
+    q = parse_tex(TN)[0]
+    props = aitasks.number_variants(Fake([TN]), q, 1)
+    assert props[0].question.id_code == "0D2N1-1" and "AI-doiso" in props[0].question.tags
+    q.solution = ""
+    p = aitasks.make_solution(FakeSolver("B"), q)
+    assert "Chọn đáp án B" in p.question.solution and not any(i.code == "ai_dap_an" for i in p.issues)
+    p = aitasks.make_solution(FakeSolver("C"), parse_tex(TN)[0], overwrite=True)
+    assert any(i.code == "ai_dap_an" for i in p.issues) and not p.ok

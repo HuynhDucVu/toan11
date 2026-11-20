@@ -361,8 +361,10 @@ class GeneratorPanel(QWidget):
         ResultDialog(self, vs, out, extra).exec()
 
     def export_options(self):
+        from ..dialogs.online_settings import load
         o = self.opts.export_options()
         o.header = {k: e.text() for k, e in self.hdr.items()}
+        o.online_style, o.gform = load(self.win.settings)
         return o
 
     def print_matrix(self):

@@ -15,6 +15,7 @@ class LayoutMixin:
     def _build_tabs(self, bank_widget):
         from .tabs.draw import DrawPanel
         from .tabs.generator import GeneratorPanel
+        from .tabs.id_grid import IdGridPanel
         from .tabs.geometry import GeomPanel
         from .tabs.make_question import MakeQuestionPanel
         from .tabs.mix_more import FileMixPanel, PickPanel, SimilarExamPanel
@@ -32,6 +33,7 @@ class LayoutMixin:
             return t
 
         self.gen_panel = GeneratorPanel(self)
+        self.idgrid_panel = IdGridPanel(self)
         self.pick_panel = PickPanel(self)
         self.filemix_panel = FileMixPanel(self)
         self.similar_panel = SimilarExamPanel(self)
@@ -50,7 +52,7 @@ class LayoutMixin:
         self.info_panel = InfoPanel(self)
         self.draw_panel = self.graph_panel          # tên cũ
         mt = self.main_tabs
-        mt.addTab(sub((self.gen_panel, "Theo ma trận ID"), (self.pick_panel, "Tự chọn câu"),
+        mt.addTab(sub((self.idgrid_panel, "Chọn theo ID"), (self.gen_panel, "Theo ma trận ID"), (self.pick_panel, "Tự chọn câu"),
                       (self.filemix_panel, "Theo file"), (self.similar_panel, "Đề tương tự")), "📝 Trộn đề")
         mt.addTab(bank_widget, "📚 Câu hỏi")
         mt.addTab(self.matrix_panel, "🧮 Ma trận")

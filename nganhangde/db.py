@@ -317,6 +317,12 @@ class Bank:
             "GROUP BY lop, mon, chuong, qtype, muc_do ORDER BY lop, mon, chuong, qtype, muc_do"
         ).fetchall()
 
+    def id_level_stats(self):
+        """Số câu theo (lớp, môn, chương, bài, dạng, loại, mức độ) – cho bảng «Chọn theo ID»."""
+        return self.con.execute(
+            "SELECT lop, mon, chuong, bai, dang, qtype, muc_do, COUNT(*) AS n FROM questions WHERE id_code != '' "
+            "GROUP BY lop, mon, chuong, bai, dang, qtype, muc_do ORDER BY lop, mon, chuong, bai, dang, qtype").fetchall()
+
     def tree_stats(self):
         """Số câu theo (lớp, môn, chương, bài, dạng) – cho cây dữ liệu."""
         return self.con.execute(

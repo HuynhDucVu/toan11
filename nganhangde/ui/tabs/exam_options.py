@@ -41,6 +41,15 @@ class MixOptionsBox(QWidget):
         row.addStretch()
         lay.addLayout(row)
         row = QHBoxLayout()
+        row.addWidget(QLabel("Sắp xếp câu trong mỗi phần"))
+        self.cb_order = QComboBox()
+        for t, d in (("Ngẫu nhiên", ""), ("Theo thứ tự dòng ma trận (trộn trong từng dòng)", "matrix"),
+                     ("Theo ID (chương → bài → dạng)", "id")):
+            self.cb_order.addItem(t, d)
+        self.cb_order.setCurrentIndex(max(0, self.cb_order.findData(self.st.value(f"{prefix}/mix_order", ""))))
+        row.addWidget(self.cb_order, 1)
+        lay.addLayout(row)
+        row = QHBoxLayout()
         row.addWidget(QLabel("Tỉ lệ đáp án A:B:C:D"))
         self.e_ratio = QLineEdit(str(self.st.value(f"{prefix}/mix_tn_ratio", "")))
         self.e_ratio.setPlaceholderText("trống = chia đều; vd 3,3,3,3 hoặc 2,4,3,3")
@@ -50,6 +59,7 @@ class MixOptionsBox(QWidget):
 
     def options(self) -> MixOptions:
         return MixOptions(max_run=self.sp_run.value(), tn_ratio=self.e_ratio.text().strip(),
+                          order=self.cb_order.currentData(),
                           **{k: c.isChecked() for k, c in self.boxes.items()})
 
     def save(self):
@@ -57,6 +67,7 @@ class MixOptionsBox(QWidget):
             self.st.setValue(f"{self.prefix}/mix_{k}", c.isChecked())
         self.st.setValue(f"{self.prefix}/mix_max_run", self.sp_run.value())
         self.st.setValue(f"{self.prefix}/mix_tn_ratio", self.e_ratio.text())
+        self.st.setValue(f"{self.prefix}/mix_order", self.cb_order.currentData())
 
 
 class ExamOptionsBox(QTabWidget):
@@ -207,6 +218,8 @@ class ExamOptionsBox(QTabWidget):
         self.c_word = QCheckBox("File Word .docx mỗi mã đề (công thức Word gốc – cần cài pandoc)")
         self.c_gas = QCheckBox("Google Forms: file Apps Script (.gs) tạo bài kiểm tra trên Google Form mỗi mã đề")
         self.c_slides = QCheckBox("Trình chiếu HTML (mỗi câu một trang, có bút vẽ – dùng khi chữa đề)")
+        self.c_gas_img = QCheckBox("Google Forms dạng ẢNH: mỗi câu thành ảnh (công thức hiện chuẩn) + file .gs "
+                                   "(cần MiKTeX/TeX Live)")
         from ...wordconv import PandocMissing, pandoc_path
         try:
             pandoc_path()
@@ -215,7 +228,8 @@ class ExamOptionsBox(QTabWidget):
             self.c_word.setToolTip("Chưa cài pandoc: tải tại pandoc.org/installing.html")
         for c, k, d in ((self.c_online, "online", False), (self.c_online_sol, "online_sol", True),
                         (self.c_moodle, "moodle", False), (self.c_word, "word", False),
-                        (self.c_gas, "gas", False), (self.c_slides, "slides", False)):
+                        (self.c_gas, "gas", False), (self.c_slides, "slides", False),
+                        (self.c_gas_img, "gas_img", False)):
             c.setChecked(val(k, d))
             v.addWidget(c)
         note = QLabel("<i>Bài online dùng MathJax để hiện công thức (cần mạng khi mở). Đáp án nằm trong file "
@@ -270,6 +284,7 @@ class ExamOptionsBox(QTabWidget):
                              omr_profile=self.cb_profile.currentData(), omr_template=self.e_omr_tpl.text().strip(),
                              qr_answers=self.c_qr.isChecked(), gas=self.c_gas.isChecked(),
                              slides=self.c_slides.isChecked(), answers_end=self.c_ans_end.isChecked(),
+                             gas_images=self.c_gas_img.isChecked(),
                              even_pages=self.c_even.isChecked(), answer_sheet=self.c_sheet.isChecked())
 
     def apply_thpt2026(self):
@@ -298,6 +313,6 @@ class ExamOptionsBox(QTabWidget):
         for k, c in (("renumber", self.c_renum), ("official", self.c_official), ("scoring", self.c_scoring),
                      ("xlsx", self.c_xlsx), ("showid", self.c_showid), ("zip", self.c_zip),
                      ("online", self.c_online), ("online_sol", self.c_online_sol), ("moodle", self.c_moodle),
-                     ("word", self.c_word), ("gas", self.c_gas), ("slides", self.c_slides),
+                     ("word", self.c_word), ("gas", self.c_gas), ("slides", self.c_slides), ("gas_img", self.c_gas_img),
                      ("ans_end", self.c_ans_end), ("even", self.c_even), ("sheet", self.c_sheet)):
             self.st.setValue(f"{self.prefix}/opt_{k}", c.isChecked())

@@ -11,7 +11,16 @@ Với bản một file:
 
 Kho câu hỏi `nganhang.db` nằm cạnh file exe. Cập nhật từ bản cũ: chỉ cần thay file exe, kho giữ nguyên.
 
-## Có gì mới ở bản 0.15.0 – Bố cục theo nhóm chức năng, bổ sung theo MyLT 2026
+## Có gì mới ở bản 0.16.0 – Câu đổi số AI, lời giải AI, chọn đề theo bảng ID, kết quả online về Google Form
+- **Câu đổi số AI** (Trợ lý AI, hoặc nút 🤖 trong tab **Soạn thảo**): giữ nguyên câu chữ, dạng câu, cách giải – chỉ đổi số liệu; AI tính lại đáp án, đổi phương án nhiễu và viết lại lời giải. Câu mới được rà soát tự động, giáo viên duyệt rồi mới đưa vào kho / trang soạn thảo.
+- **Lời giải AI**: AI tự giải từng câu, viết lời giải vào `\loigiai` (câu chưa có lời giải, hoặc viết lại cả câu đã có) và **so đáp án AI tìm được với đáp án đang đánh dấu** – câu lệch được báo đỏ để kiểm tra lại (AI không tự sửa đáp án).
+- **Trộn đề → Chọn theo ID**: bảng mọi dạng (lớp – môn – chương – bài – dạng) có trong kho, số câu sẵn có từng mức Nhận biết / Thông hiểu / Vận dụng / Vận dụng cao; gõ số câu muốn lấy từng mức (không vượt quá số câu có), lọc theo lớp, loại, tên dạng, «đã lấy / chưa lấy», điền nhanh mỗi dạng N câu → **Tạo đề ngay** hoặc đưa vào ma trận.
+- **Sắp xếp câu trong mỗi phần**: ngẫu nhiên, theo thứ tự dòng ma trận, hoặc theo ID.
+- **Bài online / Blogger gửi kết quả về Google Form** (xem điểm cả lớp trong Google Trang tính): Tiện ích → Xuất & chuyển đổi → *Màu & Google Form nhận kết quả*. Dán «đường liên kết điền sẵn» của Form (các ô điền từ khoá TEN, LOP, SBD, DIEM…), phần mềm tự đọc mã các ô. Đổi được màu khung, nền, chữ câu, chữ lời giải.
+- **Google Forms dạng ảnh**: mỗi câu được biên dịch thành ảnh PNG (công thức hiện chuẩn) + file Apps Script dựng Form từ thư mục ảnh trên Google Drive (cần MiKTeX/TeX Live).
+- **Lưu ý:** các chức năng gửi tới Google (Form, Apps Script) và AI chưa được thử với tài khoản thật – lần đầu dùng nên thử với một đề nhỏ.
+
+## Bản 0.15.0 – Bố cục theo nhóm chức năng, bổ sung theo MyLT 2026
 Cửa sổ chính chia thành 10 tab: **Trộn đề · Câu hỏi · Ma trận · Tiện ích · Vẽ hình · Đồ thị · BBT & Xét dấu · Biểu diễn nghiệm · Soạn thảo · Thông tin**.
 - **Trộn đề** có 4 cách:
   - *Theo ma trận ID* (như cũ);

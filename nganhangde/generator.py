@@ -155,6 +155,7 @@ class MixOptions:
     shuffle_kq: bool = True         # trộn thứ tự câu Phần III (trả lời ngắn)
     fix_ds_last: bool = False       # câu Đúng/Sai: giữ ý d ở cuối (chỉ trộn a, b, c)
     tn_ratio: str = ""              # tỉ lệ đáp án A:B:C:D mong muốn, vd "3,3,3,3" (trống = chia đều)
+    order: str = ""                 # "" (ngẫu nhiên) | "matrix" (theo thứ tự dòng ma trận) | "id" (theo ID)
 
 
 LEVEL_ORDER = {"N": 0, "Y": 0, "H": 1, "B": 1, "V": 2, "K": 2, "C": 3, "G": 3}
@@ -235,6 +236,10 @@ def _mix_section(qs: list[Question], rng: random.Random, opt: MixOptions, keep_o
         for r in sorted(regions):                   # trộn trong từng vùng (%VUNG), giữ thứ tự các vùng
             rng.shuffle(regions[r])
             blocks += regions[r]
+    if opt.order == "matrix":                       # xếp theo ma trận: giữ thứ tự dòng, trộn trong cùng dòng
+        blocks.sort(key=lambda b: getattr(b[0], "rule_index", 0))
+    elif opt.order == "id":
+        blocks.sort(key=lambda b: b[0].id_code or "~")
     if opt.sort_by_level:
         blocks.sort(key=lambda b: min(level_rank(q) for q in b))   # sort ổn định ⇒ vẫn ngẫu nhiên cùng mức
     qs = [q for b in blocks for q in b]

@@ -159,3 +159,55 @@ def plain_to_ex(text: str, tag: str = "") -> str:
         body = m.group(1)
     body = re.sub(r"\\textbf\{(Câu\s*\d+[.:])\}", r"\1", body)
     return "\n\n".join(latex_text_to_ex(body, tag)) + "\n"
+
+
+# ---------------------------------------------------------------- câu hỏi thành ảnh (Google Forms dạng ảnh)
+QIMG_PREAMBLE = ("\\documentclass[border=6pt,multi=qpage]{standalone}\n\\usepackage[utf8]{vietnam}\n"
+                 "\\usepackage{amsmath,amssymb,xcolor,tikz,tkz-tab}\n"
+                 "\\usetikzlibrary{calc,angles,quotes,intersections,patterns,arrows.meta}\n"
+                 "\\newenvironment{qpage}{\\begin{minipage}{16cm}\\setlength{\\parskip}{3pt}}{\\end{minipage}}\n"
+                 "\\providecommand{\\heva}[1]{\\left\\{\\begin{aligned}#1\\end{aligned}\\right.}\n"
+                 "\\providecommand{\\hoac}[1]{\\left[\\begin{aligned}#1\\end{aligned}\\right.}\n"
+                 "\\providecommand{\\True}{}\n\\providecommand{\\immini}[2]{#1\\par #2}\n\\begin{document}\n")
+
+
+def question_page(q, num: int, show_options: bool = True) -> str:
+    body = [f"\\textbf{{Câu {num}.}} {q.stem.strip()}"]
+    if show_options and q.qtype in ("TN", "DS"):
+        lab = "ABCD" if q.qtype == "TN" else "abcd"
+        for k, c in enumerate(q.choices):
+            body.append(f"\\par\\noindent\\textbf{{{lab[k] if k < 4 else k + 1}{'.' if q.qtype == 'TN' else ')'}}} "
+                        + c.replace("\\True", "").strip())
+    return "\\begin{qpage}\n" + "\n".join(body) + "\n\\end{qpage}\n"
+
+
+def question_pngs(version, out_dir: str, dpi: int = 110, prefix: str = "cau"):
+    """Mỗi câu của mã đề thành một ảnh PNG (đề + phương án) – dùng cho Google Forms (Forms không hiện công thức).
+    Trả về ([(phần, số câu, đường dẫn png)], BuildResult)."""
+    from .generator import SECTION_ORDER
+    from .pdfbuild import compile_tex, find_engine
+    os.makedirs(out_dir, exist_ok=True)
+    order, pages, n = [], [], 0
+    for s in SECTION_ORDER:
+        for i, q in enumerate(version.sections.get(s) or [], 1):
+            n += 1
+            order.append((s, i))
+            pages.append(question_page(q, i))
+    tex = os.path.join(out_dir, f"{prefix}_tat_ca.tex")
+    with open(tex, "w", encoding="utf-8") as f:
+        f.write(QIMG_PREAMBLE + "\n".join(pages) + "\\end{document}\n")
+    res = compile_tex(tex, find_engine(), runs=1)
+    if not res.ok:
+        return [], res
+    import pypdfium2 as pdfium
+    pdf = pdfium.PdfDocument(res.pdf)
+    out = []
+    for k, (s, i) in enumerate(order):
+        if k >= len(pdf):
+            break
+        bm = pdf[k].render(scale=dpi / 72, rev_byteorder=True)
+        p = os.path.join(out_dir, f"{prefix}_{k + 1:02d}.png")
+        _write_png(p, bytes(bm.buffer), bm.width, bm.height, bm.stride, bm.n_channels)
+        out.append((s, i, p))
+    pdf.close()
+    return out, res

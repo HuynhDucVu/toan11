@@ -46,6 +46,9 @@ class ExportOptions:
     omr_template: str = ""            # file .xlsx mẫu đáp án của phần mềm chấm (khi omr_profile = 'mau')
     qr_answers: bool = False          # in mã QR chứa đáp án trong file lời giải
     gas: bool = False                 # file Apps Script (.gs) tạo Google Form cho mỗi mã đề
+    gas_images: bool = False          # Google Form dạng ảnh: mỗi câu thành ảnh PNG (cần LaTeX) + file .gs
+    online_style: dict | None = None  # màu bài online / Blogger (online.version_html)
+    gform: dict | None = None         # Google Form nhận kết quả bài online
     answers_end: bool = False         # in bảng đáp án ở cuối chính file đề
     even_pages: bool = False          # chèn trang trống để mỗi đề có số trang chẵn (in 2 mặt không dính đề sau)
     answer_sheet: bool = False        # file phiếu trả lời: phiếu trắng + phiếu tô sẵn đáp án từng mã (phiếu khoá)
@@ -200,13 +203,23 @@ def export_versions(versions: list[ExamVersion], out_dir: str, *, template_path:
     if opt.online_html:
         from .online import export_html
         files += export_html(versions, out_dir, ten_de=ten_de, thoi_gian=int(thoi_gian),
-                             show_solution=opt.online_solution, scoring=opt.scoring_obj())
+                             show_solution=opt.online_solution, scoring=opt.scoring_obj(),
+                             style=opt.online_style, gform=opt.gform)
     if opt.moodle and versions:
         from .online import export_moodle
         files.append(export_moodle(list(versions[0].all_questions()), os.path.join(out_dir, "moodle.xml"),
                                    category=ten_de, scoring=opt.scoring_obj(),
                                    base_dir=os.path.dirname(os.path.abspath(template_path)) if template_path
                                    else out_dir))
+    if opt.gas_images and versions:
+        from .gas import export_gas_images
+        try:
+            files += export_gas_images(versions, out_dir, ten_de=ten_de, scoring=opt.scoring_obj())
+        except (RuntimeError, ImportError) as e:
+            p = os.path.join(out_dir, "LOI_google_form_anh.txt")
+            with open(p, "w", encoding="utf-8") as f:
+                f.write(str(e) + "\n")
+            files.append(p)
     if opt.answer_sheet and versions:
         from .omr import sheet_document
         for name, vs_ in (("phieu_tra_loi_trang.tex", None), ("phieu_dap_an_to_san.tex", versions)):

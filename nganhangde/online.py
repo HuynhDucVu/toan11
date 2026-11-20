@@ -85,7 +85,17 @@ function grade(){ let total=0, max=0;
   const name=document.getElementById('hs').value||'(chưa ghi tên)';
   document.getElementById('score').textContent = name+': '+total.toFixed(2).replace('.',',')+' / '+max.toFixed(2).replace('.',',')+' điểm';
   document.getElementById('submit').style.display='none'; window.scrollTo({top:0,behavior:'smooth'});
+  if(GF && GF.id) sendForm(name, total, max);
 }
+function sendForm(name, total, max){            // gửi kết quả về Google Form (bảng tính của giáo viên)
+  const v=id=>{const e=document.getElementById(id); return e?e.value:'';};
+  const used=Math.round((MINUTES*60-Math.max(left,0))/60*10)/10;
+  const vals={ten_de:TITLE, sbd:v('sbd'), ten:name, lop:v('lop'), diem:total.toFixed(2).replace('.',','),
+    bai_lam:JSON.stringify(answers()), thoi_gian:used+' phút', hoan_vi:CODE, dap_an:''};
+  const fd=new FormData(); for(const k in GF.entries){ if(GF.entries[k]) fd.append('entry.'+GF.entries[k], vals[k]||''); }
+  fetch('https://docs.google.com/forms/d/e/'+GF.id+'/formResponse',{method:'POST',mode:'no-cors',body:fd})
+   .then(()=>{const s=document.getElementById('score'); s.textContent+=' · đã gửi kết quả cho giáo viên';})
+   .catch(()=>alert('Không gửi được kết quả – chụp màn hình điểm gửi giáo viên.')); }
 if(ARENA){ const t=new URLSearchParams(location.search).get('ten'); if(t) document.getElementById('hs').value=t; }
 """
 
@@ -129,6 +139,20 @@ def mathjax_local() -> str:
     return os.path.join(os.path.dirname(os.path.abspath(__file__)), "assets", "mathjax", "tex-svg.js")
 
 
+def _style_css(style: dict | None) -> str:
+    import re as _re
+    if not style:
+        return ""
+    ok = (lambda c: bool(_re.fullmatch(r"#[0-9A-Fa-f]{3,8}", str(c or "").strip())))
+    out = [f"{STYLE_KEYS[k]}:{style[k].strip()}" for k in STYLE_KEYS if ok(style.get(k))]
+    css = (":root{" + ";".join(out) + "}") if out else ""
+    if ok(style.get("chu_cau")):
+        css += f".q b.num{{color:{style['chu_cau'].strip()}}}"
+    if ok(style.get("chu_loigiai")):
+        css += f".sol{{color:{style['chu_loigiai'].strip()}}}"
+    return css
+
+
 def answer_key(v: ExamVersion) -> dict:
     key = {}
     for s in SECTION_ORDER:
@@ -168,8 +192,14 @@ def grade_answers(v: ExamVersion, answers: dict, scoring=None) -> tuple[float, f
     return round(total, 4), round(mx, 4), per
 
 
+STYLE_KEYS = {"khung": "--c", "nen": "--bg", "the": "--card", "dung": "--ok", "sai": "--bad"}
+
+
 def version_html(v: ExamVersion, *, ten_de="ĐỀ KIỂM TRA", thoi_gian=90, show_solution=True, scoring=None,
-                 arena=False) -> str:
+                 arena=False, style: dict | None = None, gform: dict | None = None) -> str:
+    """style: màu tuỳ chọn {khung, nen, the, dung, sai, chu_cau, chu_loigiai}.
+    gform: gửi kết quả về Google Form {"id": <mã form trong link /forms/d/e/…/viewform>,
+    "entries": {ten_de, sbd, ten, lop, diem, bai_lam, thoi_gian, hoan_vi, dap_an: số entry.NNN}}."""
     from .scoring import DEFAULT
     sc = scoring or DEFAULT
     key, parts = answer_key(v), []
@@ -186,16 +216,17 @@ def version_html(v: ExamVersion, *, ten_de="ĐỀ KIỂM TRA", thoi_gian=90, sho
     title = html.escape(f"{ten_de} – Mã đề {v.code}")
     return f"""<!doctype html><html lang="vi"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1"><title>{title}</title>
-<style>{CSS}</style><script>window.MathJax={mj};</script>
+<style>{CSS}{_style_css(style)}</style><script>window.MathJax={mj};</script>
 <script defer src="{'/mathjax.js' if arena else MATHJAX_CDN}"></script>
 </head><body><header><h1>{title}</h1><span id="timer">{thoi_gian:02d}:00</span></header><main>
 <div class="card">Họ và tên: <input type="text" id="hs" placeholder="Nhập họ tên" style="width:min(320px,100%)">
+{'<div style="margin-top:6px">Lớp: <input type="text" id="lop" style="width:110px"> Số báo danh: <input type="text" id="sbd" style="width:130px"></div>' if gform and gform.get("id") else ''}
 <div id="score" style="margin-top:8px"></div>
 <div style="color:var(--mut);font-size:14px;margin-top:6px">Thang điểm: Phần I {_vn(sc.tn)}/câu · Phần II đúng 1/2/3/4 ý
 được {sc.ds_text()} · Phần III {_vn(sc.kq)}/câu. Hết giờ bài tự nộp.</div></div>
 {''.join(parts)}</main>
 <footer><button id="submit" onclick="submit(false)">Nộp bài</button></footer>
-<script>const DATA="{data}", MINUTES={int(thoi_gian)}, SHOW_SOL={'true' if show_solution else 'false'}, S={sc.js()}, ARENA={'true' if arena else 'false'}, CODE={json.dumps(v.code)};{JS}</script>
+<script>const DATA="{data}", MINUTES={int(thoi_gian)}, SHOW_SOL={'true' if show_solution else 'false'}, S={sc.js()}, ARENA={'true' if arena else 'false'}, CODE={json.dumps(v.code)}, TITLE={json.dumps(ten_de, ensure_ascii=False)}, GF={json.dumps(gform if gform and gform.get("id") else None)};{JS}</script>
 </body></html>"""
 
 
@@ -292,3 +323,28 @@ def export_moodle(questions, path: str, category: str = "Ngân hàng đề", sco
     with open(path, "w", encoding="utf-8") as f:
         f.write(moodle_xml(questions, category, scoring, base_dir))
     return path
+
+
+# ---------------------------------------------------------------- Google Form nhận kết quả
+GFORM_FIELDS = [("ten_de", "TENDE", "Tên đề"), ("sbd", "SBD", "Số báo danh"), ("ten", "TEN", "Họ tên"),
+                ("lop", "LOP", "Lớp"), ("diem", "DIEM", "Điểm"), ("bai_lam", "BAILAM", "Bài làm"),
+                ("thoi_gian", "THOIGIAN", "Thời gian làm"), ("hoan_vi", "MADE", "Mã đề"), ("dap_an", "DAPAN", "Đáp án")]
+
+
+def parse_prefill_link(url: str) -> dict:
+    """Link «Lấy đường liên kết điền sẵn» của Google Form (các ô điền từ khoá TEN, LOP, SBD, DIEM…) →
+    {"id": mã form, "entries": {trường: số entry}}."""
+    import re as _re
+    from urllib.parse import parse_qsl, urlparse
+    u = urlparse(url.strip())
+    m = _re.search(r"/forms/d/e/([\w-]+)/", u.path + "/")
+    if not m:
+        raise ValueError("Không thấy mã form – hãy dán link dạng https://docs.google.com/forms/d/e/…/viewform?…")
+    by_kw = {kw: f for f, kw, _ in GFORM_FIELDS}
+    entries = {}
+    for k, v in parse_qsl(u.query):
+        if k.startswith("entry.") and v.strip().upper() in by_kw:
+            entries[by_kw[v.strip().upper()]] = k[6:]
+    if not entries:
+        raise ValueError("Link chưa có ô nào được điền từ khoá (TEN, LOP, SBD, DIEM, …)")
+    return {"id": m.group(1), "entries": entries}

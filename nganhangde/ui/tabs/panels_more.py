@@ -106,8 +106,9 @@ class ConvertPanel(QWidget):
         lay.addWidget(g)
         grid = QGridLayout()
         items = [
-            ("Đề online", [("Moodle XML", self.moodle), ("Aiken (Moodle/LMS)", self.aiken), ("Quizizz (Excel)", self.quizizz),
+            ("Đề online", [("⚙ Màu & Google Form nhận kết quả…", self.online_settings), ("Moodle XML", self.moodle), ("Aiken (Moodle/LMS)", self.aiken), ("Quizizz (Excel)", self.quizizz),
                            ("Microsoft Forms (Word)", self.msforms), ("Google Forms (Apps Script)", self.gforms),
+                           ("Google Forms dạng ảnh", self.gforms_img),
                            ("Blogger (HTML)", self.blogger), ("Bài làm online (HTML)", self.online)]),
             ("Phiếu trả lời", [("Phiếu trắng (in)", self.sheet_blank), ("Phiếu tô sẵn theo đề .tex", self.sheet_from_file),
                                ("Phiếu tô theo chuỗi đáp án", self.sheet_from_string)]),
@@ -180,6 +181,10 @@ class ConvertPanel(QWidget):
         return v
 
     # --- đề online
+    def online_settings(self):
+        from ..dialogs.online_settings import OnlineSettingsDialog
+        OnlineSettingsDialog(self.win).exec()
+
     def moodle(self):
         from ...online import export_moodle
         qs = self._need()
@@ -227,13 +232,33 @@ class ConvertPanel(QWidget):
                 fh.write(apps_script(self._version(qs), ten_de=self.win.gen_panel.e_ten.text()))
             self._done(f"Google Forms: {p} – dán vào script.google.com, chạy hàm taoDe.", p)
 
+    def gforms_img(self):
+        from PySide6.QtWidgets import QApplication
+        from ...gas import export_gas_images
+        qs = self._need()
+        d = qs and QFileDialog.getExistingDirectory(self, "Thư mục lưu ảnh và file .gs")
+        if not d:
+            return
+        QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
+        try:
+            fs = export_gas_images([self._version(qs)], d, ten_de=self.win.gen_panel.e_ten.text())
+        except (RuntimeError, ImportError) as e:
+            QMessageBox.warning(self, "Google Forms dạng ảnh", str(e))
+            return
+        finally:
+            QApplication.restoreOverrideCursor()
+        self._done(f"Google Forms dạng ảnh: {fs[0]} – tải thư mục ảnh lên Drive, dán mã thư mục vào FOLDER_ID, chạy taoDe.",
+                   os.path.dirname(fs[0]))
+
     def blogger(self):
         from ...exportx import blogger_html
         qs = self._need()
         p = qs and self._save("Blogger", "blogger.html", "HTML (*.html)")
         if p:
             with open(p, "w", encoding="utf-8") as fh:
-                fh.write(blogger_html(self._version(qs), ten_de=self.win.gen_panel.e_ten.text()))
+                o = self.win.gen_panel.export_options()
+                fh.write(blogger_html(self._version(qs), ten_de=self.win.gen_panel.e_ten.text(), style=o.online_style,
+                                      gform=o.gform))
             self._done(f"Blogger: {p} – mở file bằng Notepad, chép toàn bộ, dán vào bài viết ở chế độ «Xem HTML».")
 
     def online(self):
@@ -242,7 +267,9 @@ class ConvertPanel(QWidget):
         if qs:
             d = QFileDialog.getExistingDirectory(self, "Thư mục lưu bài online")
             if d:
-                fs = export_html([self._version(qs)], d, ten_de=self.win.gen_panel.e_ten.text())
+                o = self.win.gen_panel.export_options()
+                fs = export_html([self._version(qs)], d, ten_de=self.win.gen_panel.e_ten.text(),
+                                 style=o.online_style, gform=o.gform)
                 self._done(f"Bài online: {fs[0]}", fs[0])
 
     # --- phiếu
@@ -369,7 +396,8 @@ class EditorPanel(QWidget):
         row = QHBoxLayout()
         for text, fn in (("Mới", self.new), ("Mở…", self.open), ("Lưu", self.save), ("Lưu thành…", self.save_as),
                          ("✅ Rà soát", self.review), ("📄 Biên dịch PDF", self.compile), ("Mở TeXstudio", self.texstudio),
-                         ("Nạp vào kho", self.to_bank)):
+                         ("Nạp vào kho", self.to_bank), ("🤖 Câu đổi số AI", lambda: self.ai(5)),
+                         ("🤖 Lời giải AI", lambda: self.ai(6))):
             b = QPushButton(text)
             b.clicked.connect(fn)
             row.addWidget(b)
@@ -456,6 +484,18 @@ class EditorPanel(QWidget):
         from ...editor import open_in_texstudio
         if self.save() and not open_in_texstudio(self.path, 0, self.win.settings.value("pdf/texstudio", "")):
             _open(self.path)
+
+    def ai(self, tab):
+        """Mở Trợ lý AI với các câu trong trang soạn thảo (hoặc trong đoạn đang bôi đen)."""
+        from ...parser import parse_tex
+        from ..dialogs.ai_assistant import AiAssistantDialog
+        sel = self.ed.textCursor().selectedText().replace("\u2029", "\n")
+        qs = parse_tex(sel) if sel.strip() else []
+        qs = qs or parse_tex(self.ed.toPlainText())
+        if not qs:
+            QMessageBox.information(self, "Trợ lý AI", "Trang soạn thảo chưa có câu hỏi nào (\\begin{ex}…\\end{ex}).")
+            return
+        AiAssistantDialog(self.win, tab, questions=qs, editor=self).exec()
 
     def to_bank(self):
         from ...parser import parse_tex

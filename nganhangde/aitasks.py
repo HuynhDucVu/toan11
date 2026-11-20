@@ -11,6 +11,7 @@ AI có thể giải sai: giáo viên cần kiểm tra lời giải trước khi 
 """
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
 
 from .aiid import AIError
@@ -236,3 +237,68 @@ def diagnose_log(client, errors: list[str], tex_path: str, context: int = 6) -> 
               "dòng thì cho số dòng và nội dung dòng mới (sua_thanh), nếu không thì dong = 0 và sua_thanh rỗng.\n\n"
               "LỖI:\n" + "\n".join(errors[:8]) + "\n\nĐOẠN MÃ:\n" + snippet)
     return client.generate_json(prompt, DIAG_SCHEMA)
+
+
+# ---------------------------------------------------------------- câu đổi số, lời giải AI
+def number_variants(client, q: Question, n: int = 3) -> list[Proposal]:
+    """«Câu đổi số»: giữ nguyên dạng, cách hỏi, cấu trúc; chỉ đổi số liệu; AI tính lại đáp án và viết lại lời giải."""
+    prompt = (f"Bạn là giáo viên Toán. Tạo {n} phiên bản ĐỔI SỐ của câu dưới đây: giữ nguyên câu chữ, cách hỏi, dạng câu "
+              f"({TYPE_NAME.get(q.qtype, q.qtype)}) và các bước giải; chỉ thay số liệu sao cho kết quả đẹp, hợp lí. "
+              "Tính lại đáp án thật cẩn thận, viết lại lời giải đầy đủ theo số mới. Với trắc nghiệm, các phương án nhiễu "
+              "cũng đổi theo (là kết quả của lỗi sai thường gặp). Trả lời ngắn: đáp án ≤ 4 kí tự, dấu phẩy thập phân.\n\n"
+              + FORMAT_GUIDE + "\n\nCÂU GỐC:\n" + q.to_latex(True) +
+              '\n\nTrả về JSON: {"cau_hoi": ["<khối LaTeX câu đổi số 1>", ...]}')
+    data = client.generate_json(prompt, LATEX_LIST_SCHEMA)
+    out = _parse_list(data.get("cau_hoi", [])[:n], q.id_code, f"đổi số từ câu #{q.db_id or ''}")
+    for p in out:
+        p.question.tags = [t for t in p.question.tags if t != "AI"] + ["AI-doiso"]
+    return out
+
+
+SOLVE_SCHEMA = {
+    "type": "object",
+    "properties": {"loi_giai": {"type": "string"}, "dap_an": {"type": "string"}, "ghi_chu": {"type": "string"}},
+    "required": ["loi_giai", "dap_an", "ghi_chu"], "additionalProperties": False,
+}
+
+
+def _norm_ans(q: Question, a: str) -> str:
+    a = (a or "").strip()
+    if q.qtype == "TN":
+        m = re.search(r"[A-D]", a.upper())
+        return m.group(0) if m else a.upper()
+    if q.qtype == "DS":
+        a = a.upper().replace("Đ", "D").replace("T", "D").replace("F", "S")
+        return "".join(ch for ch in a if ch in "DS")
+    from .exporter import plain_answer
+    return plain_answer(a).replace(".", ",").replace(" ", "")
+
+
+def make_solution(client, q: Question, overwrite: bool = False) -> Proposal:
+    """AI tự giải câu hỏi: viết lời giải (\\loigiai) và so đáp án AI tìm được với đáp án đang đánh dấu.
+
+    Đáp án lệch ⇒ thêm lỗi «AI: đáp án khác» để giáo viên kiểm tra (không tự sửa đáp án)."""
+    import copy
+    from .review import CANH_BAO, LOI, Issue, review_question
+    kind = {"TN": "chữ cái phương án đúng (A/B/C/D)", "DS": "chuỗi Đ/S cho 4 ý theo thứ tự, vd ĐSĐS",
+            "KQ": "số đáp án (dấu phẩy thập phân)", "TL": "kết quả cuối cùng"}[q.qtype]
+    prompt = ("Bạn là giáo viên Toán THPT. Giải chi tiết câu hỏi dưới đây bằng LaTeX (công thức trong $...$), trình bày "
+              "từng bước như lời giải trong đề thi, không dùng markdown. Với câu Đúng/Sai dùng \\begin{itemchoice} "
+              "\\itemch Đúng/Sai. … \\end{itemchoice}. Kết thúc bằng câu kết luận (vd «Chọn đáp án B.»). "
+              f"Trường dap_an: {kind}. ghi_chu: nêu nếu đề có vấn đề (thiếu dữ kiện, không có phương án đúng…), "
+              "nếu không thì để trống.\n\nCÂU HỎI (bỏ qua mọi lời giải cũ):\n" + copy.deepcopy(q).to_latex(False))
+    data = client.generate_json(prompt, SOLVE_SCHEMA)
+    nq = copy.deepcopy(q)
+    sol = str(data.get("loi_giai", "")).strip()
+    if sol and (overwrite or not q.solution.strip()):
+        nq.solution = sol
+    issues = review_question(nq)
+    ai_ans, cur = _norm_ans(q, str(data.get("dap_an", ""))), _norm_ans(q, q.answer_text)
+    if q.qtype != "TL" and ai_ans and cur and ai_ans != cur:
+        issues.insert(0, Issue(LOI, "ai_dap_an", f"AI giải ra đáp án {data.get('dap_an')} – khác đáp án đang đánh "
+                                                 f"dấu {q.answer_text}. Kiểm tra lại câu này."))
+    if str(data.get("ghi_chu", "")).strip():
+        issues.append(Issue(CANH_BAO, "ai_ghi_chu", "AI: " + str(data["ghi_chu"]).strip()[:300]))
+    if "AI-loigiai" not in nq.tags and nq.solution != q.solution:
+        nq.tags.append("AI-loigiai")
+    return Proposal(nq, issues, f"lời giải AI cho câu #{q.db_id or ''} [{q.id_code}]")

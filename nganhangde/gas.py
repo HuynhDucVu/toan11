@@ -189,3 +189,91 @@ def export_gas(versions, out_dir: str, **kw) -> list[str]:
             f.write(apps_script(v, **kw))
         out.append(p)
     return out
+
+
+def apps_script_images(v: ExamVersion, images: list[str], *, ten_de: str = "BÀI KIỂM TRA", scoring=None) -> str:
+    """Google Form có câu hỏi DẠNG ẢNH (công thức hiển thị chuẩn). images: tên file PNG theo thứ tự câu
+    (TN → ĐS → TLN → TL) – giáo viên tải cả thư mục ảnh lên Google Drive rồi dán mã thư mục vào FOLDER_ID."""
+    from .exporter import plain_answer
+    from .scoring import DEFAULT
+    sc = scoring or DEFAULT
+    items, k, notes = [], 0, []
+    for s, label in (("TN", "PHẦN I"), ("DS", "PHẦN II"), ("KQ", "PHẦN III"), ("TL", "PHẦN IV")):
+        qs = v.sections.get(s) or []
+        if not qs:
+            continue
+        items.append({"t": "head", "title": label})
+        for i, q in enumerate(qs, 1):
+            img = images[k] if k < len(images) else ""
+            k += 1
+            items.append({"t": "img", "file": img, "title": f"Câu {i}"})
+            if s == "TN":
+                items.append({"t": "mc", "title": f"Câu {i}: chọn đáp án", "choices": list("ABCD")[:len(q.choices)],
+                              "ok": [bool(x) for x in q.correct], "pts": sc.tn})
+            elif s == "DS":
+                for j, ok in enumerate(q.correct):
+                    items.append({"t": "mc", "title": f"Câu {i} – ý {'abcd'[j] if j < 4 else j + 1})",
+                                  "choices": ["Đúng", "Sai"], "ok": [ok, not ok], "pts": round(sc.ds[3] / 4, 4)})
+            elif s == "KQ":
+                items.append({"t": "text", "title": f"Câu {i}: đáp án", "pts": sc.kq})
+                notes.append(f"Phần III câu {i}: {plain_answer(q.answer_text)}")
+            else:
+                items.append({"t": "para", "title": f"Câu {i}: bài làm", "pts": sc.tl_points(len(qs))[i - 1]})
+    data = json.dumps(items, ensure_ascii=False, indent=1)
+    title = json.dumps(f"{ten_de} – Mã đề {v.code}", ensure_ascii=False)
+    note = "\n".join("// " + x for x in notes) or "// (không có)"
+    return f"""/**
+ * Google Form dạng ẢNH – {ten_de}, mã đề {v.code}. Sinh bởi phần mềm Ngân hàng đề thi.
+ * 1) Tải cả thư mục ảnh (các file cau_XX.png) lên Google Drive.
+ * 2) Mở thư mục trên Drive, chép mã thư mục (phần sau /folders/ trong địa chỉ) dán vào FOLDER_ID bên dưới.
+ * 3) script.google.com → Dự án mới → dán toàn bộ mã → chọn hàm taoDe → Chạy → cấp quyền (Form, Drive).
+ * Đáp án Phần III cho giáo viên (Forms không tự chấm ô trả lời ngắn qua Apps Script):
+{note}
+ */
+var FOLDER_ID = 'DÁN_MÃ_THƯ_MỤC_ẢNH_VÀO_ĐÂY';
+var DATA = {data};
+
+function taoDe() {{
+  var folder = DriveApp.getFolderById(FOLDER_ID);
+  var form = FormApp.create({title});
+  form.setIsQuiz(true);
+  form.addTextItem().setTitle('Họ và tên, lớp').setRequired(true);
+  DATA.forEach(function (it) {{
+    var pts = Math.round((it.pts || 0) * 100) / 100;
+    if (it.t === 'head') {{
+      form.addSectionHeaderItem().setTitle(it.title);
+    }} else if (it.t === 'img') {{
+      var files = folder.getFilesByName(it.file);
+      if (files.hasNext()) form.addImageItem().setTitle(it.title).setImage(files.next().getBlob());
+      else form.addSectionHeaderItem().setTitle(it.title + ' (thiếu ảnh ' + it.file + ')');
+    }} else if (it.t === 'mc') {{
+      var item = form.addMultipleChoiceItem();
+      item.setTitle(it.title).setChoices(it.choices.map(function (c, i) {{ return item.createChoice(c, it.ok[i]); }}))
+          .setPoints(pts);
+    }} else if (it.t === 'text') {{
+      form.addTextItem().setTitle(it.title).setPoints(pts);
+    }} else {{
+      form.addParagraphTextItem().setTitle(it.title).setPoints(pts);
+    }}
+  }});
+  Logger.log('Sửa Form: ' + form.getEditUrl());
+  Logger.log('Gửi học sinh: ' + form.getPublishedUrl());
+}}
+"""
+
+
+def export_gas_images(versions, out_dir: str, dpi: int = 110, **kw) -> list[str]:
+    """Mỗi mã đề: thư mục google_form_anh_<mã>/ gồm ảnh từng câu + file .gs. Cần LaTeX và pypdfium2."""
+    import os
+    from .exportx import question_pngs
+    out = []
+    for v in versions:
+        d = os.path.join(out_dir, f"google_form_anh_{v.code}")
+        imgs, res = question_pngs(v, d, dpi=dpi)
+        if not res.ok:
+            raise RuntimeError(f"Không dựng được ảnh câu hỏi mã {v.code}: {res.summary()}")
+        p = os.path.join(d, f"google_form_anh_{v.code}.gs")
+        with open(p, "w", encoding="utf-8") as f:
+            f.write(apps_script_images(v, [os.path.basename(x[2]) for x in imgs], **kw))
+        out.append(p)
+    return out
