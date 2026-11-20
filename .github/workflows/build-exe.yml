@@ -21,6 +21,7 @@ on:
       - "run_gui.py"
       - "requirements*.txt"
       - "RELEASE_NOTES.md"
+      - "packaging/**"
       - ".github/workflows/build-exe.yml"
 
 permissions:
@@ -57,6 +58,20 @@ jobs:
         id: ver
         shell: bash
         run: echo "version=$(python -c 'import nganhangde; print(nganhangde.__version__)')" >> "$GITHUB_OUTPUT"
+      # Bản phụ (không bắt buộc – lỗi ở đây không chặn bản exe chính):
+      #   NganHangDe_ThuMuc.zip  – bản thư mục (--onedir): mở nhanh hơn, ít bị phần mềm diệt virus nghi nhầm;
+      #   NganHangDe_CaiDat.exe  – bộ cài Inno Setup từ bản thư mục (cài cho riêng người dùng, có lối tắt).
+      - name: Đóng gói bản thư mục
+        continue-on-error: true
+        run: |
+          pyinstaller --noconfirm --onedir --windowed --name NganHangDe --icon nganhangde/assets/app.ico --distpath dist --workpath build_dir --add-data "nganhangde/templates:nganhangde/templates" --add-data "nganhangde/assets:nganhangde/assets" --add-data "nganhangde/data:nganhangde/data" --exclude-module PySide6.QtQml --exclude-module PySide6.QtQuick --exclude-module PySide6.QtWebEngineCore --exclude-module tkinter run_gui.py
+          Compress-Archive -Path dist/NganHangDe -DestinationPath dist/NganHangDe_ThuMuc.zip -Force
+      - name: Dựng bộ cài đặt
+        continue-on-error: true
+        run: |
+          $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+          if (-not (Test-Path $iscc)) { choco install innosetup -y --no-progress; $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" }
+          & $iscc "/DAppVersion=${{ steps.ver.outputs.version }}" packaging/installer.iss
       - uses: actions/upload-artifact@v4
         with:
           name: NganHangDe-${{ steps.ver.outputs.version }}-windows
@@ -68,5 +83,8 @@ jobs:
           target_commitish: ${{ github.sha }}
           name: Ngân hàng đề thi ${{ steps.ver.outputs.version }}
           make_latest: true
-          files: dist/NganHangDe.exe
+          files: |
+            dist/NganHangDe.exe
+            dist/NganHangDe_ThuMuc.zip
+            dist/NganHangDe_CaiDat.exe
           body_path: RELEASE_NOTES.md

@@ -45,6 +45,8 @@ class ExportOptions:
     omr_profile: str = "tnmaker"      # mẫu file đáp án phần mềm chấm: tnmaker | ngang | mau (theo file mẫu)
     omr_template: str = ""            # file .xlsx mẫu đáp án của phần mềm chấm (khi omr_profile = 'mau')
     qr_answers: bool = False          # in mã QR chứa đáp án trong file lời giải
+    gas: bool = False                 # file Apps Script (.gs) tạo Google Form cho mỗi mã đề
+    slides: bool = False              # trình chiếu HTML (mã đề đầu tiên, mỗi câu một trang)
 
     def scoring_obj(self):
         from .scoring import Scoring
@@ -195,7 +197,16 @@ def export_versions(versions: list[ExamVersion], out_dir: str, *, template_path:
     if opt.moodle and versions:
         from .online import export_moodle
         files.append(export_moodle(list(versions[0].all_questions()), os.path.join(out_dir, "moodle.xml"),
-                                   category=ten_de, scoring=opt.scoring_obj()))
+                                   category=ten_de, scoring=opt.scoring_obj(),
+                                   base_dir=os.path.dirname(os.path.abspath(template_path)) if template_path
+                                   else out_dir))
+    if opt.gas:
+        from .gas import export_gas
+        files += export_gas(versions, out_dir, ten_de=ten_de, scoring=opt.scoring_obj())
+    if opt.slides and versions:
+        from .slides import export_slides
+        files.append(export_slides(list(versions[0].all_questions()), os.path.join(out_dir, "trinh_chieu.html"),
+                                   f"{ten_de} – mã {versions[0].code}"))
     if opt.word:
         from .wordconv import export_docx, PandocMissing
         for v in versions:

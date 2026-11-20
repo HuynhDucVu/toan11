@@ -49,6 +49,10 @@ nganhangde/
 ├── htmlconv.py   # LaTeX → HTML (giữ công thức cho MathJax)
 ├── online.py     # bài làm online (HTML tự chấm) và Moodle XML
 ├── wordconv.py   # Word ↔ LaTeX qua pandoc
+├── arena.py      # phòng thi LAN (http.server): phát đề không kèm đáp án, chấm phía máy chủ, bảng điểm
+├── gas.py        # Google Forms qua Apps Script (.gs); LaTeX → chữ Unicode
+├── slides.py     # trình chiếu HTML: mỗi câu một trang, bút vẽ, bấm giờ
+├── assets/mathjax/tex-svg.js  # MathJax 3.2.2 đi kèm (Apache 2.0) – dùng khi không có Internet
 ├── mathgen.py    # sinh câu hỏi số từ câu mẫu có tham số
 ├── drawgen.py    # mã TikZ: bảng biến thiên, đồ thị, biểu đồ cột/quạt
 ├── pdfbuild.py   # biên dịch PDF: tìm MiKTeX/TeX Live, chạy nhiều lượt, đọc lỗi từ .log
@@ -71,6 +75,7 @@ nganhangde/
 ├── assets/       # biểu tượng app.ico, app.png
 └── templates/de_thi.tex   # file mẫu đề (thay bằng mẫu của trường)
 run_gui.py        # điểm chạy khi đóng gói exe (có --selftest)
+packaging/installer.iss  # bộ cài Inno Setup cho bản thư mục (--onedir)
 build_exe.bat     # nhấp đúp trên Windows → dist\NganHangDe.exe
 .github/workflows/build-exe.yml   # GitHub tự đóng gói exe
 ```
@@ -429,6 +434,34 @@ Mỗi mã đề là một file HTML tự chứa:
 | Tự luận | `essay` |
 
 Công thức được đổi sang dạng `\( \)` mà bộ lọc MathJax của Moodle dùng.
+
+### Giai đoạn 4: phòng thi LAN, Google Forms, Moodle, trình chiếu
+
+**Phòng thi LAN** (`arena.py`). `ThreadingHTTPServer` chạy ở luồng nền:
+`/` (nhập họ tên) → `/vao` (chia mã đề vòng tròn) → `/de/<mã>/` (trang làm bài) → `POST …/nop` → `/bang`.
+Trang ở chế độ `arena=True` có `DATA=""` (**không chứa đáp án**); khi nộp, JavaScript gửi câu trả lời
+(`answers()`), máy chủ chấm bằng `online.grade_answers` (cùng quy tắc với bản offline, cùng thang điểm) rồi mới
+trả `key` để trang hiện đúng/sai và lời giải. MathJax được phát từ máy giáo viên (`/mathjax.js`) nên lớp học
+không cần Internet. `lan_ip()` lấy IP LAN bằng socket UDP (không gửi gói tin).
+
+**Google Forms** (`gas.py`). Sinh mã Apps Script `taoDe()` dùng `FormApp` (quiz, điểm từng câu, đáp án đúng cho câu
+nhiều lựa chọn). `latex_to_text` đổi công thức sang Unicode (phân số a/b, √, x², ≤, ℝ…). Giới hạn của Forms được
+ghi rõ trong đầu file: không có công thức thật, Đúng/Sai tách 4 câu điểm đều, trả lời ngắn chấm tay.
+
+**Moodle** (`online.moodle_xml`). Ảnh `\includegraphics` tìm thấy (thư mục mẫu đề hoặc thư mục kết quả) được nhúng
+`<file encoding="base64">` và trỏ `@@PLUGINFILE@@/tên`, qua móc `htmlconv.IMAGE_HOOK`. Câu tự luận → `essay`
+có `graderinfo` (lời giải cho người chấm) và điểm theo thang điểm Phần IV. Hình TikZ chưa chuyển thành ảnh.
+
+**Trình chiếu** (`slides.py`). Một file HTML, mỗi câu một `<section>`; phím ←/→, A (đáp án), L (lời giải),
+B (bút vẽ trên `<canvas>`), T (bấm giờ), N (nền tối), F (toàn màn hình). Ghi kèm thư mục `mathjax/`.
+
+**Đóng gói.** Ngoài `NganHangDe.exe` (onefile, dùng cho tự cập nhật), workflow dựng thêm (không bắt buộc, lỗi
+không chặn bản chính) `NganHangDe_ThuMuc.zip` (`--onedir`, mở nhanh, ít bị diệt virus nghi nhầm) và
+`NganHangDe_CaiDat.exe` (Inno Setup, cài cho riêng người dùng). Xem trước PDF trong phần mềm (QtPdf) **chưa làm**:
+QtPdf không có trong PySide6-Essentials, thêm vào làm exe nặng thêm nhiều chục MB – vẫn mở bằng trình xem PDF của máy.
+
+**Kiểm thử** chia theo chủ đề: `test_parser_db`, `test_generator`, `test_review_idmap`, `test_tools_convert`,
+`test_integration` (+ `conftest.py` dùng chung), cùng `test_gui` (offscreen) và `test_v11`…`test_v14` theo giai đoạn.
 
 ### Word ↔ LaTeX (`wordconv.py`)
 

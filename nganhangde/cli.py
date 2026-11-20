@@ -146,6 +146,33 @@ def cmd_make(bank: Bank, a):
     _maybe_pdf(a, files)
 
 
+def cmd_arena(bank: Bank, a):
+    """Mở phòng thi LAN từ một file đề .tex (Ctrl+C để đóng)."""
+    import random
+    import time
+    from .arena import Arena
+    from .generator import MixOptions, make_codes, mix_versions, sections_from_questions
+    vs = mix_versions(sections_from_questions(parse_file(a.file)), make_codes(a.n, 101, 3), random.Random(),
+                      MixOptions())
+    ar = Arena(vs, ten_de=a.title, thoi_gian=a.minutes, port=a.port)
+    print("Phòng thi mở tại:", ar.start(), "– bảng điểm: /bang – Ctrl+C để đóng")
+    try:
+        while True:
+            time.sleep(1)
+    except KeyboardInterrupt:
+        pass
+    finally:
+        if ar.results:
+            print("Đã lưu bảng điểm:", ar.export_csv(a.csv))
+        ar.stop()
+
+
+def cmd_slides(bank: Bank, a):
+    from .slides import export_slides
+    qs = [q for f in a.files for q in parse_file(f)]
+    print("Đã ghi", export_slides(qs, a.out, a.title))
+
+
 def cmd_matrix(bank: Bank, a):
     from . import matrix
     if a.src.lower().endswith(".xlsx"):
@@ -452,6 +479,17 @@ def main(argv=None):
     p.add_argument("--all", action="store_true", help="gán lại cả câu đã có ID")
     p = sub.add_parser("backup")
     p.add_argument("dest")
+    p = sub.add_parser("arena", help="phòng thi LAN: học sinh làm bài qua Wi-Fi, máy giáo viên chấm")
+    p.add_argument("file")
+    p.add_argument("-n", type=int, default=4, help="số mã đề")
+    p.add_argument("--port", type=int, default=8765)
+    p.add_argument("--minutes", type=int, default=45)
+    p.add_argument("--title", default="BÀI KIỂM TRA")
+    p.add_argument("--csv", default="bang_diem.csv")
+    p = sub.add_parser("slides", help="trình chiếu HTML (mỗi câu một trang, có bút vẽ)")
+    p.add_argument("files", nargs="+")
+    p.add_argument("-o", "--out", default="trinh_chieu.html")
+    p.add_argument("--title", default="Trình chiếu")
     p = sub.add_parser("matrix", help="ma trận CV 7991: .json → .xlsx/.docx, hoặc nạp .xlsx → .json")
     p.add_argument("src", help="ma_tran.json hoặc file Excel ma trận")
     p.add_argument("-o", "--out", required=True, help=".xlsx / .docx (xuất) hoặc .json (nạp từ Excel)")
@@ -480,7 +518,7 @@ def main(argv=None):
          "make": cmd_make, "export": cmd_export, "idmap": cmd_idmap, "shuffle": cmd_shuffle,
          "backup": cmd_backup, "review": cmd_review, "suggest-id": cmd_suggest_id,
          "word2tex": cmd_word2tex, "tex2word": cmd_tex2word, "pdf": cmd_pdf, "ai-id": cmd_ai_id, "ai-pdf": cmd_ai_pdf,
-         "matrix": cmd_matrix}[a.cmd](bank, a)
+         "matrix": cmd_matrix, "arena": cmd_arena, "slides": cmd_slides}[a.cmd](bank, a)
     except AIError as e:
         sys.exit(f"Lỗi: {e}")
     finally:

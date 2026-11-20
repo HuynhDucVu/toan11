@@ -317,6 +317,12 @@ class Bank:
             "GROUP BY lop, mon, chuong, qtype, muc_do ORDER BY lop, mon, chuong, qtype, muc_do"
         ).fetchall()
 
+    def tree_stats(self):
+        """Số câu theo (lớp, môn, chương, bài, dạng) – cho cây dữ liệu."""
+        return self.con.execute(
+            "SELECT lop, mon, chuong, bai, dang, COUNT(*) AS n FROM questions "
+            "GROUP BY lop, mon, chuong, bai, dang ORDER BY lop, mon, chuong, bai, dang").fetchall()
+
     # ---------- câu tương tự ----------
     def similar(self, q: Question, same_level: bool = True) -> list[Question]:
         """Câu cùng dạng (cùng ID bỏ qua mức độ nếu same_level=False), cùng loại câu."""

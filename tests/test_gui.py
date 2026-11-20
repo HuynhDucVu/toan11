@@ -207,3 +207,23 @@ def test_draw_studio(win, app):
     d.e_shade.setText("2; 3")
     d.graph()
     assert "x=1" in d.code.toPlainText() and "blue!20" in d.code.toPlainText()
+
+
+def test_arena_dialog_and_present(win, app, monkeypatch, tmp_path):
+    from PySide6.QtGui import QDesktopServices
+    opened = []
+    monkeypatch.setattr(QDesktopServices, "openUrl", staticmethod(lambda u: opened.append(u.toString()) or True))
+    from nganhangde.ui.dialogs.arena import ArenaDialog
+    d = ArenaDialog(win)
+    d.cb_src.setCurrentIndex(1)
+    d.e_file.setText(SAMPLE)
+    d.sp_port.setValue(0 or 8790)
+    d.toggle()
+    assert d.arena is not None and "8790" in d.l_url.text()
+    d.refresh()
+    d.toggle()
+    assert d.arena is None
+    win.table.selectRow(0)
+    win.present()
+    assert opened and opened[-1].endswith("trinh_chieu.html")
+    win.tree.setCurrentItem(win.tree.topLevelItem(0))

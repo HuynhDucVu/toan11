@@ -40,14 +40,29 @@ mjx-container{max-width:100%}.q>div,.opt span,.ds>div,.sol{min-width:0;overflow-
 """
 
 JS = r"""
-const K = JSON.parse(atob(DATA));            // đáp án
+let K = DATA ? JSON.parse(atob(DATA)) : null;   // đáp án (phòng thi LAN: máy chủ trả về sau khi nộp)
 let left = MINUTES*60, timer = setInterval(()=>{ left--; const m=Math.max(0,Math.floor(left/60)), s=Math.max(0,left%60);
   document.getElementById('timer').textContent = String(m).padStart(2,'0')+':'+String(s).padStart(2,'0');
   if(left<=0){ clearInterval(timer); submit(true); } },1000);
 function norm(x){ return (x||'').toString().trim().replace(/\s+/g,'').replace(/\./g,',').replace(/^\+/,''); }
+function answers(){ const a={};
+  document.querySelectorAll('.q').forEach(q=>{ const id=q.dataset.id, t=q.dataset.type;
+    if(t==='TN'){ const c=q.querySelector('input:checked'); a[id]=c?+c.value:null; }
+    else if(t==='DS'){ a[id]=[...q.querySelectorAll('.ds .tf')].map((_,i)=>{ const c=q.querySelector('input[name="'+id+'_'+i+'"]:checked'); return c?c.value==='1':null; }); }
+    else if(t==='KQ'){ a[id]=q.querySelector('input[type=text]').value; }
+    else { const x=q.querySelector('textarea'); a[id]=x?x.value:''; } });
+  return a; }
 function submit(auto){
   if(!auto && !confirm('Nộp bài?')) return;
-  clearInterval(timer); let total=0, max=0;
+  clearInterval(timer);
+  if(ARENA && !K){ const name=document.getElementById('hs').value||'(chưa ghi tên)';
+    fetch('nop',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({ma:CODE, ten:name, tra_loi:answers()})})
+    .then(r=>r.json()).then(r=>{ if(r.loi){ alert(r.loi); return; } K=r.key; grade(); })
+    .catch(()=>alert('Không gửi được bài – kiểm tra kết nối Wi-Fi rồi bấm Nộp lại.'));
+    return; }
+  grade(); }
+function grade(){ let total=0, max=0;
   document.querySelectorAll('.q').forEach(q=>{
     const id=q.dataset.id, t=q.dataset.type, key=K[id]; let pts=0, full=0, msg='';
     if(t==='TN'){ full=S.TN; const c=q.querySelector('input:checked');
@@ -71,6 +86,7 @@ function submit(auto){
   document.getElementById('score').textContent = name+': '+total.toFixed(2).replace('.',',')+' / '+max.toFixed(2).replace('.',',')+' điểm';
   document.getElementById('submit').style.display='none'; window.scrollTo({top:0,behavior:'smooth'});
 }
+if(ARENA){ const t=new URLSearchParams(location.search).get('ten'); if(t) document.getElementById('hs').value=t; }
 """
 
 
@@ -104,16 +120,19 @@ def _q_html(q, s: str, i: int, qid: str) -> str:
     return "".join(body)
 
 
-def version_html(v: ExamVersion, *, ten_de="ĐỀ KIỂM TRA", thoi_gian=90, show_solution=True, scoring=None) -> str:
-    from .scoring import DEFAULT
-    sc = scoring or DEFAULT
-    key, parts = {}, []
+MATHJAX_CDN = "https://cdnjs.cloudflare.com/ajax/libs/mathjax/3.2.2/es5/tex-mml-chtml.min.js"
+
+
+def mathjax_local() -> str:
+    """Đường dẫn MathJax đi kèm (tex-svg.js, không cần Internet)."""
+    import os
+    return os.path.join(os.path.dirname(os.path.abspath(__file__)), "assets", "mathjax", "tex-svg.js")
+
+
+def answer_key(v: ExamVersion) -> dict:
+    key = {}
     for s in SECTION_ORDER:
-        qs = v.sections.get(s) or []
-        if not qs:
-            continue
-        parts.append(f"<h2>{PART_TITLE[s]}</h2>")
-        for i, q in enumerate(qs, 1):
+        for i, q in enumerate(v.sections.get(s) or [], 1):
             qid = f"{s}{i}"
             if s == "TN":
                 key[qid] = q.correct.index(True) if sum(q.correct) == 1 else -1
@@ -121,15 +140,54 @@ def version_html(v: ExamVersion, *, ten_de="ĐỀ KIỂM TRA", thoi_gian=90, sho
                 key[qid] = list(q.correct)
             elif s == "KQ":
                 key[qid] = plain_answer(q.short_answer)
-            parts.append(_q_html(q, s, i, qid))
-    data = base64.b64encode(json.dumps(key, ensure_ascii=False).encode("utf-8")).decode()
+    return key
+
+
+def _norm_kq(x) -> str:
+    import re as _re
+    return _re.sub(r"\s+", "", str(x or "")).replace(".", ",").lstrip("+")
+
+
+def grade_answers(v: ExamVersion, answers: dict, scoring=None) -> tuple[float, float, dict]:
+    """Chấm phía máy chủ (phòng thi LAN) – cùng quy tắc với bài online. Trả về (điểm, tối đa, điểm từng câu)."""
+    from .scoring import DEFAULT
+    sc = scoring or DEFAULT
+    key, total, mx, per = answer_key(v), 0.0, 0.0, {}
+    for qid, k in key.items():
+        a = answers.get(qid)
+        if qid.startswith("TN"):
+            full, pts = sc.tn, sc.tn if a is not None and a == k else 0.0
+        elif qid.startswith("DS"):
+            n = sum(1 for i, x in enumerate(k) if isinstance(a, list) and i < len(a) and a[i] is not None
+                    and bool(a[i]) == x)
+            full, pts = sc.ds[3], sc.ds_score(n)
+        else:
+            full = sc.kq
+            pts = sc.kq if _norm_kq(a) and _norm_kq(a) == _norm_kq(k) else 0.0
+        total, mx, per[qid] = total + pts, mx + full, pts
+    return round(total, 4), round(mx, 4), per
+
+
+def version_html(v: ExamVersion, *, ten_de="ĐỀ KIỂM TRA", thoi_gian=90, show_solution=True, scoring=None,
+                 arena=False) -> str:
+    from .scoring import DEFAULT
+    sc = scoring or DEFAULT
+    key, parts = answer_key(v), []
+    for s in SECTION_ORDER:
+        qs = v.sections.get(s) or []
+        if not qs:
+            continue
+        parts.append(f"<h2>{PART_TITLE[s]}</h2>")
+        for i, q in enumerate(qs, 1):
+            parts.append(_q_html(q, s, i, f"{s}{i}"))
+    data = "" if arena else base64.b64encode(json.dumps(key, ensure_ascii=False).encode("utf-8")).decode()
     mj = json.dumps({"tex": {"inlineMath": [["$", "$"], ["\\(", "\\)"]], "macros": MATHJAX_MACROS},
                      "svg": {"fontCache": "global"}}, ensure_ascii=False)
     title = html.escape(f"{ten_de} – Mã đề {v.code}")
     return f"""<!doctype html><html lang="vi"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1"><title>{title}</title>
 <style>{CSS}</style><script>window.MathJax={mj};</script>
-<script defer src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/3.2.2/es5/tex-mml-chtml.min.js"></script>
+<script defer src="{'/mathjax.js' if arena else MATHJAX_CDN}"></script>
 </head><body><header><h1>{title}</h1><span id="timer">{thoi_gian:02d}:00</span></header><main>
 <div class="card">Họ và tên: <input type="text" id="hs" placeholder="Nhập họ tên" style="width:min(320px,100%)">
 <div id="score" style="margin-top:8px"></div>
@@ -137,7 +195,7 @@ def version_html(v: ExamVersion, *, ten_de="ĐỀ KIỂM TRA", thoi_gian=90, sho
 được {sc.ds_text()} · Phần III {_vn(sc.kq)}/câu. Hết giờ bài tự nộp.</div></div>
 {''.join(parts)}</main>
 <footer><button id="submit" onclick="submit(false)">Nộp bài</button></footer>
-<script>const DATA="{data}", MINUTES={int(thoi_gian)}, SHOW_SOL={'true' if show_solution else 'false'}, S={sc.js()};{JS}</script>
+<script>const DATA="{data}", MINUTES={int(thoi_gian)}, SHOW_SOL={'true' if show_solution else 'false'}, S={sc.js()}, ARENA={'true' if arena else 'false'}, CODE={json.dumps(v.code)};{JS}</script>
 </body></html>"""
 
 
@@ -162,45 +220,75 @@ def _mtext(s: str) -> str:
     return _cdata(dollar_to_paren(latex_to_html(s)))
 
 
-def moodle_xml(questions, category: str = "Ngân hàng đề", scoring=None) -> str:
+def moodle_xml(questions, category: str = "Ngân hàng đề", scoring=None, base_dir: str | None = None) -> str:
+    """Xuất câu hỏi sang Moodle XML: TN → multichoice; Đúng/Sai → cloze (4 ý); trả lời ngắn → shortanswer;
+    tự luận → essay (kèm graderinfo = lời giải cho người chấm). Ảnh \\includegraphics tìm thấy được nhúng base64."""
     from .scoring import DEFAULT
     sc = scoring or DEFAULT
-    """Xuất câu hỏi sang Moodle XML: TN → multichoice; Đúng/Sai → cloze (4 ý); trả lời ngắn → shortanswer."""
+    tl_pts = iter(sc.tl_points(sum(1 for q in questions if q.qtype == "TL")))
     out = ['<?xml version="1.0" encoding="UTF-8"?>', "<quiz>",
            f'<question type="category"><category><text>$course$/{html.escape(category)}</text></category></question>']
-    for n, q in enumerate(questions, 1):
-        name = html.escape(f"{q.id_code or 'cau'} #{q.db_id if q.db_id is not None else n}")
-        fb = f"<generalfeedback format='html'><text>{_mtext(q.solution)}</text></generalfeedback>" if q.solution else ""
-        if q.qtype == "TN" and sum(q.correct) == 1:
-            ans = "".join(f"<answer fraction='{100 if ok else 0}' format='html'><text>{_mtext(c)}</text></answer>"
-                          for c, ok in zip(q.choices, q.correct))
-            out.append(f"<question type='multichoice'><name><text>{name}</text></name>"
-                       f"<questiontext format='html'><text>{_mtext(q.stem)}</text></questiontext>{fb}"
-                       f"<defaultgrade>{sc.tn}</defaultgrade><single>true</single>"
-                       f"<shuffleanswers>1</shuffleanswers><answernumbering>ABCD</answernumbering>{ans}</question>")
-        elif q.qtype == "DS":
-            items = "".join(
-                f"<p>{'abcd'[k] if k < 4 else k + 1}) {dollar_to_paren(latex_to_html(c))} "
-                f"{{1:MULTICHOICE:{'=' if ok else ''}Đúng~{'' if ok else '='}Sai}}</p>"
-                for k, (c, ok) in enumerate(zip(q.choices, q.correct)))
-            text = dollar_to_paren(latex_to_html(q.stem)) + items
-            out.append(f"<question type='cloze'><name><text>{name}</text></name>"
-                       f"<questiontext format='html'><text>{_cdata(text)}</text></questiontext>{fb}</question>")
-        elif q.qtype == "KQ":
-            a = plain_answer(q.short_answer)
-            alts = {a, a.replace(",", ".")}
-            ans = "".join(f"<answer fraction='100'><text>{html.escape(x)}</text></answer>" for x in alts)
-            out.append(f"<question type='shortanswer'><name><text>{name}</text></name>"
-                       f"<questiontext format='html'><text>{_mtext(q.stem)}</text></questiontext>{fb}"
-                       f"<defaultgrade>{sc.kq}</defaultgrade><usecase>0</usecase>{ans}</question>")
-        else:
-            out.append(f"<question type='essay'><name><text>{name}</text></name>"
-                       f"<questiontext format='html'><text>{_mtext(q.stem)}</text></questiontext>{fb}</question>")
+    import base64
+    import os
+    from . import htmlconv
+    files: dict[str, str] = {}
+
+    def hook(fname):
+        if not base_dir:
+            return None
+        cands = [fname] + [fname + e for e in (".png", ".jpg", ".jpeg", ".gif")]
+        for c in cands:
+            p = c if os.path.isabs(c) else os.path.join(base_dir, c)
+            if os.path.isfile(p) and os.path.splitext(p)[1].lower() in (".png", ".jpg", ".jpeg", ".gif"):
+                nm = os.path.basename(p)
+                with open(p, "rb") as f:
+                    files[nm] = base64.b64encode(f.read()).decode("ascii")
+                return "@@PLUGINFILE@@/" + nm
+        return None
+
+    old_hook, htmlconv.IMAGE_HOOK = htmlconv.IMAGE_HOOK, hook
+    try:
+        for n, q in enumerate(questions, 1):
+            files.clear()
+            name = html.escape(f"{q.id_code or 'cau'} #{q.db_id if q.db_id is not None else n}")
+            qtext = _mtext(q.stem)
+            fb = f"<generalfeedback format='html'><text>{_mtext(q.solution)}</text></generalfeedback>" \
+                if q.solution else ""
+            if q.qtype == "TN" and sum(q.correct) == 1:
+                ans = "".join(f"<answer fraction='{100 if ok else 0}' format='html'><text>{_mtext(c)}</text></answer>"
+                              for c, ok in zip(q.choices, q.correct))
+                tail = (f"<defaultgrade>{sc.tn}</defaultgrade><single>true</single>"
+                        f"<shuffleanswers>1</shuffleanswers><answernumbering>ABCD</answernumbering>{ans}")
+                kind = "multichoice"
+            elif q.qtype == "DS":
+                items = "".join(
+                    f"<p>{'abcd'[k] if k < 4 else k + 1}) {dollar_to_paren(latex_to_html(c))} "
+                    f"{{1:MULTICHOICE:{'=' if ok else ''}Đúng~{'' if ok else '='}Sai}}</p>"
+                    for k, (c, ok) in enumerate(zip(q.choices, q.correct)))
+                qtext = _cdata(dollar_to_paren(latex_to_html(q.stem)) + items)
+                kind, tail = "cloze", ""
+            elif q.qtype == "KQ":
+                a = plain_answer(q.short_answer)
+                alts = {a, a.replace(",", ".")}
+                ans = "".join(f"<answer fraction='100'><text>{html.escape(x)}</text></answer>" for x in alts)
+                kind, tail = "shortanswer", f"<defaultgrade>{sc.kq}</defaultgrade><usecase>0</usecase>{ans}"
+            else:
+                gi = f"<graderinfo format='html'><text>{_mtext(q.solution)}</text></graderinfo>" if q.solution else ""
+                kind = "essay"
+                tail = (f"<defaultgrade>{next(tl_pts, sc.tl_default)}</defaultgrade><responseformat>editor"
+                        f"</responseformat><responserequired>1</responserequired><responsefieldlines>15"
+                        f"</responsefieldlines><attachments>1</attachments>{gi}")
+            imgs = "".join(f"<file name='{html.escape(k)}' path='/' encoding='base64'>{v}</file>"
+                           for k, v in files.items())
+            out.append(f"<question type='{kind}'><name><text>{name}</text></name>"
+                       f"<questiontext format='html'><text>{qtext}</text>{imgs}</questiontext>{fb}{tail}</question>")
+    finally:
+        htmlconv.IMAGE_HOOK = old_hook
     out.append("</quiz>")
     return "\n".join(out)
 
 
-def export_moodle(questions, path: str, category: str = "Ngân hàng đề", scoring=None) -> str:
+def export_moodle(questions, path: str, category: str = "Ngân hàng đề", scoring=None, base_dir=None) -> str:
     with open(path, "w", encoding="utf-8") as f:
-        f.write(moodle_xml(questions, category, scoring))
+        f.write(moodle_xml(questions, category, scoring, base_dir))
     return path

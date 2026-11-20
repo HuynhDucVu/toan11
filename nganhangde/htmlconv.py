@@ -32,6 +32,8 @@ MATHJAX_MACROS = {
 }
 
 
+IMAGE_HOOK = None          # hàm(tên file) → địa chỉ ảnh (vd Moodle @@PLUGINFILE@@), đặt tạm khi xuất
+
 BE_RE = re.compile(r"\\(begin|end)\{([^}]*)\}")
 
 
@@ -114,9 +116,15 @@ def _text_to_html(t: str) -> str:
                 i = j2
                 continue
             if name in ("includegraphics",):
+                fname = ""
                 while j < len(t) and t[j] in "[{":
-                    _, j = read_group(t, j, t[j], "]" if t[j] == "[" else "}")
-                out.append("<div class='fig'>[Hình ảnh – xem bản in]</div>")
+                    br = t[j]
+                    g, j = read_group(t, j, br, "]" if br == "[" else "}")
+                    if br == "{":
+                        fname = g.strip()
+                src = IMAGE_HOOK(fname) if IMAGE_HOOK and fname else None
+                out.append(f"<div class='fig'><img src='{src}' style='max-width:100%'></div>" if src else
+                           "<div class='fig'>[Hình ảnh – xem bản in]</div>")
                 i = j
                 continue
             if name in DROP_CMDS:

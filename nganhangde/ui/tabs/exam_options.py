@@ -184,6 +184,8 @@ class ExamOptionsBox(QTabWidget):
         self.c_online_sol = QCheckBox("   Hiện lời giải sau khi học sinh nộp bài")
         self.c_moodle = QCheckBox("File Moodle XML (nhập vào ngân hàng câu hỏi Moodle/LMS)")
         self.c_word = QCheckBox("File Word .docx mỗi mã đề (công thức Word gốc – cần cài pandoc)")
+        self.c_gas = QCheckBox("Google Forms: file Apps Script (.gs) tạo bài kiểm tra trên Google Form mỗi mã đề")
+        self.c_slides = QCheckBox("Trình chiếu HTML (mỗi câu một trang, có bút vẽ – dùng khi chữa đề)")
         from ...wordconv import PandocMissing, pandoc_path
         try:
             pandoc_path()
@@ -191,7 +193,8 @@ class ExamOptionsBox(QTabWidget):
             self.c_word.setEnabled(False)
             self.c_word.setToolTip("Chưa cài pandoc: tải tại pandoc.org/installing.html")
         for c, k, d in ((self.c_online, "online", False), (self.c_online_sol, "online_sol", True),
-                        (self.c_moodle, "moodle", False), (self.c_word, "word", False)):
+                        (self.c_moodle, "moodle", False), (self.c_word, "word", False),
+                        (self.c_gas, "gas", False), (self.c_slides, "slides", False)):
             c.setChecked(val(k, d))
             v.addWidget(c)
         note = QLabel("<i>Bài online dùng MathJax để hiện công thức (cần mạng khi mở). Đáp án nằm trong file "
@@ -244,7 +247,8 @@ class ExamOptionsBox(QTabWidget):
                              moodle=self.c_moodle.isChecked(), word=self.c_word.isChecked() and self.c_word.isEnabled(),
                              diem=self.diem() if self._check_diem() else None,
                              omr_profile=self.cb_profile.currentData(), omr_template=self.e_omr_tpl.text().strip(),
-                             qr_answers=self.c_qr.isChecked())
+                             qr_answers=self.c_qr.isChecked(), gas=self.c_gas.isChecked(),
+                             slides=self.c_slides.isChecked())
 
     def apply_thpt2026(self):
         self.cb_codemode.setCurrentIndex(self.cb_codemode.findData("seq"))
@@ -271,5 +275,5 @@ class ExamOptionsBox(QTabWidget):
         for k, c in (("renumber", self.c_renum), ("official", self.c_official), ("scoring", self.c_scoring),
                      ("xlsx", self.c_xlsx), ("showid", self.c_showid), ("zip", self.c_zip),
                      ("online", self.c_online), ("online_sol", self.c_online_sol), ("moodle", self.c_moodle),
-                     ("word", self.c_word)):
+                     ("word", self.c_word), ("gas", self.c_gas), ("slides", self.c_slides)):
             self.st.setValue(f"{self.prefix}/opt_{k}", c.isChecked())

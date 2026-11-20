@@ -11,7 +11,7 @@ Phần mềm quản lý ngân hàng câu hỏi Toán định dạng `ex_test`. C
 * trộn đề theo ma trận hoặc trộn trực tiếp từ file, cân bằng đáp án A/B/C/D, **chuẩn đề tốt nghiệp THPT 2026** (24 mã 0101…0124), **đáp án Excel cho TNMaker** hoặc theo file mẫu của phần mềm chấm bất kì, mã QR đáp án; **ma trận CV 7991** (Excel/Word), thang điểm tuỳ chỉnh, câu chùm;
 * sao lưu, gộp và tách kho;
 * **sinh câu hỏi số** từ câu mẫu có tham số; **vẽ hình**: bảng biến thiên tự động, đồ thị (tiệm cận, tô miền tích phân), biểu đồ, trục số, miền nghiệm, hình khối → mã TikZ;
-* xuất mã đề, lời giải và đáp án; **biên dịch PDF** (pdflatex/xelatex, báo lỗi kèm số dòng, gói ex_test rút gọn đi kèm); **bài làm online** (HTML tự chấm, mở được trên điện thoại), **Moodle XML**, **Word ↔ LaTeX** (cần pandoc).
+* xuất mã đề, lời giải và đáp án; **biên dịch PDF** (pdflatex/xelatex, báo lỗi kèm số dòng, gói ex_test rút gọn đi kèm); **bài làm online** (HTML tự chấm, mở được trên điện thoại), **phòng thi LAN** (học sinh làm bài qua Wi-Fi, bảng điểm trực tiếp), **trình chiếu chữa đề**, **Google Forms** (Apps Script), **Moodle XML** (kèm ảnh), **Word ↔ LaTeX** (cần pandoc).
 
 **Tải bản dựng sẵn cho Windows:** trang [Releases](https://github.com/HuynhDucVu/toan11/releases/latest), tải `NganHangDe.exe`.
 Từ bản 0.10.0 phần mềm **tự cập nhật** (Trợ giúp → Cập nhật phần mềm).

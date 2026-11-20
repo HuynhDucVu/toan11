@@ -26,6 +26,9 @@ def selftest() -> int:
     import anthropic  # noqa: F401  – nhà cung cấp AI Claude
     from nganhangde.idmap import builtin_map
     nmap = len(builtin_map())
+    import os as _os
+    from nganhangde.online import mathjax_local
+    nmap = nmap if _os.path.getsize(mathjax_local()) > 1_000_000 else 0     # MathJax đi kèm
     ok = "<<NOI_DUNG>>" in tpl and n == 1 and q.answer_text == "A" and nmap > 1000
     print("SELFTEST", "OK" if ok else "FAIL")
     return 0 if ok else 1

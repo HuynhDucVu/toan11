@@ -1,11 +1,27 @@
 ## Tải về và chạy
+Có 3 cách (chọn một):
+- **NganHangDe.exe** – một file, chạy ngay, **tự cập nhật** được (khuyên dùng);
+- **NganHangDe_CaiDat.exe** – bộ cài (có lối tắt ngoài màn hình, gỡ cài đặt trong Windows);
+- **NganHangDe_ThuMuc.zip** – bản thư mục, mở nhanh hơn, ít bị phần mềm diệt virus nghi nhầm (giải nén rồi chạy NganHangDe.exe bên trong).
+
+Với bản một file:
 1. Tải file **NganHangDe.exe** ở mục *Assets* bên dưới.
 2. Chép vào một thư mục riêng (ví dụ `D:\NganHangDe`) rồi nhấp đúp để chạy, không cần cài đặt.
 3. Nếu Windows SmartScreen cảnh báo (vì file chưa ký số): bấm **More info → Run anyway**.
 
 Kho câu hỏi `nganhang.db` nằm cạnh file exe. Cập nhật từ bản cũ: chỉ cần thay file exe, kho giữ nguyên.
 
-## Có gì mới ở bản 0.13.0 – Giai đoạn 3: Trợ lý AI nhiều nhà cung cấp, Draw Studio
+## Có gì mới ở bản 0.14.0 – Giai đoạn 4: phòng thi LAN, Google Forms, trình chiếu, bộ cài
+- **Phòng thi LAN** (Đề thi → Phòng thi LAN): máy giáo viên phát đề qua Wi-Fi, học sinh làm bài trên điện thoại/máy tính (không cần cài gì, **không cần Internet**). Trang làm bài **không chứa đáp án** – máy giáo viên chấm, xem **bảng điểm trực tiếp**, mở bảng điểm lên máy chiếu, xuất CSV.
+- **Trình chiếu chữa đề** (Đề thi → Trình chiếu, F11): mỗi câu một trang toàn màn hình, phím A hiện đáp án, L hiện lời giải, **B bút vẽ** lên màn hình, T bấm giờ, N nền tối. Cũng xuất được cùng lúc với đề (tab Online / Word).
+- **Google Forms:** xuất file Apps Script (.gs) – dán vào script.google.com, bấm Chạy là có bài kiểm tra trên Google Form (công thức đổi sang chữ thường; Đúng/Sai tách 4 câu; trả lời ngắn chấm tay – giới hạn của Google Forms).
+- **Moodle:** nhúng ảnh (`\includegraphics`) vào file XML; câu tự luận có đáp án cho người chấm và điểm theo thang điểm.
+- **Cây dữ liệu** bên trái chi tiết tới **bài** và **dạng** (tên lấy từ Map ID).
+- **Bộ cài đặt** và **bản thư mục** (xem đầu trang).
+- MathJax đi kèm phần mềm: trình chiếu và phòng thi LAN hiện công thức không cần Internet.
+- Dòng lệnh: `arena de.tex -n 4`, `slides de.tex -o trinh_chieu.html`.
+
+## Bản 0.13.0 – Giai đoạn 3: Trợ lý AI nhiều nhà cung cấp, Draw Studio
 - **Chọn nhà cung cấp AI** (Công cụ → Cài đặt AI): Google Gemini (có hạn mức miễn phí), Anthropic Claude, OpenAI, DeepSeek, Grok. Mỗi nhà cung cấp lưu khoá riêng; nút *Kiểm tra kết nối* tải danh sách mô hình.
 - **Trợ lý AI** (Câu hỏi → Trợ lý AI, Ctrl+I):
   - **Câu tương tự:** chọn câu trong kho → AI soạn câu mới cùng dạng, cùng ID, có lời giải (tuỳ chọn khó hơn một mức);

@@ -73,6 +73,8 @@ class MainWindow(BankActionsMixin, QMainWindow):
         self._act(m, "Tạo đề theo ma trận…", self.open_generator, "Ctrl+G")
         self._act(m, "Rà soát đáp án và lời giải…", self.open_review, "Ctrl+R")
         self._act(m, "Lịch sử ra đề…", self.show_batches)
+        self._act(m, "Phòng thi LAN (học sinh làm bài qua Wi-Fi)…", self.open_arena)
+        self._act(m, "Trình chiếu câu đã chọn (chữa đề trên máy chiếu)", self.present, "F11")
         m = mb.addMenu("Công &cụ")
         self._act(m, "Soát lỗi file .tex…", self.check_file)
         self._act(m, "Giải nghĩa ID (Map ID)…", self.edit_idmap, "Ctrl+M")
@@ -270,6 +272,23 @@ class MainWindow(BankActionsMixin, QMainWindow):
         if notes:
             self.statusBar().showMessage("  ".join(notes), 20000)
 
+    def open_arena(self):
+        from .dialogs.arena import ArenaDialog
+        ArenaDialog(self).exec()
+
+    def present(self):
+        import tempfile
+        from ..slides import export_slides
+        ids = self.selected_ids()
+        qs = [q for q in (self.bank.get(i) for i in ids) if q is not None] if ids else self.bank.search()[:50]
+        if not qs:
+            return
+        d = tempfile.mkdtemp(prefix="nhd_trinhchieu_")
+        p = export_slides(qs, os.path.join(d, "trinh_chieu.html"), "Trình chiếu")
+        QDesktopServices.openUrl(QUrl.fromLocalFile(p))
+        self.statusBar().showMessage("Đã mở trình chiếu trong trình duyệt – bấm F để toàn màn hình, ←/→ chuyển câu, "
+                                     "A đáp án, L lời giải, B bút vẽ.", 15000)
+
     def ai_assistant(self, tab: int = 0):
         from .dialogs.ai_assistant import AiAssistantDialog
         AiAssistantDialog(self, tab).exec()
@@ -313,11 +332,18 @@ class MainWindow(BankActionsMixin, QMainWindow):
         self.tree.addTopLevelItem(root)
         nodes = {}
         names = self.bank.idmap()
-        for r in self.bank.stats():
+        for r in self.bank.tree_stats():
             lop, mon, ch, n = r["lop"], r["mon"], r["chuong"], r["n"]
+            bai, dang = r["bai"] or "", r["dang"] or ""
+            kb = (lop or "") + (mon or "") + (ch or "") + bai
             path = [("lop", lop, f"Lớp {LOP.get(lop, lop)}" if lop else "Chưa có ID"),
                     ("mon", mon, names.get(lop + mon) or MON.get(mon, mon or "?")),
                     ("chuong", ch, names.get(lop + mon + ch) or f"Chương {ch}")]
+            if bai:
+                path.append(("bai", bai, f"Bài {bai}. {names[kb]}" if kb in names else f"Bài {bai}"))
+                if dang:
+                    kd = f"{kb}-{dang}"
+                    path.append(("dang", dang, f"Dạng {dang}. {names[kd]}" if kd in names else f"Dạng {dang}"))
             parent, filt = root, {}
             for key, val, label in path:
                 if not lop and key != "lop":
@@ -357,7 +383,8 @@ class MainWindow(BankActionsMixin, QMainWindow):
         tf = getattr(self, "tree_filter", {})
         qs = self.bank.search(qtype=self.f_type.currentData() or None, muc_do=self.f_muc.currentData() or None,
                               id_like=self.f_id.text().strip() or None, text=self.f_text.text().strip() or None, tag=self.f_tag.text().strip() or None,
-                              lop=tf.get("lop"), mon=tf.get("mon"), chuong=tf.get("chuong"))
+                              lop=tf.get("lop"), mon=tf.get("mon"), chuong=tf.get("chuong"),
+                              bai=tf.get("bai"), dang=tf.get("dang"))
         used = dict(self.bank.con.execute("SELECT id, used_count FROM questions").fetchall())
         self.table.setSortingEnabled(False)
         self.table.setRowCount(len(qs))
