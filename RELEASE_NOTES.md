@@ -11,6 +11,8 @@ Với bản một file:
 
 Kho câu hỏi `nganhang.db` nằm cạnh file exe. Cập nhật từ bản cũ: chỉ cần thay file exe, kho giữ nguyên.
 
+## Bản 0.17.16 – như 0.17.15 (nạp kho MyLT lớn nhanh hơn, có tiến trình và nút Dừng); sửa bài kiểm thử trên Windows để bản đóng gói được.
+
 ## Có gì mới ở bản 0.17.15 – Nạp kho MyLT lớn nhanh hơn, không còn «treo»
 - Bước đọc kho bằng bộ máy Access (Windows) dùng vòng lặp C# thay cho PowerShell từng dòng – nhanh hơn nhiều lần với kho hàng trăm nghìn câu (nếu máy không biên dịch được thì tự quay về cách cũ).
 - Hộp thoại hiện rõ **Bước 1/2 – đang đọc kho (đã xuất … MB)** và **Bước 2/2 – đang nhập (đã xử lý … câu)**; nút **Dừng** dùng được ở cả hai bước.

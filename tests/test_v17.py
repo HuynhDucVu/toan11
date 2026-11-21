@@ -485,8 +485,8 @@ def test_run_cancelable(tmp_path):
     out = str(tmp_path / "o.txt")
     assert m._run_cancelable([sys.executable, "-c", "print('xin chao')"], out, stdout_to_out=True) == ""
     assert "xin chao" in open(out).read()
-    err = m._run_cancelable([sys.executable, "-c", "import sys;sys.stderr.write('hỏng');sys.exit(3)"], out)
-    assert "hỏng" in err
+    err = m._run_cancelable([sys.executable, "-c", "import sys;sys.stderr.write('loi nang');sys.exit(3)"], out)
+    assert "loi nang" in err
     stop = {"v": False}
     threading.Timer(0.8, lambda: stop.__setitem__("v", True)).start()
     t = time.time()
