@@ -11,7 +11,29 @@ Với bản một file:
 
 Kho câu hỏi `nganhang.db` nằm cạnh file exe. Cập nhật từ bản cũ: chỉ cần thay file exe, kho giữ nguyên.
 
-## Có gì mới ở bản 0.16.1 – Biên dịch bằng LaTeX của TeXstudio (TeX Live 2019…)
+## Có gì mới ở bản 0.16.2 – Thư mục phần mềm gọn gàng như MyLT
+Lần đầu chạy, phần mềm tạo các thư mục con ngay cạnh file `NganHangDe.exe`:
+
+```
+NganHangDe\
+├── NganHangDe.exe
+├── config.ini     ← cài đặt (không còn lưu trong Registry)
+├── DOC_TOI.txt    ← giải thích các thư mục
+├── du_lieu\       ← kho câu hỏi nganhang.db
+├── mau_de\        ← de_thi.tex (sửa theo mẫu của trường là có hiệu lực ngay), gói ex_test rút gọn
+├── map_id\        ← danh mục ID Toán 6–12 (.tex)
+├── de_xuat\       ← đề đã trộn
+├── sao_luu\       ← bản sao lưu kho
+├── anh\           ← ảnh PNG
+├── online\        ← bài online, trình chiếu, Google Forms
+└── tam\           ← file tạm (xoá thoải mái)
+```
+- **Chép nguyên thư mục này sang máy khác hoặc USB là dùng được ngay**, giữ đủ kho câu hỏi và cài đặt.
+- Máy đang dùng bản cũ: cài đặt cũ tự chép sang `config.ini`, kho cũ (`nganhang.db` cạnh exe) vẫn được dùng tiếp, không mất gì.
+- Menu **Tệp → Mở thư mục phần mềm**; tab **Thông tin** ghi rõ đường dẫn.
+- Nếu đặt phần mềm trong thư mục không ghi được (vd `C:\Program Files`), dữ liệu tự chuyển sang `%LOCALAPPDATA%\NganHangDe`.
+
+## Bản 0.16.1 – Biên dịch bằng LaTeX của TeXstudio (TeX Live 2019…)
 - Phần mềm **đọc cài đặt của TeXstudio** trên máy: TeXstudio dùng pdflatex/xelatex ở đâu thì phần mềm dùng đúng chỗ đó – máy chỉ có TeX Live + TeXstudio (không cần MiKTeX) vẫn biên dịch PDF được.
 - Tìm TeX Live mọi năm (2019 → `bin\win32`, 2023 trở đi → `bin\windows`) ở mọi ổ đĩa `C:\texlive`, `D:\texlive`, …
 - *Công cụ → Cài đặt biên dịch PDF → Kiểm tra* cho biết đang dùng trình biên dịch nào (ghi rõ «theo cài đặt TeXstudio»). Vẫn chỉ tay được đường dẫn, vd `C:\texlive\2019\bin\win32\pdflatex.exe`.

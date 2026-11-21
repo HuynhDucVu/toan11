@@ -67,6 +67,7 @@ nganhangde/
 ├── editor.py     # mở file .tex bằng TeXstudio (nhảy tới dòng lỗi)
 ├── templates/nhd_extest.sty   # gói ex_test rút gọn dùng khi máy chưa cài ex_test
 ├── cli.py        # Bước 7a: dòng lệnh
+├── appdirs.py    # thư mục phần mềm cạnh exe: config.ini, du_lieu, mau_de, map_id, de_xuat, sao_luu, anh, online, tam
 ├── textnorm.py   # bỏ dấu tiếng Việt, tạo truy vấn FTS5 («tap nghiem» tìm được «tập nghiệm»)
 ├── data/map_id_toan_6_12.tex  # danh mục ID có sẵn Toán 6–12 (1 504 mục)
 ├── ui/           # Bước 7b: giao diện chính (PySide6/Qt), mỗi file < 40 KB

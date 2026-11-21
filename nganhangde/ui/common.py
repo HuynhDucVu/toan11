@@ -3,7 +3,6 @@ from __future__ import annotations
 
 import os
 import re
-import sys
 
 from PySide6.QtGui import QColor, QFont, QSyntaxHighlighter, QTextCharFormat
 from PySide6.QtWidgets import QFrame, QPlainTextEdit, QScrollArea, QWidget
@@ -50,10 +49,24 @@ QTabWidget#mainTabs > QTabBar::tab:hover:!selected { background: #c5d6ea; }
 
 
 def resource_dir() -> str:
-    """Thư mục chứa dữ liệu mặc định (cạnh file .exe khi đã đóng gói)."""
-    if getattr(sys, "frozen", False):
-        return os.path.dirname(sys.executable)
-    return os.getcwd()
+    """Thư mục gốc của phần mềm (cạnh file .exe khi đã đóng gói) – xem appdirs.py."""
+    from ..appdirs import home
+    return home()
+
+
+def make_settings():
+    """Cài đặt lưu trong config.ini cạnh phần mềm (như MyLT). Lần đầu: chép cài đặt cũ từ Registry sang."""
+    from PySide6.QtCore import QSettings
+    from ..appdirs import settings_file
+    p = settings_file()
+    fresh = not os.path.exists(p)
+    st = QSettings(p, QSettings.Format.IniFormat)
+    if fresh and not os.environ.get("NHD_HOME"):
+        old = QSettings("NganHangDe", "NganHangDe")
+        for k in old.allKeys():
+            st.setValue(k, old.value(k))
+        st.sync()
+    return st
 
 
 class LatexHighlighter(QSyntaxHighlighter):

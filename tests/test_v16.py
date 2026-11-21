@@ -52,3 +52,20 @@ def test_question_pngs(tmp_path):
     v = mix_versions(sections_from_questions(parse_file(SAMPLE)), ["101"], random.Random(1), MixOptions())[0]
     out, res = question_pngs(v, str(tmp_path), dpi=50)
     assert res.ok and len(out) == 22 and out[0][:2] == ("TN", 1)
+
+
+def test_app_folder_layout(tmp_path, monkeypatch):
+    from nganhangde import appdirs
+    from nganhangde.exporter import load_template
+    monkeypatch.setenv("NHD_HOME", str(tmp_path))
+    root = appdirs.ensure_layout()
+    for d in appdirs.SUBDIRS:
+        assert (tmp_path / d).is_dir()
+    assert (tmp_path / "mau_de" / "de_thi.tex").exists() and (tmp_path / "DOC_TOI.txt").exists()
+    assert appdirs.default_db() == str(tmp_path / "du_lieu" / "nganhang.db")
+    (tmp_path / "mau_de" / "de_thi.tex").write_text("MAU RIENG <<NOI_DUNG>>", encoding="utf-8")
+    assert load_template().startswith("MAU RIENG")              # giáo viên sửa mẫu trong mau_de là có hiệu lực
+    (tmp_path / "nganhang.db").write_text("")
+    (tmp_path / "du_lieu" / "nganhang.db").unlink(missing_ok=True)
+    assert appdirs.default_db() == str(tmp_path / "nganhang.db")  # máy dùng bố cục cũ: giữ kho cũ
+    assert appdirs.settings_file() == str(tmp_path / "config.ini") and root == str(tmp_path)

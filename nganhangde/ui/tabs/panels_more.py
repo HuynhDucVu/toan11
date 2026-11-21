@@ -528,12 +528,14 @@ hoá ảnh TikZ, chuyển đổi Word/LaTeX, sinh câu, thống kê</td></tr>
 theo cực trị), bảng biến thiên, bảng xét dấu, trục số, miền nghiệm, đường tròn lượng giác</td></tr>
 <tr><td><b>Soạn thảo</b></td><td>soạn câu ex_test có mẫu chèn nhanh, rà soát, biên dịch PDF</td></tr>
 </table>
-<p>Kho câu hỏi: <code>{getattr(win.bank, 'path', '')}</code></p>
+<p>Thư mục phần mềm: <code>{__import__('nganhangde.appdirs', fromlist=['home']).home()}</code>
+(config.ini, du_lieu, mau_de, map_id, de_xuat, sao_luu, anh, online, tam – xem DOC_TOI.txt)<br>
+Kho câu hỏi: <code>{getattr(win.bank, 'path', '')}</code></p>
 <p>Mã nguồn và bản cập nhật: <a href="https://github.com/HuynhDucVu/toan11/releases">github.com/HuynhDucVu/toan11</a></p>""")
         lay.addWidget(tb, 1)
         row = QHBoxLayout()
         for text, fn in (("Kiểm tra cập nhật…", lambda: win.check_update()),
-                         ("Mở thư mục kho", lambda: _open(os.path.dirname(os.path.abspath(getattr(win.bank, "path", "."))))),
+                         ("Mở thư mục phần mềm", win.open_app_folder),
                          ("Hướng dẫn trên GitHub", lambda: QDesktopServices.openUrl(
                              QUrl("https://github.com/HuynhDucVu/toan11#readme")))):
             b = QPushButton(text)

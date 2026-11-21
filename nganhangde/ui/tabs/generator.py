@@ -55,7 +55,7 @@ class GeneratorPanel(QWidget):
         self.e_seed.setPlaceholderText("để trống = ngẫu nhiên; nhập số để tạo lại đúng bộ đề cũ")
         self.e_out = self._path_row(self.st.value("gen/out", os.path.join(resource_dir(), "de_xuat")), folder=True)
         self.e_tpl = self._path_row(self.st.value("gen/tpl", ""), folder=False)
-        self.e_tpl[0].setPlaceholderText("để trống = dùng mẫu có sẵn")
+        self.e_tpl[0].setPlaceholderText("để trống = mau_de\\de_thi.tex trong thư mục phần mềm")
         fl.addRow("Tên đề", self.e_ten)
         fl.addRow("Trường", self.e_truong)
         self.hdr = {}

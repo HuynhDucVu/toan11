@@ -66,6 +66,15 @@ def plain_answer(a: str) -> str:
 
 
 def load_template(path: str | None = None) -> str:
+    """Mẫu đề: file chỉ định → mau_de\\de_thi.tex trong thư mục phần mềm (giáo viên sửa được) → mẫu đi kèm."""
+    if not path and os.environ.get("NHD_USE_APP_TEMPLATE", "1") == "1":
+        try:
+            from .appdirs import path as app_path
+            cand = app_path("mau_de", "de_thi.tex")
+            if os.path.isfile(cand):
+                path = cand
+        except OSError:
+            pass
     if path:
         with open(path, encoding="utf-8") as f:
             return f.read()

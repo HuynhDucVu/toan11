@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import os
 
-from PySide6.QtCore import QSettings, QUrl, Qt
+from PySide6.QtCore import QUrl, Qt
 from PySide6.QtGui import QAction, QColor, QDesktopServices, QKeySequence
 from PySide6.QtWidgets import (QAbstractItemView, QApplication, QComboBox,
     QFileDialog, QFormLayout, QGroupBox, QHBoxLayout, QHeaderView, QLineEdit, QMainWindow,
@@ -14,7 +14,7 @@ from ..db import Bank
 from ..exporter import export_questions
 from ..idcode import LOP, MON, parse_id
 from ..parser import parse_file, validate
-from .common import APP_NAME, TEN_LOAI, TEN_MUC, latex_editor, resource_dir
+from .common import APP_NAME, TEN_LOAI, TEN_MUC, latex_editor, make_settings
 from .dialogs.ai_settings import GeminiSettingsDialog
 from .dialogs.assign_id import AssignIdDialog
 from .dialogs.edit import EditDialog
@@ -29,8 +29,10 @@ from .layout import LayoutMixin
 class MainWindow(LayoutMixin, BankActionsMixin, QMainWindow):
     def __init__(self, db_path: str | None = None):
         super().__init__()
-        self.settings = QSettings("NganHangDe", "NganHangDe")
-        db_path = db_path or self.settings.value("db_path") or os.path.join(resource_dir(), "nganhang.db")
+        from ..appdirs import default_db, ensure_layout
+        ensure_layout()
+        self.settings = make_settings()
+        db_path = db_path or self.settings.value("db_path") or default_db()
         self.bank: Bank | None = None
         self.resize(1300, 800)
         self._build_ui()
@@ -50,6 +52,7 @@ class MainWindow(LayoutMixin, BankActionsMixin, QMainWindow):
         self._act(m, "Xuất câu ra Word / Moodle / bài làm online…", self.export_other)
         m.addSeparator()
         self._act(m, "Sao lưu kho…", self.backup_bank, "Ctrl+B")
+        self._act(m, "Mở thư mục phần mềm (kho, mẫu đề, đề đã trộn…)", self.open_app_folder)
         self._act(m, "Gộp kho khác vào kho này…", self.merge_bank)
         self._act(m, "Tách câu đã chọn ra kho mới…", self.split_bank)
         m.addSeparator()
@@ -258,6 +261,10 @@ class MainWindow(LayoutMixin, BankActionsMixin, QMainWindow):
         self.stats_panel.reload()
         if notes:
             self.statusBar().showMessage("  ".join(notes), 20000)
+
+    def open_app_folder(self):
+        from ..appdirs import home
+        QDesktopServices.openUrl(QUrl.fromLocalFile(home()))
 
     def open_arena(self):
         from .dialogs.arena import ArenaDialog
@@ -507,8 +514,8 @@ class MainWindow(LayoutMixin, BankActionsMixin, QMainWindow):
         from datetime import datetime
         base = os.path.splitext(os.path.basename(self.bank.path))[0]
         name = f"{base}_saoluu_{datetime.now():%Y%m%d_%H%M}.db"
-        p, _ = QFileDialog.getSaveFileName(self, "Sao lưu kho", os.path.join(os.path.dirname(
-            os.path.abspath(self.bank.path)), name), "Kho câu hỏi (*.db)")
+        from ..appdirs import path as app_path
+        p, _ = QFileDialog.getSaveFileName(self, "Sao lưu kho", app_path("sao_luu", name), "Kho câu hỏi (*.db)")
         if p:
             self.bank.backup(p)
             QMessageBox.information(self, "Sao lưu", f"Đã sao lưu {self.bank.count()} câu ra\n{p}\n\n"
