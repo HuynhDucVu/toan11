@@ -11,6 +11,10 @@ Với bản một file:
 
 Kho câu hỏi `nganhang.db` nằm cạnh file exe. Cập nhật từ bản cũ: chỉ cần thay file exe, kho giữ nguyên.
 
+## Có gì mới ở bản 0.17.28 – Sửa lỗi «Failed to load Python DLL … python312.dll» sau khi tự cập nhật
+- Sau khi tự cập nhật, bản mới được mở lên kế thừa biến môi trường của bản cũ nên dùng nhầm thư mục giải nén tạm `_MEIxxxx` đã bị xoá. Nay phần mềm bỏ các biến đó (và đặt `PYINSTALLER_RESET_ENVIRONMENT=1`) và chờ vài giây trước khi mở lại.
+- Nếu đang gặp lỗi này: đóng thông báo lỗi rồi **bấm đúp lại NganHangDe.exe** (mở mới hoàn toàn thì chạy bình thường); nếu vẫn lỗi, xoá các thư mục `_MEI…` trong `%TEMP%` hoặc thêm phần mềm vào danh sách loại trừ của diệt virus.
+
 ## Có gì mới ở bản 0.17.27 – Hộp «Tuỳ chọn chuyển Word/PDF sang TeX» giống MyLT
 - Viết lại phần chuyển Word/PDF → LaTeX theo đúng bố cục hộp thoại MyLT 2026: **Hiện Word**; cách đọc **Convert Equations / Toggle TeX / Mathpix API / Gemini** (thêm «Đọc trực tiếp» – không cần Word); tuỳ chọn **Chuyển hình, Chuyển bảng, Chuyển câu ĐS, Chuyên đề, Môn Hoá**; khung **Thông tin Mathpix API** (ID, Key, HDSD, Lưu) và **Thông tin Gemini AI** (API, HDSD, Lưu); bảng **Thay thế cá nhân** (STT, Thay, Bởi; nút ? A D S); nút **Đổi tên** (mẫu tên file kết quả).
 - **Một cửa cho Word và PDF**: Tệp → «Chuyển Word/PDF → LaTeX…» và nút «Word/PDF → LaTeX…» (Tiện ích) đều chọn được `.docx` lẫn `.pdf`; kết quả vào `DATA\WORD2EXTEST` / `DATA\PDF2TEX`; xong có nút nhập vào kho (3 bước).

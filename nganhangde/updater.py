@@ -115,6 +115,7 @@ def update_script(pid: int, new_exe: str, target: str) -> str:
     return f"""@echo off
 rem Cap nhat Ngan hang de thi (phan mem dang chay co PID {pid}) - tu dong tao boi phan mem
 set /a n=0
+set PYINSTALLER_RESET_ENVIRONMENT=1
 copy /Y "{target}" "{backup}" >nul 2>&1
 :try
 copy /Y "{new_exe}" "{target}" >nul 2>&1
@@ -125,9 +126,11 @@ ping -n 2 127.0.0.1 >nul
 goto try
 :ok
 del "{new_exe}" >nul 2>&1
+ping -n 4 127.0.0.1 >nul
 start "" "{target}"
 goto end
 :fail
+ping -n 4 127.0.0.1 >nul
 start "" "{target}"
 :end
 del "%~f0"
@@ -148,4 +151,9 @@ def apply_update(new_exe: str) -> None:
     with open(bat, "w", encoding="utf-8") as f:
         f.write(update_script(os.getpid(), new_exe, target))
     flags = 0x08000000                       # CREATE_NO_WINDOW (không DETACHED_PROCESS: nếu không, mỗi lệnh con mở một cửa sổ đen)
-    subprocess.Popen(["cmd", "/c", bat], creationflags=flags, close_fds=True)
+    # bản .exe một file (PyInstaller) chép biến môi trường _PYI*/_MEIPASS2 sang tiến trình con: bản mới mở lên tưởng là «con»
+    # của bản cũ nên dùng lại thư mục giải nén tạm _MEIxxxx của bản cũ (đã bị xoá khi bản cũ thoát) ⇒ lỗi
+    # «Failed to load Python DLL …\\_MEI…\\python312.dll». Bỏ các biến đó khi mở lại.
+    env = {k: v for k, v in os.environ.items() if not k.startswith("_PYI") and k != "_MEIPASS2"}
+    env["PYINSTALLER_RESET_ENVIRONMENT"] = "1"
+    subprocess.Popen(["cmd", "/c", bat], creationflags=flags, close_fds=True, env=env)

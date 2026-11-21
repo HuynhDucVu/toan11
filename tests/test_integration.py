@@ -99,7 +99,7 @@ def test_updater_and_editor(tmp_path):
         up.download(rel, str(tmp_path / "dl2"))
     assert not os.listdir(tmp_path / "dl2")
     bat = up.update_script(1234, r"C:\T\new.exe", r"D:\NHD\NganHangDe.exe")
-    assert 'tasklist' not in bat and 'find' not in bat and r'copy /Y "C:\T\new.exe" "D:\NHD\NganHangDe.exe"' in bat
+    assert 'PYINSTALLER_RESET_ENVIRONMENT=1' in bat and 'tasklist' not in bat and 'find' not in bat and r'copy /Y "C:\T\new.exe" "D:\NHD\NganHangDe.exe"' in bat
     assert r'"D:\NHD\NganHangDe_cu.exe"' in bat and 'start "" "D:\\NHD\\NganHangDe.exe"' in bat
     with pytest.raises(up.UpdateError):                          # chạy từ mã nguồn ⇒ không tự thay exe
         up.apply_update(p)
