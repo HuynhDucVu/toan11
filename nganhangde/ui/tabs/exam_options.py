@@ -219,7 +219,7 @@ class ExamOptionsBox(QTabWidget):
         self.c_gas = QCheckBox("Google Forms: file Apps Script (.gs) tạo bài kiểm tra trên Google Form mỗi mã đề")
         self.c_slides = QCheckBox("Trình chiếu HTML (mỗi câu một trang, có bút vẽ – dùng khi chữa đề)")
         self.c_gas_img = QCheckBox("Google Forms dạng ẢNH: mỗi câu thành ảnh (công thức hiện chuẩn) + file .gs "
-                                   "(cần MiKTeX/TeX Live)")
+                                   "(cần LaTeX: TeX Live/MiKTeX)")
         from ...wordconv import PandocMissing, pandoc_path
         try:
             pandoc_path()

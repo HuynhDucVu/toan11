@@ -11,7 +11,12 @@ Với bản một file:
 
 Kho câu hỏi `nganhang.db` nằm cạnh file exe. Cập nhật từ bản cũ: chỉ cần thay file exe, kho giữ nguyên.
 
-## Có gì mới ở bản 0.16.0 – Câu đổi số AI, lời giải AI, chọn đề theo bảng ID, kết quả online về Google Form
+## Có gì mới ở bản 0.16.1 – Biên dịch bằng LaTeX của TeXstudio (TeX Live 2019…)
+- Phần mềm **đọc cài đặt của TeXstudio** trên máy: TeXstudio dùng pdflatex/xelatex ở đâu thì phần mềm dùng đúng chỗ đó – máy chỉ có TeX Live + TeXstudio (không cần MiKTeX) vẫn biên dịch PDF được.
+- Tìm TeX Live mọi năm (2019 → `bin\win32`, 2023 trở đi → `bin\windows`) ở mọi ổ đĩa `C:\texlive`, `D:\texlive`, …
+- *Công cụ → Cài đặt biên dịch PDF → Kiểm tra* cho biết đang dùng trình biên dịch nào (ghi rõ «theo cài đặt TeXstudio»). Vẫn chỉ tay được đường dẫn, vd `C:\texlive\2019\bin\win32\pdflatex.exe`.
+
+## Bản 0.16.0 – Câu đổi số AI, lời giải AI, chọn đề theo bảng ID, kết quả online về Google Form
 - **Câu đổi số AI** (Trợ lý AI, hoặc nút 🤖 trong tab **Soạn thảo**): giữ nguyên câu chữ, dạng câu, cách giải – chỉ đổi số liệu; AI tính lại đáp án, đổi phương án nhiễu và viết lại lời giải. Câu mới được rà soát tự động, giáo viên duyệt rồi mới đưa vào kho / trang soạn thảo.
 - **Lời giải AI**: AI tự giải từng câu, viết lời giải vào `\loigiai` (câu chưa có lời giải, hoặc viết lại cả câu đã có) và **so đáp án AI tìm được với đáp án đang đánh dấu** – câu lệch được báo đỏ để kiểm tra lại (AI không tự sửa đáp án).
 - **Trộn đề → Chọn theo ID**: bảng mọi dạng (lớp – môn – chương – bài – dạng) có trong kho, số câu sẵn có từng mức Nhận biết / Thông hiểu / Vận dụng / Vận dụng cao; gõ số câu muốn lấy từng mức (không vượt quá số câu có), lọc theo lớp, loại, tên dạng, «đã lấy / chưa lấy», điền nhanh mỗi dạng N câu → **Tạo đề ngay** hoặc đưa vào ma trận.

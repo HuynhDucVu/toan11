@@ -56,16 +56,71 @@ def _candidate_dirs() -> list[str]:
         out += [os.path.join(base, "MiKTeX", "miktex", "bin", "x64"),
                 os.path.join(base, "MiKTeX", "miktex", "bin"),
                 os.path.join(base, "Programs", "MiKTeX", "miktex", "bin", "x64")]
-    for root in ("C:\\texlive", "/usr/local/texlive"):
+    roots = [f"{d}:\\texlive" for d in "CDEFGH"] + ["/usr/local/texlive"]
+    for root in roots:                       # TeX Live mọi năm (2019 → bin\win32, 2023+ → bin\windows), mọi ổ đĩa
         out += sorted(glob.glob(os.path.join(root, "20*", "bin", "*")), reverse=True)
     out += ["/Library/TeX/texbin", "/usr/bin", "/usr/local/bin"]
     return out
 
 
+def texstudio_ini_paths() -> list[str]:
+    """Các nơi TeXstudio lưu cài đặt (Windows: %APPDATA%\\texstudio, bản portable: thư mục config cạnh exe)."""
+    out = []
+    for base in (os.environ.get("APPDATA", ""), os.path.expanduser("~/.config")):
+        if base:
+            out.append(os.path.join(base, "texstudio", "texstudio.ini"))
+    for base in (os.environ.get("ProgramFiles", ""), os.environ.get("ProgramFiles(x86)", ""),
+                 os.path.join(os.environ.get("LOCALAPPDATA", ""), "Programs")):
+        if base:
+            out.append(os.path.join(base, "texstudio", "config", "texstudio.ini"))
+    return [p for p in out if os.path.isfile(p)]
+
+
+def texstudio_engines(ini_paths=None) -> dict[str, str]:
+    """Trình biên dịch TeXstudio đang dùng: {'pdflatex': đường dẫn, …} – đọc «Tools\\Commands\\…» và
+    «Tools\\SearchPaths» trong texstudio.ini. Lệnh không có đường dẫn đầy đủ (vd chỉ «pdflatex») thì bỏ qua
+    phần lệnh, chỉ dùng thư mục trong SearchPaths."""
+    found: dict[str, str] = {}
+    for ini in (ini_paths if ini_paths is not None else texstudio_ini_paths()):
+        try:
+            with open(ini, encoding="utf-8", errors="replace") as f:
+                text = f.read()
+        except OSError:
+            continue
+        dirs = []
+        m = re.search(r"^Tools\\SearchPaths=(.*)$", text, re.M)
+        if m:
+            dirs = [d.strip().strip('"') for d in re.split(r"[;]", m.group(1)) if d.strip()]
+        for eng in ENGINES:
+            m = re.search(rf"^Tools\\Commands\\{eng}=(.*)$", text, re.M)
+            if m:
+                cmd = m.group(1).strip()
+                if len(cmd) >= 2 and cmd[0] == cmd[-1] == '"':      # Qt lưu: "\"C:/…/pdflatex.exe\" -synctex=1 …"
+                    cmd = cmd[1:-1]
+                cmd = cmd.replace('\\"', '"').strip()
+                exe = cmd[1:].split('"', 1)[0] if cmd.startswith('"') else cmd.split(" ", 1)[0]
+                exe = exe.replace("/", os.sep)
+                if os.path.isabs(exe) and os.path.isfile(exe):
+                    found.setdefault(eng, exe)
+                    continue
+            for d in dirs:
+                for name in (eng + ".exe", eng):
+                    c = os.path.join(d.replace("/", os.sep), name)
+                    if os.path.isfile(c):
+                        found.setdefault(eng, c)
+    return found
+
+
 def find_engine(preferred: str = "auto", custom: str = "") -> str:
-    """Đường dẫn trình biên dịch. preferred: auto | pdflatex | xelatex | lualatex."""
+    """Đường dẫn trình biên dịch. preferred: auto | pdflatex | xelatex | lualatex.
+    Thứ tự tìm: đường dẫn tự chỉ → theo cài đặt TeXstudio → PATH → thư mục cài mặc định MiKTeX/TeX Live."""
     if custom and os.path.isfile(custom):
         return custom
+    order0 = ENGINES if preferred in ("", "auto") else (preferred,) + tuple(e for e in ENGINES if e != preferred)
+    ts = texstudio_engines()
+    for eng in order0:
+        if eng in ts:
+            return ts[eng]
     order = ENGINES if preferred in ("", "auto") else (preferred,) + tuple(e for e in ENGINES if e != preferred)
     for eng in order:
         p = shutil.which(eng)
@@ -76,8 +131,9 @@ def find_engine(preferred: str = "auto", custom: str = "") -> str:
                 c = os.path.join(d, name)
                 if os.path.isfile(c):
                     return c
-    raise EngineMissing("Chưa tìm thấy LaTeX (pdflatex/xelatex). Cài MiKTeX (miktex.org) hoặc TeX Live, "
-                        "hoặc chỉ đường dẫn tới pdflatex.exe trong «Cài đặt biên dịch PDF».")
+    raise EngineMissing("Chưa tìm thấy LaTeX (pdflatex/xelatex). Máy có TeX Live hoặc MiKTeX (dùng chung với TeXstudio) "
+                        "thì chỉ đường dẫn tới pdflatex.exe trong «Cài đặt biên dịch PDF», vd "
+                        "C:\\texlive\\2019\\bin\\win32\\pdflatex.exe.")
 
 
 def has_package(engine: str, name: str, extra_dirs=()) -> bool:

@@ -193,14 +193,16 @@ class PdfSettingsDialog(QDialog):
         try:
             eng = find_engine(self.cb_eng.currentData(), self.e_custom[0].text())
         except EngineMissing as e:
-            self.info.setText(f"<span style='color:#c00000'>{e}</span><br>Tải MiKTeX: <b>miktex.org/download</b> "
-                              "(cài xong khởi động lại phần mềm).")
+            self.info.setText(f"<span style='color:#c00000'>{e}</span><br>Máy chưa có LaTeX thì cài TeX Live "
+                              "(tug.org/texlive) hoặc MiKTeX (miktex.org), cài xong khởi động lại phần mềm.")
             return
         ext = has_package(eng, "ex_test.sty", [self.e_extest[0].text()])
         vn = has_package(eng, "vietnam.sty")
         from ...editor import find_texstudio
         ts = find_texstudio(self.e_texstudio[0].text())
-        self.info.setText(f"<span style='color:#0b7a0b'>✔ Tìm thấy: {eng}</span><br>"
+        from ...pdfbuild import texstudio_engines
+        src = " (theo cài đặt TeXstudio)" if eng in texstudio_engines().values() else ""
+        self.info.setText(f"<span style='color:#0b7a0b'>✔ Tìm thấy: {eng}{src}</span><br>"
                           + ("✔ Có gói ex_test" if ext else "⚠ Chưa thấy gói ex_test – sẽ dùng gói rút gọn đi kèm "
                              "(đủ để xem/in thử; nên cài ex_test thật để in chính thức)") + "<br>"
                           + ("✔ Có gói tiếng Việt vntex (pdflatex)" if vn else

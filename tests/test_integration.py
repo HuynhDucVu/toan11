@@ -105,3 +105,21 @@ def test_updater_and_editor(tmp_path):
         up.apply_update(p)
     assert first_error_line(["==> x", "Dòng 17: lệnh không tồn tại"]) == 17 and first_error_line([]) is None
     assert find_texstudio(str(src)) == str(src)
+
+
+def test_find_engine_from_texstudio_and_texlive2019(tmp_path, monkeypatch):
+    from nganhangde import pdfbuild
+    tl = tmp_path / "texlive" / "2019" / "bin" / "win32"
+    tl.mkdir(parents=True)
+    (tl / "pdflatex.exe").write_text("")
+    (tl / "xelatex.exe").write_text("")
+    ini = tmp_path / "texstudio.ini"
+    exe = str(tl / "pdflatex.exe").replace("\\", "/")
+    ini.write_text("[texmaker]\nTools\\Commands\\pdflatex=\"\\\"" + exe + "\\\" -synctex=1 -interaction=nonstopmode %.tex\"\n"
+                   "Tools\\Commands\\xelatex=xelatex -synctex=1 %.tex\n"
+                   f"Tools\\SearchPaths={tl}\n", encoding="utf-8")
+    found = pdfbuild.texstudio_engines([str(ini)])
+    assert found["pdflatex"] == str(tl / "pdflatex.exe") and found["xelatex"] == str(tl / "xelatex.exe")
+    monkeypatch.setattr(pdfbuild, "texstudio_ini_paths", lambda: [str(ini)])
+    assert pdfbuild.find_engine() == str(tl / "pdflatex.exe")
+    assert pdfbuild.find_engine("xelatex") == str(tl / "xelatex.exe")

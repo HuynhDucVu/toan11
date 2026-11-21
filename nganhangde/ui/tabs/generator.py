@@ -81,7 +81,7 @@ class GeneratorPanel(QWidget):
         self.c_preview = QCheckBox("Xem trước bộ câu để «đổi câu» trước khi trộn")
         self.c_unused = QCheckBox("Ưu tiên câu ít được dùng")
         self.c_unused.setChecked(True)
-        self.c_pdf = QCheckBox("Biên dịch luôn ra PDF (cần MiKTeX/TeX Live – xem Công cụ → Cài đặt biên dịch PDF)")
+        self.c_pdf = QCheckBox("Biên dịch luôn ra PDF (dùng LaTeX trên máy: TeX Live/MiKTeX – như TeXstudio)")
         self.c_pdf.setEnabled(bool(win.engine(quiet=True)))
         self.c_pdf.setChecked(str(self.st.value("gen/pdf", False)).lower() == "true" and self.c_pdf.isEnabled())
         for c in (self.c_diff,):

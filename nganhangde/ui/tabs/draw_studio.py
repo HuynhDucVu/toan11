@@ -140,7 +140,7 @@ class DrawStudioMixin:
         try:
             eng = find_engine(self.win.settings.value("pdf/engine", "auto"))
             if not eng:
-                self._msg("Máy chưa cài MiKTeX/TeX Live – không xem trước được.", False)
+                self._msg("Chưa tìm thấy LaTeX (TeX Live/MiKTeX) – chỉ đường dẫn trong Cài đặt biên dịch PDF.", False)
                 return
             r = compile_tex(p, eng, runs=1)
         finally:
