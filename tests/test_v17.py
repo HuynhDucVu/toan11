@@ -40,7 +40,7 @@ def test_mylt_header(tmp_path):
     assert "\\usepackage[book,dethi]{ex_test}" in de and "\\usepackage[book,loigiai]{ex_test}" in lg
     assert "\\newcommand{\\tentruong}{THPT Phạm Văn Đồng}" in de and "{Giữa kì I}" in de
     assert "\\tieude{\\pageref{LastPage}}{22}{101}" in de and "\\tieudea{I}{12}" in de and "\\hetde" in de
-    assert "Bảng đáp án" in lg and any(f.endswith("101/de_101.tex") for f in files)
+    assert "Bảng đáp án" in lg and any(f.replace("\\", "/").endswith("101/de_101.tex") for f in files)
     if shutil.which("pdflatex"):
         from nganhangde.pdfbuild import compile_tex
         assert compile_tex(str(tmp_path / "o" / "101" / "de_101.tex")).ok
