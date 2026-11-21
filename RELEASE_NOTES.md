@@ -11,6 +11,11 @@ Với bản một file:
 
 Kho câu hỏi `nganhang.db` nằm cạnh file exe. Cập nhật từ bản cũ: chỉ cần thay file exe, kho giữ nguyên.
 
+## Có gì mới ở bản 0.17.19 – Chuyển Word: không treo Word khi MathType lỗi, sửa `$$…$$`
+- Khi lệnh MathType trong Word lỗi hoặc kẹt hộp thoại («You cannot close Microsoft Word because a dialog box is open»), phần mềm **tự đóng cửa sổ Word do nó mở** sau 90 giây (không đụng các file Word khác của bạn) và báo cách làm tay; chuyển Word vẫn chạy tiếp bằng bộ đọc có sẵn.
+- Ô «Dùng Word + MathType» được ghi rõ là thử nghiệm; hướng dẫn đổi công thức MathType tay (MathType → Convert Equations… → Equations to TeX) rồi chuyển file .docx.
+- Công thức nằm giữa câu viết `$$…$$` (MathType «Convert to TeX») tự đổi thành `$…$` khi chuyển Word và trong «Làm sạch code» (Tiện ích 2); công thức trình bày riêng một dòng vẫn giữ `$$…$$`.
+
 ## Có gì mới ở bản 0.17.18 – File LaTeX chuyển từ Word lưu vào DATA\\WORD2EXTEST
 - Chuyển Word → LaTeX (Tiện ích 1 và Tệp → Nhập file Word): file `<tên>_tuWord.tex` và thư mục hình `<tên>_tuWord_hinh` được lưu vào `DATA\\WORD2EXTEST` thay vì cạnh file Word.
 

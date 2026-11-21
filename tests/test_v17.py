@@ -517,3 +517,23 @@ def test_pandoc_download_from_local_zip(tmp_path, monkeypatch):
     import pytest
     with pytest.raises(pandoc_dl.PandocDownloadError):
         pandoc_dl.download_pandoc(str(tmp_path / "pd2"), pathlib.Path(bad).as_uri())
+
+
+def test_inline_double_dollar_and_clean_code():
+    from nganhangde.texutil import inline_double_dollar
+    from nganhangde.tools2 import clean_code
+    assert inline_double_dollar("Tính $$x$$ biết $$y=2$$.") == "Tính $x$ biết $y=2$."
+    assert inline_double_dollar("$$\\dfrac{1}{2}$$") == "$$\\dfrac{1}{2}$$"            # công thức trình bày riêng: giữ
+    assert inline_double_dollar("\t{$$x^2$$}") == "\t{$x^2$}"                          # trong phương án: về $…$
+    assert inline_double_dollar("Giá $5$ và $6$") == "Giá $5$ và $6$"
+    text = "\\begin{ex}\nChu vi $$C=2.(5+9)=28$$.\n\\end{ex}\n"
+    out, _ = clean_code(text)
+    assert "$C=2.(5+9)=28$" in out and "$$" not in out
+
+
+def test_word_to_ex_inline_double_dollar(tmp_path):
+    import sys
+    sys.path.insert(0, __import__("os").path.dirname(__file__))
+    from nganhangde.wordconv import latex_text_to_ex
+    blocks = latex_text_to_ex("Câu 1. Cho $$x$$ thoả $$x>0$$.\nA. $$1$$\nB. $$2$$\nC. $$3$$\nD. $$4$$\n")
+    assert blocks and "$$" not in blocks[0] and "$x$" in blocks[0]

@@ -177,8 +177,9 @@ def latex_text_to_ex(text: str, tag: str = "") -> list[str]:
     """Nhận dạng câu hỏi từ văn bản LaTeX (đầu ra của pandoc) → danh sách khối ex."""
     lines = [ln.rstrip() for ln in text.replace("\r", "").split("\n")]
     blocks, cur, mode = [], None, "stem"
+    from .texutil import inline_double_dollar
     for ln in lines:
-        s = ln.strip()
+        s = inline_double_dollar(ln.strip())
         if not s or s in ("\\begin{document}", "\\end{document}"):
             continue
         if PART_RE.search(s) and not Q_START.match(s):

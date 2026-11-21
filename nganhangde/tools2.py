@@ -14,8 +14,10 @@ OLD_TO_NEW_LEVEL = {"Y": "N", "B": "H", "K": "V", "G": "C", "T": "C"}
 
 
 def clean_code(text: str) -> tuple[str, int]:
-    """Xoá khoảng trắng cuối dòng, gộp nhiều dòng trống liền nhau, bỏ dòng trống bên trong khối câu hỏi."""
-    lines = [ln.rstrip() for ln in text.replace("\r\n", "\n").split("\n")]
+    """Xoá khoảng trắng cuối dòng, gộp nhiều dòng trống liền nhau, bỏ dòng trống bên trong khối câu hỏi,
+    đổi công thức trong câu viết `$$…$$` thành `$…$`."""
+    from .texutil import inline_double_dollar
+    lines = [inline_double_dollar(ln.rstrip()) for ln in text.replace("\r\n", "\n").split("\n")]
     out, inside, removed, blank = [], 0, 0, 0
     for ln in lines:
         if re.match(r"\s*\\begin\{(ex|bt)\}", ln):

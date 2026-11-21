@@ -1,5 +1,6 @@
 """Tiện ích thao tác chuỗi LaTeX: đọc nhóm {...}, [...] cân bằng."""
 from __future__ import annotations
+import re
 
 
 def skip_ws(s: str, i: int) -> int:
@@ -105,3 +106,16 @@ def strip_true(text: str) -> tuple[str, bool]:
     if t.startswith("\\True"):
         return t[len("\\True"):].strip(), True
     return t, False
+
+
+_DD = re.compile(r"\$\$(?!\$)(.+?)(?<!\$)\$\$")
+
+
+def inline_double_dollar(line: str) -> str:
+    """`$$x$$` nằm giữa câu (MathType «Convert to TeX» ghi cả công thức trong dòng bằng $$…$$) → `$x$`.
+    Dòng chỉ gồm đúng một công thức `$$…$$` (công thức trình bày riêng) thì giữ nguyên."""
+    if "$$" not in line:
+        return line
+    if re.fullmatch(r"\s*\$\$[^$]+\$\$\s*", line):
+        return line
+    return _DD.sub(lambda m: "$" + m.group(1).strip() + "$", line)

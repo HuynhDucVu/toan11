@@ -15,7 +15,7 @@ if TYPE_CHECKING:
 KEYS = (("tables", "Chuyển bảng (thành tabular)", True), ("images", "Chuyển hình (xuất ảnh ra thư mục và chèn vào câu)", True),
         ("theory", "Chuyên đề / lý thuyết (giữ nguyên văn bản, không tách câu)", False),
         ("chem", "Môn Hoá (chỉ số trên/dưới trong chữ thường)", False),
-        ("word", "Dùng Word + MathType để đổi công thức MathType (chỉ Windows)", False),
+        ("word", "Thử dùng Word + MathType tự đổi công thức MathType (thử nghiệm, hay báo lỗi – khuyên đổi tay, xem dưới)", False),
         ("show_word", "Hiện cửa sổ Word khi chuyển", False))
 
 
@@ -47,6 +47,9 @@ class Word2TexDialog(QDialog):
         self.cb_mode.addItem("Toggle TeX (MathType → mã LaTeX trong văn bản)", "toggle_tex")
         self.cb_mode.setCurrentIndex(max(0, self.cb_mode.findData(self.st.value("w2t/mode", "convert"))))
         f.addRow("Cách đổi MathType", self.cb_mode)
+        f.addRow(QLabel("<i>Công thức dạng MathType (đối tượng) cần đổi sang mã trước: trong Word chọn thẻ MathType → "
+                        "Convert Equations… → «Equations to TeX» cho cả tài liệu, lưu file .docx rồi chuyển ở đây "
+                        "(không tick ô Word + MathType). Công thức Word thường (Alt+=) đọc được luôn.</i>"))
         lay.addWidget(QLabel("<b>Thay thế cá nhân</b> – mỗi dòng một cặp <code>cũ = mới</code> (vd <code>Δ = \\Delta</code>):"))
         self.e_rep = QPlainTextEdit(str(self.st.value("w2t/rep", "")))
         self.e_rep.setMaximumHeight(110)
