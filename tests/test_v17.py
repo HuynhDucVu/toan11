@@ -286,3 +286,19 @@ def test_omr_profiles_and_qr_formats():
     big.sections = {"TN": [v.sections["TN"][0]] * 15, "DS": [], "KQ": [], "TL": []}
     assert omr.check_capacity([big], profile="toan_12_4_6")
     assert not omr.check_capacity([big], profile="bgd2025")
+
+
+def test_mathpix_request_and_theme(tmp_path):
+    import base64
+    import pytest
+    from nganhangde import mathpix
+    from nganhangde.ui.common import STYLE
+    from nganhangde.ui.dialogs.appearance import themed_style
+    f = tmp_path / "a.png"
+    f.write_bytes(b"\x89PNGxx")
+    req = mathpix.build_request(str(f))
+    assert req["src"].startswith("data:image/png;base64,") and base64.b64decode(req["src"].split(",")[1]) == b"\x89PNGxx"
+    with pytest.raises(mathpix.MathpixError):
+        mathpix.image_to_latex(str(f), "", "")
+    s = themed_style(STYLE, "#112233", "#445566")
+    assert "#112233" in s and "#1f4e79" not in s and "#445566" in s

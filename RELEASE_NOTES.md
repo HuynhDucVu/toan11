@@ -11,6 +11,11 @@ Với bản một file:
 
 Kho câu hỏi `nganhang.db` nằm cạnh file exe. Cập nhật từ bản cũ: chỉ cần thay file exe, kho giữ nguyên.
 
+## Có gì mới ở bản 0.17.7 – Nhập 3 bước, xem PDF trong app, giao diện, Mathpix (theo bản Gemini)
+- **Tệp → Nhập .tex 3 bước**: ① rà soát (bắt buộc có lời giải/đáp án, bỏ trùng, trùng sâu, không nhập ID 5 ký tự, bỏ câu lỗi) → ② AI giải lại câu có vấn đề → ③ nhập vào kho; có nút xuất .tex đã sửa.
+- **Xem PDF ngay trong app** (nút trong hộp kết quả biên dịch): lật trang, phóng to/thu nhỏ.
+- **Công cụ → Giao diện & Mathpix**: đổi màu chủ đạo, màu nhấn, cỡ chữ; nhập khoá Mathpix; **Ảnh → LaTeX bằng Mathpix** (chưa thử với khoá thật).
+
 ## Có gì mới ở bản 0.17.6 – Nhập Word có tuỳ chọn, nhiều mẫu phiếu, kiểu mã QR (theo bản Gemini)
 - **Word → TeX có hộp thoại tuỳ chọn**: bảng, hình ảnh, lý thuyết, công thức hoá học, bảng thay thế "cũ = mới"; tuỳ chọn chuyển công thức MathType qua Word (chưa thử trên máy có Word – cần phản hồi).
 - **Mẫu phiếu trả lời**: kiểm tra số câu theo phiếu BGD 2025 (40·8·6), Toán rút gọn (12·4·6), HSG (30·10·10), KHTN (16·3·12), TNMaker 40/60; cảnh báo cả độ dài mã đề.

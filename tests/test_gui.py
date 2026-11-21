@@ -376,3 +376,40 @@ def test_word_to_tex_dialog(win, app, monkeypatch, tmp_path):
     win.show_panel(win.tools_panel)
     win.tools_panel.word_to_tex()
     assert (tmp_path / "de_tuWord.tex").exists()
+
+
+def test_import_wizard(win, app, monkeypatch, tmp_path):
+    from PySide6.QtWidgets import QMessageBox
+    from nganhangde.ui.dialogs.import_wizard import ImportWizard
+    tex = (r"\begin{ex}%[0D2N1-2]" "\nTính $1+1$.\n\\choice\n{$1$}\n{\\True $2$}\n{$3$}\n{$4$}\n"
+           r"\loigiai{Chọn B.}" "\n" r"\end{ex}" "\n\n"
+           r"\begin{ex}%[0D2N1-3]" "\nTính $2+2$.\n\\choice\n{$1$}\n{$2$}\n{\\True $4$}\n{$5$}\n\\end{ex}\n")
+    f = tmp_path / "a.tex"
+    f.write_text(tex, encoding="utf-8")
+    monkeypatch.setattr(QMessageBox, "information", staticmethod(lambda *a, **k: 0))
+    before = win.bank.count()
+    d = ImportWizard(win, [str(f)])
+    d.cks["need_solution"].setChecked(True)
+    d.step1()
+    assert [bool(e.skip) for e in d.entries] == [False, True]
+    out = tmp_path / "fix.tex"
+    monkeypatch.setattr("PySide6.QtWidgets.QFileDialog.getSaveFileName", staticmethod(lambda *a, **k: (str(out), "")))
+    d.export()
+    assert out.exists()
+    d.step3()
+    assert win.bank.count() == before + 1
+
+
+def test_pdf_preview(win, app, tmp_path):
+    import shutil
+    import subprocess
+    if not shutil.which("pdflatex"):
+        pytest.skip("không có pdflatex")
+    t = tmp_path / "a.tex"
+    t.write_text("\\documentclass{article}\\begin{document}Xin chao\\newpage 2\\end{document}")
+    subprocess.run(["pdflatex", "-interaction=nonstopmode", "a.tex"], cwd=tmp_path, capture_output=True, timeout=60)
+    from nganhangde.ui.dialogs.pdf_preview import PdfPreviewDialog, page_count
+    assert page_count(str(tmp_path / "a.pdf")) == 2
+    d = PdfPreviewDialog(win, str(tmp_path / "a.pdf"))
+    d.go(1)
+    assert d.lb.pixmap() is not None and not d.lb.pixmap().isNull()

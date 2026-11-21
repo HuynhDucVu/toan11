@@ -47,6 +47,8 @@ def run(db_path: str | None = None):
         app.setWindowIcon(QIcon(icon))
     _setup_log()
     w = MainWindow(db_path)
+    from .dialogs.appearance import apply_theme
+    apply_theme(app, w.settings)
     w.show()
     from PySide6.QtCore import QTimer as _T
     _T.singleShot(400, w.welcome_if_empty)

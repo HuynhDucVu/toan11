@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING
 
 from PySide6.QtCore import Qt, QUrl
 from PySide6.QtGui import QColor, QDesktopServices
-from PySide6.QtWidgets import (QAbstractItemView, QCheckBox, QComboBox, QDialog, QFileDialog, QFormLayout,
+from PySide6.QtWidgets import (QAbstractItemView, QCheckBox, QComboBox, QDialog, QFileDialog, QFormLayout, QMessageBox,
     QHBoxLayout, QHeaderView, QLabel, QLineEdit, QPushButton, QSpinBox, QTableWidget, QTableWidgetItem,
     QVBoxLayout, QWidget)
 
@@ -73,11 +73,27 @@ class PdfResultDialog(QDialog):
             a = QPushButton("🤖 Hỏi AI cách sửa lỗi (dòng đang chọn)")
             a.clicked.connect(self.ask_ai)
             row.addWidget(a)
+        pv = QPushButton("👁 Xem PDF trong app (dòng đang chọn)")
+        pv.clicked.connect(self.preview)
+        row.addWidget(pv)
         row.addStretch()
         b = QPushButton("Đóng")
         b.clicked.connect(self.accept)
         row.addWidget(b)
         lay.addLayout(row)
+
+    def preview(self):
+        rows = sorted({i.row() for i in self.t.selectedIndexes()})
+        oks = [r for r in self.results if r.ok and r.pdf]
+        r = self.results[rows[0]] if rows and self.results[rows[0]].ok else (oks[0] if oks else None)
+        if r is None or not r.pdf or not os.path.exists(r.pdf):
+            QMessageBox.information(self, "Xem PDF", "Chưa có PDF biên dịch thành công để xem.")
+            return
+        try:
+            from .pdf_preview import PdfPreviewDialog
+            PdfPreviewDialog(self, r.pdf).exec()
+        except ImportError:
+            QMessageBox.information(self, "Xem PDF", "Thiếu thư viện pypdfium2 – dùng nút mở bằng trình xem ngoài.")
 
     def ask_ai(self):
         from ... import aitasks

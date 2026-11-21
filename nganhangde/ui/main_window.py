@@ -47,6 +47,7 @@ class MainWindow(LayoutMixin, BankActionsMixin, QMainWindow):
         self._act(m, "Tạo kho mới…", self.new_bank, QKeySequence.StandardKey.New)
         m.addSeparator()
         self._act(m, "Nhập file .tex…", self.import_files, "Ctrl+I")
+        self._act(m, "Nhập .tex 3 bước (rà soát – AI – nhập)…", self.import_wizard)
         self._act(m, "Nhập file Word (.docx)…", self.import_word)
         self._act(m, "Nhập ngân hàng MyLT (Bank.mylt / Bank.rar)…", self.import_mylt)
         self._act(m, "Tìm kho MyLT trên máy…", self.find_mylt)
@@ -87,6 +88,8 @@ class MainWindow(LayoutMixin, BankActionsMixin, QMainWindow):
         self._act(m, "Biên dịch file .tex → PDF…", self.compile_files)
         self._act(m, "Cài đặt biên dịch PDF…", self.pdf_settings_dialog)
         self._act(m, "Cài đặt AI (Gemini, Claude, OpenAI…)…", lambda: GeminiSettingsDialog(self).exec())
+        self._act(m, "Giao diện (màu, cỡ chữ) & Mathpix…", self.appearance)
+        self._act(m, "Ảnh → LaTeX bằng Mathpix…", self.mathpix_image)
         self._act(m, "Thống kê ngân hàng", self.show_stats)
         m = mb.addMenu("Trợ &giúp")
         self._act(m, "Cập nhật phần mềm…", self.check_update)
@@ -679,6 +682,41 @@ class MainWindow(LayoutMixin, BankActionsMixin, QMainWindow):
             self.refresh()
 
     # ---------------------------------------------------------- thao tác câu hỏi
+    def mathpix_image(self):
+        from .. import mathpix
+        i, k = str(self.settings.value("mathpix/app_id", "")), str(self.settings.value("mathpix/app_key", ""))
+        if not (i and k):
+            self.appearance()
+            i, k = str(self.settings.value("mathpix/app_id", "")), str(self.settings.value("mathpix/app_key", ""))
+            if not (i and k):
+                return
+        p, _ = QFileDialog.getOpenFileName(self, "Chọn ảnh (PNG/JPG/PDF)", self.settings.value("last_dir", ""),
+                                           "Ảnh/PDF (*.png *.jpg *.jpeg *.pdf)")
+        if not p:
+            return
+        try:
+            text = mathpix.image_to_latex(p, i, k)
+        except mathpix.MathpixError as e:
+            QMessageBox.warning(self, "Mathpix", str(e))
+            return
+        out = os.path.splitext(p)[0] + "_mathpix.tex"
+        with open(out, "w", encoding="utf-8") as f:
+            f.write(text + "\n")
+        QMessageBox.information(self, "Mathpix", f"Đã ghi {out}\n\n{text[:600]}")
+
+    def appearance(self):
+        from .dialogs.appearance import AppearanceDialog
+        AppearanceDialog(self).exec()
+
+    def import_wizard(self):
+        paths, _ = QFileDialog.getOpenFileNames(self, "Chọn file .tex", self.settings.value("last_dir", ""),
+                                                "LaTeX (*.tex);;Tất cả (*.*)")
+        if not paths:
+            return
+        self.settings.setValue("last_dir", os.path.dirname(paths[0]))
+        from .dialogs.import_wizard import ImportWizard
+        ImportWizard(self, paths).exec()
+
     def import_files(self):
         paths, _ = QFileDialog.getOpenFileNames(self, "Chọn file .tex", self.settings.value("last_dir", ""),
                                                 "LaTeX (*.tex);;Tất cả (*.*)")
