@@ -438,3 +438,17 @@ def test_phieu_tltn_2025(tmp_path):
     x, y = P.P1_X[0][0], P.P1_Y[0]                     # câu 1 đáp án A phải được tô đen
     assert img.getpixel((int(x), int(y))) < 60
     assert pdfium.PdfDocument(files[0])[0].render(scale=1).to_pil().convert("L").getpixel((int(x), int(y))) > 200
+
+
+def test_default_export_has_sheet_and_tnmaker_excel(tmp_path):
+    import os
+    import pytest
+    pytest.importorskip("pypdf")
+    from nganhangde.exporter import ExportOptions, export_versions
+    from nganhangde.generator import ExamVersion
+    from nganhangde.parser import Question
+    v = ExamVersion("813")
+    v.sections = {"TN": [Question("TN", "x", list("abcd"), [True, False, False, False])], "DS": [], "KQ": [], "TL": []}
+    files = export_versions([v], str(tmp_path / "o"), options=ExportOptions())
+    names = [os.path.basename(f) for f in files]
+    assert "dap_an_TNMaker.xlsx" in names and "phieu_khoa_813.pdf" in names and "phieu_trang_TLTN2025.pdf" in names

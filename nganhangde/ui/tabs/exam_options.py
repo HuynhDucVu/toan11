@@ -235,7 +235,7 @@ class ExamOptionsBox(QTabWidget):
         self.c_sheet = QCheckBox("Phiếu trả lời: phiếu trắng để in + phiếu tô sẵn đáp án từng mã (phiếu khoá)")
         self.c_sheet.setChecked(val("sheet", False))
         f.addRow(self.c_sheet)
-        self.c_tltn.setChecked(val("tltn", False))
+        self.c_tltn.setChecked(val("tltn", True))
         f.addRow(self.c_tltn)
         self.addTab(w, "Phiếu chấm")
 

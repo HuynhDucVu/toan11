@@ -55,7 +55,7 @@ class ExportOptions:
     per_folder: bool = False          # mỗi mã đề một thư mục con (de_101.tex, loigiai_101.tex… trong thư mục 101)
     answers_end: bool = False         # in bảng đáp án ở cuối chính file đề
     even_pages: bool = False          # chèn trang trống để mỗi đề có số trang chẵn (in 2 mặt không dính đề sau)
-    tltn2025: bool = False            # phiếu TLTN THPT QG 2025 (PDF của Bộ): phiếu trắng + phiếu khoá tô sẵn từng mã đề
+    tltn2025: bool = True             # phiếu TLTN THPT QG 2025 (PDF của Bộ): phiếu trắng + phiếu khoá tô sẵn từng mã đề
     answer_sheet: bool = False        # file phiếu trả lời: phiếu trắng + phiếu tô sẵn đáp án từng mã (phiếu khoá)
     slides: bool = False              # trình chiếu HTML (mã đề đầu tiên, mỗi câu một trang)
 
@@ -312,7 +312,10 @@ def export_versions(versions: list[ExamVersion], out_dir: str, *, template_path:
             files.append(p)
     if opt.tltn2025 and versions:
         from .phieutltn import export_sheets
-        fs, warns = export_sheets(versions, os.path.join(out_dir, "phieu_TLTN_2025"))
+        try:
+            fs, warns = export_sheets(versions, os.path.join(out_dir, "phieu_TLTN_2025"))
+        except (OSError, ImportError, ValueError) as e:        # thiếu file phiếu / thư viện PDF: không làm hỏng cả đợt xuất
+            fs, warns = [], [f"Không tạo được phiếu TLTN 2025: {e}"]
         files += fs
         if warns:
             p = os.path.join(out_dir, "phieu_TLTN_2025", "CANH_BAO.txt")

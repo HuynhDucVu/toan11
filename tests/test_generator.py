@@ -30,7 +30,7 @@ def test_make_versions_and_export(bank, tmp_path):
     ids = [sorted(q.db_id for q in v.all_questions()) for v in vs]
     assert ids[0] == ids[1] == ids[2] and len(ids[0]) == 11
     files = export_versions(vs, str(tmp_path / "out"))
-    assert len(files) == 9 and files[-1].endswith("dap_an_TNMaker.xlsx")
+    assert len(files) == 13 and any(f.endswith("dap_an_TNMaker.xlsx") for f in files)      # + phiếu TLTN 2025 (trắng + 3 phiếu khoá)
     de = open(files[0], encoding="utf-8").read()
     assert "\\loigiai" not in de and "Mã đề 101" in de
 
@@ -93,7 +93,7 @@ def test_thpt2026_options_and_tnmaker(bank, tmp_path):
     assert "Thí sinh trả lời từ câu 1 đến câu 12" in de and "từ câu 1 đến câu 4" in de and "đến câu 6" in de
     lg = open(files[1], encoding="utf-8").read()
     assert "Thang điểm" in lg and "Tổng điểm toàn bài: 10 điểm" in lg
-    wb = load_workbook(files[-1])
+    wb = load_workbook([f for f in files if f.endswith("dap_an_TNMaker.xlsx")][0])
     ws = wb["Đáp án"]
     rows = list(ws.values)
     assert rows[0] == ("Câu", "0101", "0102", "0103")
@@ -107,7 +107,7 @@ def test_thpt2026_options_and_tnmaker(bank, tmp_path):
     assert "$" not in "".join(str(r[1]) for r in rows[1:])
     # bố cục ngang
     files = export_versions(vs, str(tmp_path / "n"), options=ExportOptions(tnmaker_layout="ngang"))
-    rows = list(load_workbook(files[-1])["Đáp án"].values)
+    rows = list(load_workbook([f for f in files if f.endswith("dap_an_TNMaker.xlsx")][0])["Đáp án"].values)
     assert rows[0][0] == "Mã đề" and rows[1][0] == "0101" and len(rows[0]) == 1 + 12 + 4 + 6
 
 

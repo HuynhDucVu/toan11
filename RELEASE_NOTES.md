@@ -11,6 +11,9 @@ Với bản một file:
 
 Kho câu hỏi `nganhang.db` nằm cạnh file exe. Cập nhật từ bản cũ: chỉ cần thay file exe, kho giữ nguyên.
 
+## Có gì mới ở bản 0.17.12 – Trộn đề xuất kèm phiếu và Excel đáp án
+- Mỗi lần trộn đề, thư mục kết quả **luôn có**: file đề + lời giải từng mã, **Excel đáp án TNMaker** (`dap_an_TNMaker.xlsx`, bố cục MyLT/TNMaker 2024) và **phiếu TLTN THPT QG 2025** (phiếu trắng + phiếu khoá từng mã, thư mục `phieu_TLTN_2025`). Cả hai đã được tick sẵn; bỏ tick ở tab Phiếu chấm nếu không cần.
+
 ## Có gì mới ở bản 0.17.11 – Phiếu TLTN THPT QG 2025 tô sẵn đáp án
 - Tuỳ chọn **«Phiếu TLTN THPT QG 2025»** (tab Phiếu chấm khi tạo đề): dùng đúng file phiếu của Bộ (40 câu nhiều lựa chọn · 8 câu Đúng/Sai · 6 câu trả lời ngắn), xuất **phiếu trắng** và **phiếu khoá tô sẵn đáp án + mã đề** cho từng mã đề (PDF, thư mục `phieu_TLTN_2025`). Đáp án trả lời ngắn quá 4 ký tự (kể cả dấu) hoặc mã đề quá 3 chữ số được ghi vào `CANH_BAO.txt`.
 - Vị trí ô tô đo từ chính file phiếu; kiểm tra bằng hình, nhưng chưa thử bằng máy quét/phần mềm chấm thật.
