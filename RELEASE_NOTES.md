@@ -11,6 +11,11 @@ Với bản một file:
 
 Kho câu hỏi `nganhang.db` nằm cạnh file exe. Cập nhật từ bản cũ: chỉ cần thay file exe, kho giữ nguyên.
 
+## Có gì mới ở bản 0.17.13 – PDF → LaTeX (3 cách đọc)
+- **Tệp → Chuyển PDF → LaTeX** (và nút «PDF → LaTeX» ở Tiện ích 1): chọn cách đọc – **chữ trong PDF** (miễn phí, không cần mạng), **Mathpix** (chữ + công thức, cả bản chụp) hoặc **AI** Gemini/Claude. Nhận dạng «PHẦN I/II/III», «Câu N», phương án A–D, ý a–d (Đúng/Sai), trả lời ngắn, tự luận và **bảng đáp án ở cuối đề** (tự điền `\True`). Câu chưa có đáp án được ghi chú `%[CHƯA CÓ ĐÁP ÁN]`. Kết quả vào `DATA\PDF2TEX`, có nút nhập thẳng vào kho (3 bước).
+- Chuyển Word → LaTeX vẫn như bản trước (công thức Word, gạch chân đáp án, Đúng/Sai, trả lời ngắn).
+- Lưu ý: cách «chữ trong PDF» thường mất/đổi công thức; Mathpix chưa thử với khoá thật.
+
 ## Có gì mới ở bản 0.17.12 – Trộn đề xuất kèm phiếu và Excel đáp án
 - Mỗi lần trộn đề, thư mục kết quả **luôn có**: file đề + lời giải từng mã, **Excel đáp án TNMaker** (`dap_an_TNMaker.xlsx`, bố cục MyLT/TNMaker 2024) và **phiếu TLTN THPT QG 2025** (phiếu trắng + phiếu khoá từng mã, thư mục `phieu_TLTN_2025`). Cả hai đã được tick sẵn; bỏ tick ở tab Phiếu chấm nếu không cần.
 

@@ -49,6 +49,7 @@ class MainWindow(LayoutMixin, BankActionsMixin, QMainWindow):
         self._act(m, "Nhập file .tex…", self.import_files, "Ctrl+I")
         self._act(m, "Nhập .tex 3 bước (rà soát – AI – nhập)…", self.import_wizard)
         self._act(m, "Nhập file Word (.docx)…", self.import_word)
+        self._act(m, "Chuyển PDF → LaTeX (chữ trong PDF / Mathpix / AI)…", self.pdf_to_tex)
         self._act(m, "Nhập ngân hàng MyLT (Bank.mylt / Bank.rar)…", self.import_mylt)
         self._act(m, "Tìm kho MyLT trên máy…", self.find_mylt)
         self._act(m, "Nạp ngân hàng mẫu để dùng thử (đề mẫu + câu đổi số)…", self.seed_sample)
@@ -720,6 +721,10 @@ class MainWindow(LayoutMixin, BankActionsMixin, QMainWindow):
     def cleanup_bank(self):
         from .dialogs.cleanup import CleanupDialog
         CleanupDialog(self).exec()
+
+    def pdf_to_tex(self):
+        from .dialogs.pdf2tex import convert_pdf_files
+        convert_pdf_files(self)
 
     def appearance(self):
         from .dialogs.appearance import AppearanceDialog

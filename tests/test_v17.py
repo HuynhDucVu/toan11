@@ -452,3 +452,25 @@ def test_default_export_has_sheet_and_tnmaker_excel(tmp_path):
     files = export_versions([v], str(tmp_path / "o"), options=ExportOptions())
     names = [os.path.basename(f) for f in files]
     assert "dap_an_TNMaker.xlsx" in names and "phieu_khoa_813.pdf" in names and "phieu_trang_TLTN2025.pdf" in names
+
+
+def test_pdf_to_tex_text_layer(tmp_path):
+    import shutil
+    import subprocess
+    import pytest
+    pytest.importorskip("pypdfium2")
+    if not shutil.which("pdflatex"):
+        pytest.skip("không có pdflatex")
+    from nganhangde import pdf2tex
+    t = tmp_path / "de.tex"
+    t.write_text("\\documentclass{article}\\usepackage[utf8]{inputenc}\\begin{document}"
+                 "PHAN I\\\\ Cau 1. Tinh $1+1$.\\\\ A. 1 B. 2 C. 3 D. 4\\\\ "
+                 "Cau 2. Tong $2+2$.\\\\ A. 3 B. 4 C. 5 D. 6\\\\ DAP AN\\\\ 1. B 2. B 3. C\\end{document}", encoding="utf-8")
+    subprocess.run(["pdflatex", "-interaction=nonstopmode", "de.tex"], cwd=tmp_path, capture_output=True, timeout=60)
+    text = pdf2tex.extract_text(str(tmp_path / "de.pdf"))
+    assert "Cau 1" in text
+    tex, notes = pdf2tex.text_to_ex(text.replace("Cau", "Câu").replace("DAP AN", "ĐÁP ÁN").replace("PHAN", "PHẦN"))
+    qs = __import__("nganhangde.parser", fromlist=["parse_tex"]).parse_tex(tex)
+    assert len(qs) == 2 and all(q.qtype == "TN" and q.answer_text == "B" for q in qs)
+    out, n2 = pdf2tex.pdf_to_tex(str(tmp_path / "de.pdf"), "text")
+    assert isinstance(out, str)
