@@ -67,6 +67,18 @@ class LayoutMixin:
                              (self.filemix_panel, "Tạo đề theo file"), (self.similar_panel, "Tạo đề tương tự"),
                              (self.gen_panel, "Tuỳ chọn đề"))
         mv.addWidget(mix.inner_tabs, 1)
+        bottom = QHBoxLayout()                        # góc dưới phải như MyLT: «Tạo đề» và «Thoát»
+        bottom.addStretch()
+        b_make, b_quit = QPushButton("Tạo đề"), QPushButton("Thoát")
+        b_make.setObjectName("primary")
+        b_make.setMinimumWidth(110)
+        b_quit.setMinimumWidth(110)
+        b_make.clicked.connect(self.mix_generate)
+        b_quit.clicked.connect(self.close)
+        bottom.addWidget(b_make)
+        bottom.addWidget(b_quit)
+        mv.addLayout(bottom)
+        self.mix_tab = mix
         mt.addTab(mix, "📝 Trộn đề")
         mt.addTab(bank_widget, "📚 Câu hỏi")
         mt.addTab(self.matrix_panel, "🧮 Ma trận")
@@ -85,6 +97,13 @@ class LayoutMixin:
         mt.tabBar().setExpanding(False)
         for p in (self.graph_panel, self.bbt_panel, self.sol_panel, self.solid_panel):
             p.sub.setObjectName("subTabs")
+
+    def mix_generate(self):
+        """Nút «Tạo đề»: tạo đề theo trang con đang mở (theo ID / tự chọn / theo file / tương tự / tuỳ chọn đề)."""
+        w = self.mix_tab.inner_tabs.currentWidget()
+        fn = getattr(w, "generate", None)
+        if fn is not None:
+            fn()
 
     def show_panel(self, w):
         """Chuyển tới widget w dù nó nằm trong tab con."""

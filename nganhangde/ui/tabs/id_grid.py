@@ -103,6 +103,7 @@ class IdGridPanel(QWidget):
         for c, w in ((0, 40), (1, 90), (2, 40), (3, 40), (4, 60), (6, 50), (7, 110), (8, 78), (9, 78), (10, 78), (11, 90), (12, 70)):
             self.t.setColumnWidth(c, w)
         gl.addWidget(self.t, 1)
+        self._build_pager(gl)
         lay.addWidget(g, 1)
 
         # ---------------- dưới
@@ -124,19 +125,111 @@ class IdGridPanel(QWidget):
         q.addStretch()
         lay.addLayout(q)
         row = QHBoxLayout()
-        self.l_sum = QLabel()
-        row.addWidget(self.l_sum)
         row.addStretch()
-        for text, fn, prim in (("Đưa vào ma trận (thay ma trận cũ)", lambda: self.to_matrix(True), False),
-                               ("Thêm vào ma trận", lambda: self.to_matrix(False), False),
-                               ("TẠO ĐỀ NGAY", self.generate, True)):
+        for text, fn in (("Đưa vào ma trận (thay ma trận cũ)", lambda: self.to_matrix(True)),
+                         ("Thêm vào ma trận", lambda: self.to_matrix(False))):
             b = QPushButton(text)
-            if prim:
-                b.setObjectName("primary")
             b.clicked.connect(fn)
             row.addWidget(b)
         lay.addLayout(row)
         self._init_static()
+
+    # ---------------------------------------------------------------- dải nút và phân trang (như MyLT)
+    PAGE_SIZE = 100
+
+    def _build_pager(self, gl):
+        bar = QHBoxLayout()
+        tips = {"?": "Hướng dẫn", "H": "Chỉ hiện các dòng đã lấy / hiện lại tất cả", "A": "Chọn tất cả các dòng đang hiện",
+                "C": "Xoá hết số câu đã nhập (Clear)", "E": "Xuất danh sách đã lấy ra Excel",
+                "D": "Xoá số câu đã nhập ở các dòng đang chọn", "O": "Đưa vào ma trận rồi mở trang «Tuỳ chọn đề»",
+                "U": "Hoàn tác thao tác gần nhất (Undo)"}
+        fns = {"?": self.help, "H": self.toggle_taken, "A": lambda: self.t.selectAll(), "C": self.clear_counts,
+               "E": self.export_xlsx, "D": self.clear_selected, "O": self.open_matrix, "U": self.undo}
+        for k in "?HACEDOU":
+            b = QPushButton(k)
+            b.setFixedWidth(34)
+            b.setToolTip(tips[k])
+            b.clicked.connect(lambda _=False, f=fns[k]: f())
+            bar.addWidget(b)
+        bar.addStretch()
+        self.l_sum = QLabel()
+        bar.addWidget(self.l_sum)
+        bar.addStretch()
+        self.b_first, self.b_prev, self.b_next, self.b_last = (QPushButton(x) for x in ("Đầu", "Trước", "Sau", "Cuối"))
+        self.cb_page = QComboBox()
+        self.cb_page.setMinimumWidth(70)
+        for w in (self.b_first, self.b_prev, self.cb_page, self.b_next, self.b_last):
+            bar.addWidget(w)
+        self.b_first.clicked.connect(lambda: self.go_page(0))
+        self.b_prev.clicked.connect(lambda: self.go_page(self._page - 1))
+        self.b_next.clicked.connect(lambda: self.go_page(self._page + 1))
+        self.b_last.clicked.connect(lambda: self.go_page(10 ** 9))
+        self.cb_page.activated.connect(lambda i: self.go_page(i))
+        gl.addLayout(bar)
+        self._page = 0
+        self._undo: list[dict] = []
+        self._page_rows = []
+
+    def n_pages(self) -> int:
+        return max(1, -(-len(self._shown) // self.PAGE_SIZE))
+
+    def go_page(self, p: int):
+        self._page = max(0, min(p, self.n_pages() - 1))
+        self.apply_filter(keep_page=True)
+
+    def push_undo(self):
+        self._undo.append({k: dict(v) for k, v in self.counts.items()})
+        del self._undo[:-30]
+
+    def undo(self):
+        if self._undo:
+            self.counts = self._undo.pop()
+            self.apply_filter(keep_page=True)
+
+    def toggle_taken(self):
+        cb = self.f["lay"]
+        cb.setCurrentIndex(0 if cb.currentData() == "1" else cb.findData("1"))
+
+    def clear_selected(self):
+        rows = sorted({i.row() for i in self.t.selectedIndexes()})
+        if not rows:
+            return
+        self.push_undo()
+        for r in rows:
+            if r < len(self._page_rows):
+                self.counts.pop(self._page_rows[r][0], None)
+        self.apply_filter(keep_page=True)
+
+    def open_matrix(self):
+        if self.to_matrix(True):
+            self.win.show_panel(self.win.gen_panel)
+
+    def export_xlsx(self):
+        from PySide6.QtWidgets import QFileDialog
+        rd = self.rules()
+        if not rd:
+            QMessageBox.information(self, "Chọn theo ID", "Chưa lấy dòng nào.")
+            return
+        from ...appdirs import path as app_path
+        p, _ = QFileDialog.getSaveFileName(self, "Xuất danh sách đã lấy", app_path("ma_tran", "danh_sach_lay.xlsx"), "Excel (*.xlsx)")
+        if not p:
+            return
+        from openpyxl import Workbook
+        wb = Workbook()
+        ws = wb.active
+        ws.append(["Loại", "ID", "Mức độ", "Số câu"])
+        for r in rd:
+            ws.append([LOAI.get(r["qtype"], r["qtype"]), r["id"], r["muc_do"], r["count"]])
+        wb.save(p)
+        self.win.statusBar().showMessage(f"Đã xuất {len(rd)} dòng: {p}", 8000)
+
+    def help(self):
+        QMessageBox.information(self, "Tạo đề theo ID", (
+            "• Gõ số câu vào các cột Nhận biết / Thông hiểu / Vận dụng / Vận dụng cao của dòng cần lấy (không quá số câu «Đã có»).\n"
+            "• «Chọn nhanh»: chọn Lớp… → Lọc; chọn Số câu và Mức độ → Lấy (đặt số câu cho mọi dòng đang hiện).\n"
+            "• Nút ở dưới bảng: ? hướng dẫn · H chỉ hiện dòng đã lấy · A chọn tất cả dòng · C xoá hết số đã nhập · "
+            "E xuất Excel · D xoá số ở dòng đang chọn · O đưa vào ma trận và mở «Tuỳ chọn đề» · U hoàn tác.\n"
+            "• Đầu / Trước / Sau / Cuối: chuyển trang (mỗi trang %d dòng).\n• «Tạo đề» (góc dưới): tạo đề từ các dòng đã lấy." % self.PAGE_SIZE))
 
     # ---------------------------------------------------------------- bộ lọc
     def _init_static(self):
@@ -264,13 +357,28 @@ class IdGridPanel(QWidget):
                 out.append((key, idk, name, lv))
         return out
 
-    def apply_filter(self):
+    def apply_filter(self, _checked=False, keep_page=False):
         self._shown = self.visible_rows()
+        if not keep_page:
+            self._page = 0
+        self._page = max(0, min(self._page, self.n_pages() - 1))
+        start = self._page * self.PAGE_SIZE
+        self._page_rows = self._shown[start:start + self.PAGE_SIZE]
+        self.cb_page.blockSignals(True)
+        self.cb_page.clear()
+        for i in range(self.n_pages()):
+            self.cb_page.addItem(str(i + 1))
+        self.cb_page.setCurrentIndex(self._page)
+        self.cb_page.blockSignals(False)
+        self.b_first.setEnabled(self._page > 0)
+        self.b_prev.setEnabled(self._page > 0)
+        self.b_next.setEnabled(self._page < self.n_pages() - 1)
+        self.b_last.setEnabled(self._page < self.n_pages() - 1)
         self.t.blockSignals(True)
-        self.t.setRowCount(len(self._shown))
-        for r, (key, idk, name, lv) in enumerate(self._shown):
+        self.t.setRowCount(len(self._page_rows))
+        for r, (key, idk, name, lv) in enumerate(self._page_rows):
             have = "/".join(str(lv.get(x, 0)) for x in LEVELS)
-            cells = [str(r + 1), idk, lop_label(key[0]), key[1], key[2], name, LOAI.get(key[5], key[5]), have]
+            cells = [str(start + r + 1), idk, lop_label(key[0]), key[1], key[2], name, LOAI.get(key[5], key[5]), have]
             for c, v in enumerate(cells):
                 it = QTableWidgetItem(v)
                 it.setFlags(Qt.ItemFlag.ItemIsEnabled | Qt.ItemFlag.ItemIsSelectable)
@@ -294,9 +402,10 @@ class IdGridPanel(QWidget):
 
     def _changed(self, it):
         c, r = it.column(), it.row()
-        if not C_LV0 <= c < C_LV0 + 4 or r >= len(self._shown):
+        if not C_LV0 <= c < C_LV0 + 4 or r >= len(self._page_rows):
             return
-        key, _, _, lv = self._shown[r]
+        key, _, _, lv = self._page_rows[r]
+        self.push_undo()
         x = LEVELS[c - C_LV0]
         try:
             n = max(0, int(it.text().strip() or 0))
@@ -319,23 +428,26 @@ class IdGridPanel(QWidget):
                            f" · tổng <b>{sum(tot.values())}</b> câu · đang hiện {len(self._shown)} dòng")
 
     def take_quick(self):
+        self.push_undo()
         """«Lấy»: với các dòng đang hiện, đặt số câu theo ô «Số câu» ở mức độ đã chọn (mọi mức nếu «Mọi mức độ»)."""
         n, muc = self.sp_n.currentData(), self.q["muc"].currentData()
         for key, _, _, lv in self._shown:
             for x in ([muc] if muc else LEVELS):
                 if lv.get(x):
                     self.counts.setdefault(key, {})[x] = min(n, lv.get(x, 0))
-        self.apply_filter()
+        self.apply_filter(keep_page=True)
 
     def quick_fill(self):
+        self.push_undo()
         x, n = self.cb_quick.currentData(), self.sp_quick.value()
         for key, _, _, lv in self._shown:
             self.counts.setdefault(key, {})[x] = min(n, lv.get(x, 0))
-        self.apply_filter()
+        self.apply_filter(keep_page=True)
 
     def clear_counts(self):
+        self.push_undo()
         self.counts = {}
-        self.apply_filter()
+        self.apply_filter(keep_page=True)
 
     # ---------------------------------------------------------------- ma trận, tạo đề
     def rules(self) -> list[dict]:

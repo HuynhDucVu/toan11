@@ -535,3 +535,39 @@ def test_pick_panel_source_table(win, app):
     assert len(p.basket) == 2 and p.t.rowCount() == 2
     p.add_from_source()                                      # thêm lại không trùng
     assert len(p.basket) == 2
+
+
+def test_idgrid_pager_buttons_and_bottom_bar(win, app, monkeypatch):
+    g = win.idgrid_panel
+    g.reload()
+    assert [b.text() for b in g.findChildren(type(g.b_first)) if b.text() in tuple("?HACEDOU")] == list("?HACEDOU")
+    g.PAGE_SIZE = 5                                          # ép nhiều trang để thử Đầu/Trước/Sau/Cuối
+    g.apply_filter()
+    assert g.t.rowCount() == 5 and g.n_pages() >= 2 and g.cb_page.count() == g.n_pages()
+    assert g.t.item(0, 0).text() == "1" and not g.b_prev.isEnabled() and g.b_next.isEnabled()
+    g.b_next.click()
+    assert g.t.item(0, 0).text() == "6" and g.b_prev.isEnabled()
+    g.go_page(10 ** 9)
+    assert g._page == g.n_pages() - 1 and not g.b_next.isEnabled()
+    g.go_page(0)
+    # lấy số câu ở trang 1, sang trang 2 vẫn giữ; U hoàn tác; C xoá hết
+    r0 = next(r for r in range(g.t.rowCount()) if g.t.item(r, 8).flags() & Qt.ItemFlag.ItemIsEditable or
+              g.t.item(r, 9).flags() & Qt.ItemFlag.ItemIsEditable or g.t.item(r, 10).flags() & Qt.ItemFlag.ItemIsEditable)
+    col = next(c for c in range(8, 12) if g.t.item(r0, c).flags() & Qt.ItemFlag.ItemIsEditable)
+    g.t.item(r0, col).setText("1")
+    assert g.rules()
+    g.go_page(1)
+    assert g.rules()
+    g.undo()
+    assert not g.rules()
+    g.t.item(0, 0)
+    g.clear_counts()
+    assert not g.rules()
+    # nút «Tạo đề» và «Thoát» ở góc dưới tab Trộn đề
+    called = []
+    monkeypatch.setattr(g, "generate", lambda: called.append("id"))
+    win.mix_tab.inner_tabs.setCurrentWidget(g)
+    win.mix_generate()
+    assert called == ["id"]
+    texts = [b.text() for b in win.mix_tab.findChildren(type(g.b_first))]
+    assert "Tạo đề" in texts and "Thoát" in texts
