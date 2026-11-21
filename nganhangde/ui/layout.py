@@ -52,6 +52,8 @@ class LayoutMixin:
         self.solid_panel = DrawPanel(self, ("solid",))
         self.editor_panel = EditorPanel(self)
         self.info_panel = InfoPanel(self)
+        from .tabs.update_panel import UpdatePanel
+        self.update_panel = UpdatePanel(self)
         self.draw_panel = self.graph_panel          # tên cũ
         mt = self.main_tabs
         mt.addTab(sub((self.idgrid_panel, "Chọn theo ID"), (self.gen_panel, "Theo ma trận ID"), (self.pick_panel, "Tự chọn câu"),
@@ -68,6 +70,7 @@ class LayoutMixin:
         mt.addTab(self.sol_panel, "🎯 Biểu diễn nghiệm")
         mt.addTab(self.editor_panel, "✍ Soạn thảo")
         mt.addTab(self.info_panel, "ℹ Thông tin")
+        mt.addTab(self.update_panel, "⬆ Cập nhật")
         mt.setCurrentIndex(1)
         mt.tabBar().setExpanding(False)
         for p in (self.graph_panel, self.bbt_panel, self.sol_panel, self.solid_panel):

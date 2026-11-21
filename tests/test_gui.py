@@ -250,7 +250,7 @@ def test_new_tabs(win, app, monkeypatch, tmp_path):
     from nganhangde import gui_qt
     gui_qt.ResultDialog.exec = lambda self: 0
     monkeypatch.setattr(QDesktopServices, "openUrl", staticmethod(lambda *a: True))
-    assert win.main_tabs.count() == 10
+    assert win.main_tabs.count() == 11
     win.show_panel(win.similar_panel)
     assert win.current_panel() is win.similar_panel
     win.gen_panel.e_out[0].setText(str(tmp_path / "out"))
@@ -409,3 +409,30 @@ def test_pdf_preview(win, app):
     assert page_count(pdf) == 1
     d = PdfPreviewDialog(win, pdf)
     assert d.lb.pixmap() is not None and not d.lb.pixmap().isNull()
+
+
+def test_update_panel(win, app, monkeypatch):
+    import time
+    from nganhangde import __version__, updater
+    p = win.update_panel
+    assert win.main_tabs.indexOf(p) >= 0 and "Bạn đang dùng bản " + __version__ in p.head.text()
+    new = updater.Release("99.0.0", "## Mới\n- tính năng", "https://example.com/r", "https://example.com/x.exe", 1048576, "")
+    p.apply_release(new)
+    assert "99.0.0" in p.status.text() and "tính năng" in p.notes.toPlainText()
+    assert not p.b_go.isEnabled()                       # chạy từ mã nguồn (không phải .exe) ⇒ không tự cập nhật
+    assert p.b_skip.isEnabled()
+    p.skip()
+    assert win.settings.value("update/skip") == "99.0.0"
+    same = updater.Release(__version__, "", "https://example.com/r")
+    p.apply_release(same)
+    assert "mới nhất" in p.status.text() and not p.b_skip.isEnabled()
+    monkeypatch.setattr(updater, "latest_release", lambda: new)
+    p.check()
+    t = time.time()
+    while "99.0.0" not in p.status.text() and time.time() - t < 10:
+        app.processEvents()
+        time.sleep(0.05)
+    assert "99.0.0" in p.status.text()
+    # mở lúc khởi động: không bật «tự tải» ⇒ để hộp thông báo cũ xử lý
+    win.settings.setValue("update/skip", "")
+    assert p.on_startup(new) is False

@@ -11,6 +11,11 @@ Với bản một file:
 
 Kho câu hỏi `nganhang.db` nằm cạnh file exe. Cập nhật từ bản cũ: chỉ cần thay file exe, kho giữ nguyên.
 
+## Có gì mới ở bản 0.17.22 – Tab «Cập nhật» (tự cập nhật bản mới)
+- Tab mới **⬆ Cập nhật** (cạnh «Thông tin»): bản đang dùng, lần kiểm tra gần nhất, ghi chú bản mới nhất, nút **Kiểm tra bản mới**, **Tải và cập nhật** (thanh tiến trình, kiểm tra SHA-256), **Bỏ qua bản này**, **Mở trang Releases**.
+- Tuỳ chọn **Tự kiểm tra khi mở phần mềm** và **Tự tải bản mới về ngay khi có** (cài khi bạn đồng ý khởi động lại).
+- Menu «Cập nhật phần mềm…» chuyển sang tab này.
+
 ## Có gì mới ở bản 0.17.21 – Sửa lỗi tự cập nhật mở cửa sổ đen `find "…"` và bị treo
 - Trình tự cập nhật không còn dùng lệnh `tasklist | find` (khi chạy ngầm chúng mở cửa sổ đen và có thể treo mãi): nay chỉ thử chép đè file exe, phần mềm còn chạy thì Windows từ chối nên chờ rồi thử lại (tối đa ~90 giây), xong tự mở lại.
 - **Nếu đang kẹt cửa sổ đen cũ**: mở Task Manager, tắt `find.exe` và `cmd.exe`, xoá `%TEMP%\capnhat_nganhangde.bat`, rồi chép tay file NganHangDe.exe mới nhất từ trang Releases đè lên file cũ.

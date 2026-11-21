@@ -606,8 +606,12 @@ class MainWindow(LayoutMixin, BankActionsMixin, QMainWindow):
             self.refresh()
 
     def check_update(self, silent=False, rel=None):
-        """Mở hộp cập nhật. silent=True: chỉ hiện khi có bản mới (dùng lúc khởi động)."""
+        """silent=False (menu): chuyển sang tab «Cập nhật» và kiểm tra. silent=True: lúc khởi động – chỉ hiện khi có bản mới."""
         from .. import updater
+        if not silent and rel is None:
+            self.main_tabs.setCurrentWidget(self.update_panel)
+            self.update_panel.check()
+            return
         if rel is None:
             try:
                 rel = updater.latest_release()

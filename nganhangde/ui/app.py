@@ -60,7 +60,8 @@ def run(db_path: str | None = None):
 
         def checked():
             if chk.result:
-                w.check_update(silent=True, rel=chk.result)
+                if not w.update_panel.on_startup(chk.result):       # chưa bật «tự tải»: hiện hộp thông báo như trước
+                    w.check_update(silent=True, rel=chk.result)
         chk.finished.connect(checked)
         QTimer.singleShot(3000, chk.start)        # đợi phần mềm mở xong rồi mới kiểm tra
     return app.exec()
