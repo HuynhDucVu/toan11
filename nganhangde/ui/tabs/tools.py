@@ -353,9 +353,15 @@ class ToolsPanel(QWidget):
                 continue
             try:
                 export_questions_docx(parse_file(p), out)
-            except PandocMissing as e:
-                QMessageBox.warning(self, "Thiếu pandoc", str(e))
-                return
+            except PandocMissing:
+                if self.win.download_pandoc():
+                    try:
+                        export_questions_docx(parse_file(p), out)
+                    except PandocMissing as e:
+                        QMessageBox.warning(self, "Thiếu pandoc", str(e))
+                        return
+                else:
+                    return
             html_.append(f"<p>{os.path.basename(p)} → {out}</p>")
         self.show_result("LaTeX → Word", "".join(html_))
 

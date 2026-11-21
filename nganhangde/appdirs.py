@@ -50,6 +50,7 @@ LAYOUT = {
     "anh": ("DATA/IMG", "anh", "Ảnh PNG xuất từ hình TikZ / câu hỏi"),
     "mau_de": ("TEMPLATE", "mau_de", "File mẫu đề de_thi.tex (sửa theo trường), gói ex_test rút gọn"),
     "map_id": ("Map ID (DPS)", "map_id", "Danh mục ID (Map ID) dạng .tex"),
+    "pandoc": ("pandoc", "", "pandoc.exe (tải bằng Công cụ → Tải pandoc) – chuyển LaTeX → Word"),
     "tam": ("TEMP", "tam", "File tạm khi biên dịch xem trước – xoá thoải mái"),
     "nhat_ky": ("LOG", "nhat_ky", "Nhật kí lỗi (nhat_ky.txt) – gửi cho người hỗ trợ khi phần mềm báo lỗi"),
 }

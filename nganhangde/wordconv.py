@@ -36,11 +36,13 @@ class PandocMissing(RuntimeError):
 def pandoc_path() -> str:
     p = shutil.which("pandoc")
     if not p:
-        for c in (r"C:\Program Files\Pandoc\pandoc.exe",
+        from .appdirs import folder
+        for c in (os.path.join(folder("pandoc"), "pandoc.exe"), os.path.join(folder("pandoc"), "pandoc"),
+                  r"C:\Program Files\Pandoc\pandoc.exe",
                   os.path.expandvars(r"%LOCALAPPDATA%\Pandoc\pandoc.exe")):
             if os.path.exists(c):
                 return c
-        raise PandocMissing("Chưa cài pandoc – tải tại https://pandoc.org/installing.html (bản Windows .msi)")
+        raise PandocMissing("Chưa có pandoc – vào Công cụ → «Tải pandoc» (tự tải về thư mục phần mềm), hoặc cài bản .msi tại https://pandoc.org/installing.html")
     return p
 
 

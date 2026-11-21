@@ -493,3 +493,27 @@ def test_run_cancelable(tmp_path):
     with pytest.raises(m.MyltError):
         m._run_cancelable([sys.executable, "-c", "import time;time.sleep(30)"], out, should_stop=lambda: stop["v"])
     assert time.time() - t < 10
+
+
+def test_pandoc_download_from_local_zip(tmp_path, monkeypatch):
+    import pathlib
+    import zipfile
+    from nganhangde import pandoc_dl, wordconv
+    z = tmp_path / "pandoc-9.9-windows-x86_64.zip"
+    with zipfile.ZipFile(z, "w") as f:
+        f.writestr("pandoc-9.9/pandoc.exe", b"MZ-gia")
+        f.writestr("pandoc-9.9/readme.txt", "x")
+    seen = []
+    out = pandoc_dl.download_pandoc(str(tmp_path / "pd"), pathlib.Path(z).as_uri(), progress=lambda a, b: seen.append((a, b)))
+    assert out.endswith("pandoc.exe") and open(out, "rb").read() == b"MZ-gia"
+    monkeypatch.setattr(wordconv.shutil, "which", lambda n: None)
+    monkeypatch.setattr(pandoc_dl, "target_dir", lambda: str(tmp_path / "pd"))
+    from nganhangde import appdirs
+    monkeypatch.setattr(appdirs, "folder", lambda key, root=None: str(tmp_path / "pd") if key == "pandoc" else str(tmp_path / key))
+    assert wordconv.pandoc_path() == out                      # tìm thấy pandoc trong thư mục phần mềm
+    bad = tmp_path / "bad.zip"
+    with zipfile.ZipFile(bad, "w") as f:
+        f.writestr("a.txt", "x")
+    import pytest
+    with pytest.raises(pandoc_dl.PandocDownloadError):
+        pandoc_dl.download_pandoc(str(tmp_path / "pd2"), pathlib.Path(bad).as_uri())

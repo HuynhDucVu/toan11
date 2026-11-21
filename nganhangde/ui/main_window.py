@@ -90,6 +90,7 @@ class MainWindow(LayoutMixin, BankActionsMixin, QMainWindow):
         self._act(m, "Biên dịch file .tex → PDF…", self.compile_files)
         self._act(m, "Cài đặt biên dịch PDF…", self.pdf_settings_dialog)
         self._act(m, "Cài đặt AI (Gemini, Claude, OpenAI…)…", lambda: GeminiSettingsDialog(self).exec())
+        self._act(m, "Tải pandoc (để xuất file Word)…", self.download_pandoc)
         self._act(m, "Giao diện (màu, cỡ chữ) & Mathpix…", self.appearance)
         self._act(m, "Ảnh → LaTeX bằng Mathpix…", self.mathpix_image)
         self._act(m, "Thống kê ngân hàng", self.show_stats)
@@ -723,6 +724,38 @@ class MainWindow(LayoutMixin, BankActionsMixin, QMainWindow):
     def cleanup_bank(self):
         from .dialogs.cleanup import CleanupDialog
         CleanupDialog(self).exec()
+
+    def download_pandoc(self) -> bool:
+        """Tải pandoc về thư mục phần mềm (có thanh tiến trình). Trả về True nếu đã có pandoc dùng được."""
+        from PySide6.QtWidgets import QProgressDialog
+        from .. import pandoc_dl
+        from ..wordconv import PandocMissing, pandoc_path
+        try:
+            QMessageBox.information(self, "pandoc", f"pandoc đã có sẵn: {pandoc_path()}")
+            return True
+        except PandocMissing:
+            pass
+        if QMessageBox.question(self, "Tải pandoc", "Tải pandoc (khoảng 40 MB, từ github.com/jgm/pandoc) về thư mục "
+                                f"«pandoc» của phần mềm?\n{pandoc_dl.target_dir()}") != QMessageBox.StandardButton.Yes:
+            return False
+        from .workers import TaskWorker
+        w = TaskWorker(lambda progress, should_stop: pandoc_dl.download_pandoc(progress=progress, should_stop=should_stop),
+                       with_progress=True)
+        dlg = QProgressDialog("Đang tải pandoc…", "Dừng", 0, 0, self)
+        dlg.setWindowModality(Qt.WindowModality.WindowModal)
+        dlg.setMinimumDuration(0)
+        w.progress.connect(lambda i, n: (dlg.setMaximum(n if n > 0 else 0), dlg.setValue(i),
+                                         dlg.setLabelText(f"Đang tải pandoc… {i} MB" + (f" / {n} MB" if n else ""))))
+        dlg.canceled.connect(w.requestInterruption)
+        w.finished.connect(dlg.close)
+        w.start()
+        dlg.exec()
+        w.wait()
+        if w.error:
+            QMessageBox.warning(self, "Tải pandoc", w.error)
+            return False
+        QMessageBox.information(self, "Tải pandoc", f"Đã tải xong: {w.result}")
+        return True
 
     def pdf_to_tex(self):
         from .dialogs.pdf2tex import convert_pdf_files

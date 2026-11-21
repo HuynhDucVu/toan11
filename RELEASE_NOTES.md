@@ -11,6 +11,11 @@ Với bản một file:
 
 Kho câu hỏi `nganhang.db` nằm cạnh file exe. Cập nhật từ bản cũ: chỉ cần thay file exe, kho giữ nguyên.
 
+## Có gì mới ở bản 0.17.17 – Tự tải pandoc
+- **Công cụ → Tải pandoc (để xuất file Word)**: tải pandoc từ GitHub về thư mục `pandoc` cạnh phần mềm (không cần quyền quản trị, không cần cài bản .msi), có thanh tiến trình và nút Dừng. Khi bấm «LaTeX → Word» mà chưa có pandoc, app hỏi và tải luôn.
+- Ô «File Word .docx mỗi mã đề» khi trộn đề không còn bị khoá; chưa có pandoc thì tooltip chỉ cách tải.
+- Chưa thử tải thật trên máy Windows (đã thử bằng file zip giả).
+
 ## Bản 0.17.16 – như 0.17.15 (nạp kho MyLT lớn nhanh hơn, có tiến trình và nút Dừng); sửa bài kiểm thử trên Windows để bản đóng gói được.
 
 ## Có gì mới ở bản 0.17.15 – Nạp kho MyLT lớn nhanh hơn, không còn «treo»

@@ -253,8 +253,8 @@ class ExamOptionsBox(QTabWidget):
         try:
             pandoc_path()
         except PandocMissing:
-            self.c_word.setEnabled(False)
-            self.c_word.setToolTip("Chưa cài pandoc: tải tại pandoc.org/installing.html")
+            self.c_word.setToolTip("Chưa có pandoc: vào Công cụ → «Tải pandoc» (tự tải về thư mục phần mềm). "
+                                   "Chưa có thì file Word sẽ không được tạo.")
         for c, k, d in ((self.c_online, "online", False), (self.c_online_sol, "online_sol", True),
                         (self.c_moodle, "moodle", False), (self.c_word, "word", False),
                         (self.c_gas, "gas", False), (self.c_slides, "slides", False),
@@ -308,7 +308,7 @@ class ExamOptionsBox(QTabWidget):
                              ds_symbols=self.cb_sym.currentData(), kq_decimal=self.cb_dec.currentData(),
                              show_id=self.c_showid.isChecked(), make_zip=self.c_zip.isChecked(),
                              online_html=self.c_online.isChecked(), online_solution=self.c_online_sol.isChecked(),
-                             moodle=self.c_moodle.isChecked(), word=self.c_word.isChecked() and self.c_word.isEnabled(),
+                             moodle=self.c_moodle.isChecked(), word=self.c_word.isChecked(),
                              diem=self.diem() if self._check_diem() else None,
                              omr_profile=self.cb_profile.currentData(), omr_template=self.e_omr_tpl.text().strip(),
                              qr_answers=self.c_qr.isChecked(), qr_format=self.cb_qrfmt.currentData(),
