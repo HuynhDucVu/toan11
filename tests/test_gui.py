@@ -413,3 +413,10 @@ def test_pdf_preview(win, app, tmp_path):
     d = PdfPreviewDialog(win, str(tmp_path / "a.pdf"))
     d.go(1)
     assert d.lb.pixmap() is not None and not d.lb.pixmap().isNull()
+
+
+def test_cleanup_dialog(win, app):
+    from nganhangde.ui.dialogs.cleanup import CleanupDialog
+    d = CleanupDialog(win)
+    d.scan()
+    assert d.res is not None

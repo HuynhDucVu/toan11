@@ -184,7 +184,7 @@ def test_mylt_sync_and_diagnose(tmp_path, bank, monkeypatch):
     f.write_bytes(b"x")
     rows = [{"NoiDung": "\\begin{ex}%[0D1N1-1]\nCâu đồng bộ mới $x$\n\\choice\n{\\True a}\n{b}\n{c}\n{d}\n\\loigiai{Chọn A.}\n\\end{ex}",
              "IDCauHoi": "0D1N1-1", "TuLuan": 0, "SoLan": 0}]
-    monkeypatch.setattr(m, "read_rows", lambda p: rows)
+    monkeypatch.setattr(m, "iter_rows", lambda p: iter(rows))
     st = {}
     S = type("S", (), {"value": lambda self, k, d=None: st.get(k, d), "setValue": lambda self, k, v: st.__setitem__(k, v)})()
     assert m.sync_if_linked(bank, S) is None                 # chưa liên kết
@@ -302,3 +302,24 @@ def test_mathpix_request_and_theme(tmp_path):
         mathpix.image_to_latex(str(f), "", "")
     s = themed_style(STYLE, "#112233", "#445566")
     assert "#112233" in s and "#1f4e79" not in s and "#445566" in s
+
+
+def test_cleanup_dups_and_wrong(tmp_path):
+    from nganhangde import cleanup
+    from nganhangde.db import Bank
+    from nganhangde.parser import parse_tex
+    b = Bank(str(tmp_path / "c.db"))
+    t1 = ("\\begin{ex}%[0D1N1-1]\nTính $1+1$.\n\\choice\n{$1$}\n{\\True $2$}\n{$3$}\n{$4$}\n\\loigiai{Chọn B.}\n\\end{ex}")
+    t2 = t1.replace("\\loigiai{Chọn B.}\n", "").replace("[0D1N1-1]", "[0D1N1]")          # cùng nội dung, thiếu lời giải/ID
+    t2 = t2.replace("Tính $1+1$.", "Tính  $1 + 1$")                                      # khác khoảng trắng
+    bad = "\\begin{ex}%[0D1N1-2]\nTính $x.\n\\choice\n{$1$}\n{\\True $2$}\n{$3$}\n{$4$}\n\\end{ex}"   # $ lẻ
+    for t in (t1, t2, bad):
+        for q in parse_tex(t):
+            b.add(q, "t")
+    assert b.count() == 3
+    r = cleanup.scan(b)
+    assert len(r.dup_exact) == 1 and len(r.wrong) == 1
+    keep = list(r.dup_exact.values())[0]
+    assert "Chọn B" in b.get(keep).solution            # giữ câu có lời giải
+    ids = r.delete_ids(wrong=False, exact=True, near=True)
+    assert cleanup.apply(b, ids) == 1 and b.count() == 2

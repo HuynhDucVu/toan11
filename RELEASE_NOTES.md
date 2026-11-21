@@ -11,6 +11,10 @@ Với bản một file:
 
 Kho câu hỏi `nganhang.db` nằm cạnh file exe. Cập nhật từ bản cũ: chỉ cần thay file exe, kho giữ nguyên.
 
+## Có gì mới ở bản 0.17.8 – Kho MyLT lớn (hàng trăm nghìn câu), dọn kho
+- **Công cụ → Dọn kho**: ① lọc câu trùng (giống hệt hoặc gần giống), **chỉ giữ lại 1 câu** mỗi nhóm (ưu tiên câu có lời giải, ID đầy đủ); ② lọc câu sai (lỗi LaTeX/đáp án khi rà soát). Xem danh sách trước khi xoá; câu xoá khôi phục được.
+- **Nhập kho MyLT lớn**: đọc từng dòng, ghi theo lô, có thanh tiến trình và nút Dừng; kho trên 60 MB không dùng bộ đọc chậm. Trên Windows bộ OLEDB cho phép chạy tới 3 giờ (chưa thử với kho thật).
+
 ## Có gì mới ở bản 0.17.7 – Nhập 3 bước, xem PDF trong app, giao diện, Mathpix (theo bản Gemini)
 - **Tệp → Nhập .tex 3 bước**: ① rà soát (bắt buộc có lời giải/đáp án, bỏ trùng, trùng sâu, không nhập ID 5 ký tự, bỏ câu lỗi) → ② AI giải lại câu có vấn đề → ③ nhập vào kho; có nút xuất .tex đã sửa.
 - **Xem PDF ngay trong app** (nút trong hộp kết quả biên dịch): lật trang, phóng to/thu nhỏ.

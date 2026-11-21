@@ -81,6 +81,7 @@ class MainWindow(LayoutMixin, BankActionsMixin, QMainWindow):
         m = mb.addMenu("Công &cụ")
         self._act(m, "Soát lỗi file .tex…", self.check_file)
         self._act(m, "Giải nghĩa ID (Map ID)…", self.edit_idmap, "Ctrl+M")
+        self._act(m, "Dọn kho: lọc câu trùng (giữ 1 câu) và câu sai…", self.cleanup_bank)
         self._act(m, "Tìm câu gần trùng trong kho…", self.near_dups)
         m.addSeparator()
         self._act(m, "Xem PDF câu đã chọn", self.preview_pdf, "F5")
@@ -280,7 +281,7 @@ class MainWindow(LayoutMixin, BankActionsMixin, QMainWindow):
     def import_mylt(self, path: str | None = None):
         """Nhập kho MyLT (Bank.mylt hoặc Bank.rar có mật khẩu) vào kho đang mở."""
         from PySide6.QtWidgets import QInputDialog, QLineEdit
-        from ..mylt_import import DEFAULT_PASSWORD, MyltError, import_mylt
+        from ..mylt_import import DEFAULT_PASSWORD, import_mylt
         if not path:
             path, _ = QFileDialog.getOpenFileName(self, "Chọn kho MyLT (thư mục MyLT\\DATA\\BANK)", "",
                                                   "Kho MyLT (*.mylt *.rar *.zip *.7z);;Mọi file (*.*)")
@@ -293,17 +294,29 @@ class MainWindow(LayoutMixin, BankActionsMixin, QMainWindow):
             if not ok:
                 return
         from ..mylt_import import diagnose
-        QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
-        try:
-            r = import_mylt(self.bank, path, pw)
-        except MyltError as e:
-            box = QMessageBox(QMessageBox.Icon.Warning, "Nhập ngân hàng MyLT", str(e), parent=self)
+        from PySide6.QtWidgets import QProgressDialog
+        from .workers import TaskWorker
+        bank = self.bank
+
+        def job(progress, should_stop):
+            return import_mylt(bank, path, pw, progress=progress, should_stop=should_stop)
+        w = TaskWorker(job, with_progress=True)
+        dlg = QProgressDialog("Đang đọc và nhập kho MyLT (kho lớn có thể mất vài phút)…", "Dừng", 0, 0, self)
+        dlg.setWindowModality(Qt.WindowModality.WindowModal)
+        dlg.setMinimumDuration(0)
+        w.progress.connect(lambda i, n: dlg.setLabelText(f"Đang nhập kho MyLT… đã xử lý {i:,} câu"))
+        dlg.canceled.connect(w.requestInterruption)
+        w.finished.connect(dlg.close)
+        w.start()
+        dlg.exec()
+        w.wait()
+        if w.error:
+            box = QMessageBox(QMessageBox.Icon.Warning, "Nhập ngân hàng MyLT", w.error, parent=self)
             if not path.lower().endswith((".rar", ".zip", ".7z")):
                 box.setDetailedText(diagnose(path))
             box.exec()
             return
-        finally:
-            QApplication.restoreOverrideCursor()
+        r = w.result
         if not path.lower().endswith((".rar", ".zip", ".7z")):
             self.settings.setValue("mylt/link", os.path.abspath(path))        # nhớ để đồng bộ lần sau
             self.settings.setValue("mylt/link_mtime", str(os.path.getmtime(path)))
@@ -703,6 +716,10 @@ class MainWindow(LayoutMixin, BankActionsMixin, QMainWindow):
         with open(out, "w", encoding="utf-8") as f:
             f.write(text + "\n")
         QMessageBox.information(self, "Mathpix", f"Đã ghi {out}\n\n{text[:600]}")
+
+    def cleanup_bank(self):
+        from .dialogs.cleanup import CleanupDialog
+        CleanupDialog(self).exec()
 
     def appearance(self):
         from .dialogs.appearance import AppearanceDialog

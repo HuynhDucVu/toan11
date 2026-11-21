@@ -10,7 +10,6 @@
 from __future__ import annotations
 
 import csv
-import io
 import os
 import re
 import shutil
@@ -99,19 +98,42 @@ def _read_access_parser(path):
     raise MyltError("Không thấy bảng câu hỏi (cột NoiDung) trong file này")
 
 
-def _read_mdbtools(path):
-    exe = shutil.which("mdb-export")
-    tables = shutil.which("mdb-tables")
+def _norm_one(r: dict, cm: dict) -> dict:
+    return _normalize([r], cm)[0]
+
+
+def _iter_mdbtools(path):
+    """mdbtools: xuất bảng ra file CSV tạm rồi đọc từng dòng (kho thật hàng trăm MB, không nạp hết vào bộ nhớ)."""
+    exe, tables = shutil.which("mdb-export"), shutil.which("mdb-tables")
     if not exe or not tables:
         raise MyltError("không có mdbtools")
-    names = subprocess.run([tables, "-1", path], capture_output=True, text=True, timeout=60, check=True).stdout.split()
+    names = subprocess.run([tables, "-1", path], capture_output=True, text=True, timeout=300, check=True).stdout.split()
+    d = tempfile.mkdtemp(prefix="nhd_mdb_")
     for t in sorted(names, key=lambda x: (x.upper() != "QUEST", x)):
-        out = subprocess.run([exe, path, t], capture_output=True, text=True, timeout=120, check=True).stdout
-        rd = csv.DictReader(io.StringIO(out))
-        cm = pick_columns(rd.fieldnames or [])
+        out = os.path.join(d, "t.csv")
+        with open(out, "wb") as f:
+            subprocess.run([exe, path, t], stdout=f, stderr=subprocess.DEVNULL, check=True)
+        with open(out, encoding="utf-8", errors="replace", newline="") as f:
+            head = f.readline()
+        cm = pick_columns(next(csv.reader([head]), []))
         if cm:
-            return _normalize(list(rd), cm)
+            return _gen_csv(out, cm, d)
+    shutil.rmtree(d, ignore_errors=True)
     raise MyltError("không thấy bảng câu hỏi")
+
+
+def _gen_csv(out, cm, tmpdir):
+    csv.field_size_limit(2 ** 31 - 1)
+    try:
+        with open(out, encoding="utf-8", errors="replace", newline="") as f:
+            for r in csv.DictReader(f):
+                yield _norm_one(r, cm)
+    finally:
+        shutil.rmtree(tmpdir, ignore_errors=True)
+
+
+def _read_mdbtools(path):
+    return list(_iter_mdbtools(path))
 
 
 def _read_odbc(path):
@@ -215,9 +237,9 @@ try {
 """
 
 
-def _read_oledb_ps(path: str) -> list[dict]:
-    """Windows: đọc bằng Microsoft Jet OLEDB qua PowerShell 32-bit (có sẵn trên mọi máy Windows; Jet 4.0 chỉ có bản 32-bit)."""
-    import json
+def _iter_oledb_ps(path: str):
+    """Windows: đọc bằng Microsoft Jet OLEDB qua PowerShell 32-bit (Jet 4.0 chỉ có bản 32-bit); xuất ra file .jsonl
+    rồi đọc từng dòng. Kho lớn (hàng trăm nghìn câu) có thể mất vài phút."""
     if os.name != "nt":
         raise MyltError("OLEDB chỉ có trên Windows")
     ps = os.path.join(os.environ.get("SystemRoot", r"C:\Windows"), "SysWOW64", "WindowsPowerShell", "v1.0", "powershell.exe")
@@ -231,37 +253,64 @@ def _read_oledb_ps(path: str) -> list[dict]:
         with open(pwf, "w", encoding="utf-8") as f:
             f.write(jet4_password(path))
         r = subprocess.run([ps, "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", script, path, out, pwf],
-                           capture_output=True, timeout=240, creationflags=0x08000000)
+                           capture_output=True, timeout=3 * 3600, creationflags=0x08000000)
         if r.returncode != 0 or not os.path.exists(out):
             msg = (r.stderr or r.stdout).decode("utf-8", "replace").strip()
             raise MyltError(msg or "PowerShell không xuất được dữ liệu")
-        rows = []
+    except BaseException:
+        shutil.rmtree(d, ignore_errors=True)
+        raise
+    return _gen_jsonl(out, d)
+
+
+def _gen_jsonl(out, tmpdir):
+    import json
+    cm = None
+    try:
         with open(out, encoding="utf-8", errors="replace") as f:
             for line in f:
-                if line.strip():
-                    rows.append(json.loads(line))
-        cm = pick_columns(list(rows[0])) if rows else {}
-        return _normalize(rows, cm) if cm else []
+                if not line.strip():
+                    continue
+                r = json.loads(line)
+                if cm is None:
+                    cm = pick_columns(list(r))
+                    if not cm:
+                        return
+                yield _norm_one(r, cm)
     finally:
-        shutil.rmtree(d, ignore_errors=True)
+        shutil.rmtree(tmpdir, ignore_errors=True)
 
 
-def read_rows(path: str) -> list[dict]:
-    """Các dòng {NoiDung, IDCauHoi, TuLuan, SoLan} của kho MyLT. Windows: thử bộ máy Access (OLEDB) trước."""
+def _read_oledb_ps(path: str) -> list[dict]:
+    return list(_iter_oledb_ps(path))
+
+
+BIG_FILE = 60 * 1024 * 1024         # file lớn hơn mức này: bỏ access-parser (Python thuần, quá chậm/tốn RAM)
+
+
+def iter_rows(path: str):
+    """Như read_rows nhưng trả về bộ lặp (đọc dần, hợp với kho hàng trăm MB). Thử lần lượt các bộ đọc."""
     if not os.path.isfile(path):
         raise MyltError(f"Không thấy file {path}")
     errors = []
-    readers = [("access-parser", _read_access_parser), ("mdbtools", _read_mdbtools), ("ODBC", _read_odbc)]
+    readers = [("mdbtools", _iter_mdbtools), ("ODBC", _read_odbc)]
+    if os.path.getsize(path) < BIG_FILE:
+        readers.insert(0, ("access-parser", _read_access_parser))
     if os.name == "nt":
-        readers.insert(0, ("OLEDB", _read_oledb_ps))
+        readers.insert(0, ("OLEDB", _iter_oledb_ps))
     for name, fn in readers:
         try:
-            return fn(path)
+            return iter(fn(path))
         except ImportError:
             errors.append(f"{name}: chưa cài")
         except Exception as e:  # noqa: BLE001 – file hỏng / không phải kho MyLT / thiếu driver
             errors.append(f"{name}: {e}")
     raise MyltError("Không đọc được kho MyLT – " + "; ".join(errors))
+
+
+def read_rows(path: str) -> list[dict]:
+    """Các dòng {NoiDung, IDCauHoi, TuLuan, SoLan} của kho MyLT. Windows: thử bộ máy Access (OLEDB) trước."""
+    return list(iter_rows(path))
 
 
 def count_questions(path: str) -> int:
@@ -382,26 +431,41 @@ def sync_if_linked(bank, settings) -> dict | None:
     mt = str(os.path.getmtime(path))
     if str(settings.value("mylt/link_mtime", "")) == mt:
         return None                                   # file không đổi từ lần đồng bộ trước
-    res = import_rows(bank, read_rows(path), source=path)
+    res = import_rows(bank, iter_rows(path), source=path)
     settings.setValue("mylt/link_mtime", mt)
     return res
 
 
 # ---------------------------------------------------------------- nhập vào kho
-def import_rows(bank, rows, source: str = "Bank.mylt") -> dict:
-    """Thêm các câu vào kho. Trả về {'them', 'trung', 'loi', 'tong'}; câu lỗi ghi lí do."""
-    res = {"them": 0, "trung": 0, "loi": [], "tong": len(rows)}
+def import_rows(bank, rows, source: str = "Bank.mylt", progress=None, should_stop=None) -> dict:
+    """Thêm các câu vào kho (bộ lặp hay danh sách). Ghi theo lô 2000 dòng cho nhanh. Trả về
+    {'them', 'trung', 'loi', 'tong'}; progress(số_dòng_đã_xử_lý, 0) gọi mỗi lô; câu lỗi ghi lí do (tối đa 200)."""
+    res = {"them": 0, "trung": 0, "loi": [], "tong": 0}
+    n_err = 0
+
+    def err(msg):
+        nonlocal n_err
+        n_err += 1
+        if len(res["loi"]) < 200:
+            res["loi"].append(msg)
     for i, r in enumerate(rows, 1):
+        res["tong"] = i
+        if i % 2000 == 0:
+            bank.con.commit()
+            if progress:
+                progress(i, 0)
+            if should_stop and should_stop():
+                break
         text = USED_MARK.sub("", str(r.get("NoiDung") or "")).strip()
         if not text:
-            res["loi"].append(f"Dòng {i}: nội dung trống")
+            err(f"Dòng {i}: nội dung trống")
             continue
         qs = parse_tex(text)
         if not qs:
             env = "bt" if str(r.get("TuLuan") or "0") not in ("0", "", "False", "false", "0.0") else "ex"
             qs = parse_tex(f"\\begin{{{env}}}\n{text}\n\\end{{{env}}}")
         if not qs:
-            res["loi"].append(f"Dòng {i}: không nhận ra câu hỏi")
+            err(f"Dòng {i}: không nhận ra câu hỏi")
             continue
         idc = str(r.get("IDCauHoi") or "").strip().upper()
         try:
@@ -411,7 +475,7 @@ def import_rows(bank, rows, source: str = "Bank.mylt") -> dict:
         for q in qs:
             if idc and not q.id_code:
                 q.set_id(idc)
-            new_id = bank.add(q, source)
+            new_id = bank.add(q, source, commit=False)
             if new_id is None:
                 res["trung"] += 1
                 continue
@@ -419,11 +483,12 @@ def import_rows(bank, rows, source: str = "Bank.mylt") -> dict:
             if used:
                 bank.con.execute("UPDATE questions SET used_count=? WHERE id=?", (used, new_id))
     bank.con.commit()
+    res["so_loi"] = n_err
     return res
 
 
-def import_mylt(bank, path: str, password: str = DEFAULT_PASSWORD) -> dict:
+def import_mylt(bank, path: str, password: str = DEFAULT_PASSWORD, progress=None, should_stop=None) -> dict:
     """Nhập từ Bank.mylt hoặc từ file nén (.rar/.zip/.7z) chứa Bank.mylt."""
     if path.lower().endswith((".rar", ".zip", ".7z")):
         path = extract_archive(path, password)
-    return import_rows(bank, read_rows(path), source=path)
+    return import_rows(bank, iter_rows(path), source=path, progress=progress, should_stop=should_stop)

@@ -126,7 +126,7 @@ def _fts5_available(con) -> bool:
 class Bank:
     def __init__(self, path: str = "nganhang.db"):
         self.path = path
-        self.con = sqlite3.connect(path)
+        self.con = sqlite3.connect(path, check_same_thread=False)   # luồng nền (nhập/quét kho lớn) dùng khi hộp thoại chờ
         self.con.row_factory = sqlite3.Row
         self.migrated_from = None
         self._migrate()
@@ -177,7 +177,7 @@ class Bank:
             fingerprint=q.fingerprint,
         )
 
-    def add(self, q: Question, source_file: str = "") -> int | None:
+    def add(self, q: Question, source_file: str = "", commit: bool = True) -> int | None:
         """Thêm câu; trả về id mới, hoặc None nếu câu đã tồn tại (trùng)."""
         v = self._row_values(q)
         v["source_file"] = source_file
@@ -189,7 +189,8 @@ class Bank:
                 list(v.values()))
         except sqlite3.IntegrityError:
             return None
-        self.con.commit()
+        if commit:
+            self.con.commit()
         return cur.lastrowid
 
     def _log(self, db_id: int, action: str):
