@@ -50,6 +50,7 @@ class MainWindow(LayoutMixin, BankActionsMixin, QMainWindow):
         self._act(m, "Nhập file Word (.docx)…", self.import_word)
         self._act(m, "Nhập ngân hàng MyLT (Bank.mylt / Bank.rar)…", self.import_mylt)
         self._act(m, "Tìm kho MyLT trên máy…", self.find_mylt)
+        self._act(m, "Nạp ngân hàng mẫu để dùng thử (đề mẫu + câu đổi số)…", self.seed_sample)
         self._act(m, "Xuất câu đang hiển thị/đã chọn…", self.export_selected, "Ctrl+E")
         self._act(m, "Xuất câu ra Word / Moodle / bài làm online…", self.export_other)
         m.addSeparator()
@@ -295,6 +296,45 @@ class MainWindow(LayoutMixin, BankActionsMixin, QMainWindow):
             msg += ("\n\nKho này đang TRỐNG (kho mẫu đi kèm bản cài MyLT). Kho thật nằm ở máy đang dùng MyLT, thường là "
                     "…\\DATA\\BANK\\Bank.mylt và nặng vài MB – dùng «Tìm kho MyLT trên máy…» để tìm.")
         QMessageBox.information(self, "Nhập ngân hàng MyLT", msg)
+
+    def seed_sample(self):
+        from ..seed import seed_bank
+        if QMessageBox.question(self, "Ngân hàng mẫu", "Nạp khoảng 100 câu mẫu (22 câu Toán 10 từ đề mẫu và các câu đổi "
+                                "số hàm số Toán 12 có hình, lời giải) vào kho đang mở để dùng thử?\nCâu trùng tự bỏ qua.") \
+                != QMessageBox.StandardButton.Yes:
+            return
+        QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
+        try:
+            r = seed_bank(self.bank)
+        finally:
+            QApplication.restoreOverrideCursor()
+        self.build_tree()
+        self.refresh()
+        QMessageBox.information(self, "Ngân hàng mẫu", f"Đã thêm {r['de_mau']} câu đề mẫu và {r['doi_so']} câu đổi số "
+                                f"(bỏ {r['trung']} câu trùng). Thử tạo đề ở tab «Trộn đề».")
+
+    def welcome_if_empty(self):
+        """Kho trống: hướng dẫn 3 cách có dữ liệu (chỉ hiện khi mở phần mềm)."""
+        if os.environ.get("NHD_NO_WELCOME") or not self.bank or self.bank.count() > 0:
+            return
+        box = QMessageBox(self)
+        box.setWindowTitle("Ngân hàng câu hỏi đang trống")
+        box.setText("<b>Chưa có câu hỏi nào trong kho.</b><br>Chọn cách thêm dữ liệu:<br><br>"
+                    "• <b>Nhập kho MyLT</b>: nếu thầy/cô đang dùng MyLT (file Bank.mylt).<br>"
+                    "• <b>Nhập file .tex</b>: các file đề/câu hỏi LaTeX (ex_test) đã có.<br>"
+                    "• <b>Nạp ngân hàng mẫu</b>: khoảng 100 câu để dùng thử ngay.")
+        b1 = box.addButton("Nhập kho MyLT…", QMessageBox.ButtonRole.ActionRole)
+        b2 = box.addButton("Nhập file .tex…", QMessageBox.ButtonRole.ActionRole)
+        b3 = box.addButton("Nạp ngân hàng mẫu", QMessageBox.ButtonRole.ActionRole)
+        box.addButton("Để sau", QMessageBox.ButtonRole.RejectRole)
+        box.exec()
+        c = box.clickedButton()
+        if c is b1:
+            self.find_mylt()
+        elif c is b2:
+            self.import_files()
+        elif c is b3:
+            self.seed_sample()
 
     def find_mylt(self):
         """Tìm các file Bank.mylt trên máy, cho chọn một để nhập."""

@@ -339,3 +339,20 @@ def test_id_grid_and_online_settings(win, app):
     style, gform = load(win.settings)
     assert style == {"khung": "#123456"} and gform["entries"] == {"ten": "5", "diem": "6"}
     assert win.gen_panel.export_options().gform["id"] == "FORMID"
+
+
+def test_seed_sample_and_welcome(win, app, monkeypatch):
+    from PySide6.QtWidgets import QMessageBox
+    from nganhangde.db import Bank
+    win.open_bank(str(win.bank.path) + "_trong.db")          # kho mới, trống
+    assert win.bank.count() == 0
+    called = []
+    monkeypatch.setattr(QMessageBox, "exec", lambda self: called.append(1))
+    monkeypatch.delenv("NHD_NO_WELCOME", raising=False)
+    win.welcome_if_empty()
+    assert called                                           # có hiện hướng dẫn khi kho trống
+    win.seed_sample()                                       # QMessageBox.question đã giả lập trả về Yes
+    assert win.bank.count() > 90 and isinstance(win.bank, Bank)
+    called.clear()
+    win.welcome_if_empty()
+    assert not called                                       # kho có câu thì không hiện

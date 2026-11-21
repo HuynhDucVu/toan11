@@ -11,7 +11,11 @@ Với bản một file:
 
 Kho câu hỏi `nganhang.db` nằm cạnh file exe. Cập nhật từ bản cũ: chỉ cần thay file exe, kho giữ nguyên.
 
-## Có gì mới ở bản 0.17.1 (gồm cả 0.17.0) – Bổ sung theo MyLT 2018: nhập kho MyLT, file header, câu đổi số tự động, Tiện ích 2
+## Có gì mới ở bản 0.17.2 – Có sẵn ngân hàng mẫu để dùng thử
+- **Nạp ngân hàng mẫu** (Tệp → Nạp ngân hàng mẫu): khoảng **100 câu** gồm 22 câu Toán 10 (đề mẫu có ID, đáp án, lời giải) và các câu đổi số hàm số Toán 12 có hình, lời giải – thử trộn đề, rà soát, vẽ hình ngay khi chưa có dữ liệu riêng. Nạp nhiều lần không bị nhân đôi.
+- **Mở phần mềm khi kho trống** sẽ hiện hướng dẫn 3 cách có dữ liệu: nhập kho MyLT, nhập file .tex, hoặc nạp ngân hàng mẫu.
+
+## Bản 0.17.1 (gồm cả 0.17.0) – Bổ sung theo MyLT 2018: nhập kho MyLT, file header, câu đổi số tự động, Tiện ích 2
 - **Dùng ngân hàng MyLT** (menu Tệp):
   - **Nhập ngân hàng MyLT**: chọn `Bank.mylt` (hoặc `Bank.rar` có mật khẩu – phần mềm hỏi, mặc định MyLT123, cần WinRAR hoặc 7-Zip trên máy) → toàn bộ câu hỏi chuyển sang kho mới, giữ ID, câu tự luận, **số lần đã lấy ra đề**; câu trùng tự bỏ qua. Không cần cài Microsoft Access;
   - **Tìm kho MyLT trên máy**: tự tìm mọi file `Bank.mylt` (Desktop, Tài liệu, Tải xuống, ổ C:–H:), hiện số câu và dung lượng từng file để chọn;
