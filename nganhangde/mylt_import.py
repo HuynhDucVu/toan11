@@ -155,18 +155,18 @@ def count_questions(path: str) -> int:
 # ---------------------------------------------------------------- tìm trên máy, giải nén
 def find_banks(extra_dirs=(), max_dirs: int = 4000) -> list[str]:
     """Các file Bank.mylt có trên máy (lớn nhất trước). Tìm ở thư mục người dùng, Desktop, Downloads, ổ C:..H:."""
-    roots = []
+    roots = list(extra_dirs)                       # thư mục chỉ định tìm trước
     home = os.path.expanduser("~")
     for sub in ("Desktop", "Documents", "Downloads", "OneDrive", ""):
         roots.append(os.path.join(home, sub) if sub else home)
     roots += [f"{d}:\\" for d in "CDEFGH"] + ["/mnt", "/media"]
-    roots += list(extra_dirs)
-    seen, found, visited = set(), [], 0
+    seen, found = set(), []
     skip = {"windows", "program files", "program files (x86)", "$recycle.bin", "system volume information",
             "appdata", "node_modules", ".git", "programdata"}
     for root in roots:
         if not os.path.isdir(root):
             continue
+        visited = 0                                  # hạn mức số thư mục duyệt tính riêng cho từng gốc
         for dp, dn, fn in os.walk(root):
             visited += 1
             if visited > max_dirs:
