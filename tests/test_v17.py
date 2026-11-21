@@ -736,3 +736,11 @@ def test_header_mylt_template_exports(tmp_path):
                          options=ExportOptions(answers_xlsx=False, tltn2025=False))
     t = open([f for f in fs if f.endswith("de_101.tex")][0], encoding="utf-8").read()
     assert "{ex_test}" in t and "\\tieude{" in t and "\\begin{ex}" in t and "\\hetde" in t
+
+
+def test_parse_choicetf_environment_form():
+    t = ("\\begin{ex}%[0H9V1-6]\n\tXác định đúng sai\n\t\\begin{choiceTF}\n\t\t{\\True $a=1$}\n\t\t{$b=2$}\n\t\t{$c=3$}\n"
+         "\t\t{\\True $d=4$}\n\t\\end{choiceTF}\n\t\\loigiai{Do đó.}\n\\end{ex}")
+    q = parse_tex(t)[0]
+    assert q.qtype == "DS" and q.correct == [True, False, False, True] and q.stem == "Xác định đúng sai"
+    assert "\\choiceTF" in q.to_latex(True)

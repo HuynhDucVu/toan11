@@ -11,6 +11,10 @@ Với bản một file:
 
 Kho câu hỏi `nganhang.db` nằm cạnh file exe. Cập nhật từ bản cũ: chỉ cần thay file exe, kho giữ nguyên.
 
+## Có gì mới ở bản 0.17.31 – Nhận dạng câu Đúng/Sai viết dạng môi trường
+- Câu Đúng/Sai viết `\begin{choiceTF} {…}{…}{…}{…} \end{choiceTF}` (cũng `choice`, `choiceTFt`) nay được nhận là **Đúng/Sai** (trước đây bị xếp nhầm vào tự luận).
+- Lưu ý: kho MyLT cũ (kiểu trước năm 2025) hầu như không có câu Đúng/Sai nên bảng thống kê ghi 0 là đúng dữ liệu.
+
 ## Có gì mới ở bản 0.17.30 – Kèm sẵn mẫu Header của MyLT
 - Thư mục `TEMPLATE` có thêm **`Header_MyLT.tex`** (đầu đề kiểu MyLT: `\usepackage[book]{ex_test}`, `\tieude`, `\chantrang`, `\tieudea…d`, `\hetde`, `\heva`, `\hoac`). Chọn ở ô «Kiểu file main có sẵn» khi tạo đề.
 

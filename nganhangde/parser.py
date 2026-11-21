@@ -115,6 +115,10 @@ def parse_block(env: str, body: str) -> Question:
             solution = args[0].strip("\n")
             content = content[:p] + content[end:]
 
+    # dạng môi trường \begin{choiceTF}[t] {..}{..}{..}{..} \end{choiceTF} (cũng choice, choiceTFt) → dạng lệnh \choiceTF…
+    content = re.sub(r"\\begin\{(choiceTFt|choiceTF|choice)\}", r"\\\1", content)
+    content = re.sub(r"\\end\{(choiceTFt|choiceTF|choice)\}", "", content)
+
     q = Question(qtype="TL", stem=content.strip(), id_code=id_code, tags=other_tags, env=env)
 
     # ex_test v3.3: \choiceTFt là biến thể bảng của \choiceTF; \dapso là đáp số trả lời ngắn
