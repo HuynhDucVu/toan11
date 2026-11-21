@@ -105,7 +105,7 @@ class ToolsPanel(QWidget):
                                         ("Tìm và thay thế…", self.file_replace), ("Xoá ID khỏi file…", self.file_remove_ids),
                                         ("Xoá một nguồn…", self.file_remove_tag), ("Lọc câu theo nguồn…", self.file_filter_tag),
                                         ("Trích hình TikZ…", self.file_tikz), ("Tìm câu gần trùng…", self.file_near_dups),
-                                        ("Word → LaTeX…", self.word_to_tex), ("PDF → LaTeX…", self.win.pdf_to_tex),
+                                        ("Word/PDF → LaTeX…", self.word_to_tex),
                                         ("LaTeX → Word…", self.tex_to_word),
                                         ("Bài làm online từ file…", self.file_online),
                                         ("📄 Biên dịch PDF các file", self.file_pdf),
@@ -319,8 +319,8 @@ class ToolsPanel(QWidget):
 
     def word_to_tex(self):
         from ..dialogs.word2tex import Word2TexDialog, run_word_to_tex, summary_html
-        ps, _ = QFileDialog.getOpenFileNames(self, "Chọn file Word", self.win.settings.value("last_dir", "") or __import__("nganhangde.appdirs", fromlist=["folder"]).folder("word2extest"),
-                                             "Word (*.docx)")
+        ps, _ = QFileDialog.getOpenFileNames(self, "Chọn file Word / PDF", self.win.settings.value("last_dir", "") or __import__("nganhangde.appdirs", fromlist=["folder"]).folder("word2extest"),
+                                             "Word/PDF (*.docx *.pdf);;Word (*.docx);;PDF (*.pdf)")
         if not ps:
             return
         dlg = Word2TexDialog(self.win)

@@ -40,13 +40,13 @@ class Pdf2TexDialog(QDialog):
         self.accept()
 
 
-def convert_pdfs(win, paths, engine: str, tag: str = "") -> tuple[list[str], list[str]]:
+def convert_pdfs(win, paths, engine: str, tag: str = "", client=None) -> tuple[list[str], list[str]]:
     """Chuyển các PDF bằng cách đọc `engine` (text|mathpix|ai) có thanh tiến trình; ghi <tên>_tuPDF.tex vào DATA\\PDF2TEX.
     Trả về (các file .tex tạo được, các dòng HTML kết quả/ghi chú)."""
-    client = None
     if engine == "ai":
-        from .ai_settings import ensure_client
-        client = ensure_client(win)
+        if client is None:
+            from .ai_settings import ensure_client
+            client = ensure_client(win)
         if client is None:
             return [], ["<p style='color:#c00000'>Chưa có khoá AI.</p>"]
     elif engine == "mathpix" and not (str(win.settings.value("mathpix/app_id", "")) and

@@ -49,7 +49,8 @@ class MainWindow(LayoutMixin, BankActionsMixin, QMainWindow):
         self._act(m, "Nhập file .tex…", self.import_files, "Ctrl+I")
         self._act(m, "Nhập .tex 3 bước (rà soát – AI – nhập)…", self.import_wizard)
         self._act(m, "Nhập file Word (.docx)…", self.import_word)
-        self._act(m, "Chuyển PDF → LaTeX (chữ trong PDF / Mathpix / AI)…", self.pdf_to_tex)
+        self._act(m, "Chuyển Word/PDF → LaTeX (như MyLT: Convert Equations / Toggle TeX / Mathpix / Gemini)…",
+                  self.pdf_to_tex)
         self._act(m, "Nhập ngân hàng MyLT (Bank.mylt / Bank.rar)…", self.import_mylt)
         self._act(m, "Tìm kho MyLT trên máy…", self.find_mylt)
         self._act(m, "Nạp ngân hàng mẫu để dùng thử (đề mẫu + câu đổi số)…", self.seed_sample)
@@ -783,8 +784,26 @@ class MainWindow(LayoutMixin, BankActionsMixin, QMainWindow):
         return True
 
     def pdf_to_tex(self):
-        from .dialogs.pdf2tex import convert_pdf_files
-        convert_pdf_files(self)
+        """Chuyển file Word/PDF → LaTeX ex_test (hộp «Tuỳ chọn chuyển Word/PDF sang TeX» như MyLT)."""
+        from .dialogs.word2tex import Word2TexDialog, run_word_to_tex, summary_html
+        ps, _ = QFileDialog.getOpenFileNames(self, "Chọn file Word / PDF", self.settings.value("last_dir", "") or
+                                             __import__("nganhangde.appdirs", fromlist=["folder"]).folder("word2extest"),
+                                             "Word/PDF (*.docx *.pdf);;Word (*.docx);;PDF (*.pdf)")
+        if not ps:
+            return
+        dlg = Word2TexDialog(self)
+        if not dlg.exec():
+            return
+        res = run_word_to_tex(self, ps, dlg)
+        outs = [r["out"] for r in res if r["out"] and r["n"]]
+        box = QMessageBox(QMessageBox.Icon.Information, "Chuyển Word/PDF → LaTeX", "", parent=self)
+        box.setText(summary_html(res))
+        btn = box.addButton("Nhập vào kho (3 bước)…", QMessageBox.ButtonRole.AcceptRole) if outs else None
+        box.addButton("Đóng", QMessageBox.ButtonRole.RejectRole)
+        box.exec()
+        if btn is not None and box.clickedButton() is btn:
+            from .dialogs.import_wizard import ImportWizard
+            ImportWizard(self, outs).exec()
 
     def appearance(self):
         from .dialogs.appearance import AppearanceDialog

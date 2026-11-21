@@ -173,7 +173,7 @@ def _finish(cur, blocks, tag):
     blocks.append("\n".join(body))
 
 
-def latex_text_to_ex(text: str, tag: str = "") -> list[str]:
+def latex_text_to_ex(text: str, tag: str = "", ds: bool = True) -> list[str]:
     """Nhận dạng câu hỏi từ văn bản LaTeX (đầu ra của pandoc) → danh sách khối ex."""
     lines = [ln.rstrip() for ln in text.replace("\r", "").split("\n")]
     blocks, cur, mode = [], None, "stem"
@@ -204,7 +204,7 @@ def latex_text_to_ex(text: str, tag: str = "") -> list[str]:
                 cur["opts"] += opts
                 mode = "opts"
                 continue
-            md = DS_RE.match(s)
+            md = DS_RE.match(s) if ds else None
             if md:
                 label = s[:md.end()]
                 cur["ds"].append((md.group(1), "\\underline" in label or "\\uline" in label, s[md.end():].strip()))

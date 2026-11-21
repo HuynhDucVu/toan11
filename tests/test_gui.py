@@ -367,7 +367,7 @@ def test_word_to_tex_dialog(win, app, monkeypatch, tmp_path):
     f = tmp_path / "de.docx"
     _make_docx(str(f), _p("Câu 1. Tính $x$.") + _p("A. 1") + _p("B. 2", underline=True) + _p("C. 3") + _p("D. 4"))
     d = Word2TexDialog(win)
-    d.e_rep.setPlainText("Tính = Giải")
+    d.rep_add("Tính", "Giải")
     d._ok()
     tex, notes = convert_word_file(win, str(f), d)
     assert "Giải $x$." in tex and "\\True 2" in tex
@@ -447,8 +447,37 @@ def test_run_word_to_tex_summary(win, app, tmp_path):
     _make_docx(str(good), _p("Câu 1. Tính.") + _p("A. 1") + _p("B. 2", underline=True) + _p("C. 3") + _p("D. 4"))
     _make_docx(str(empty), _p("Chỉ có một đoạn văn không phải câu hỏi."))
     d = Word2TexDialog(win)
-    assert d.cb_engine.currentData() == "direct"
+    assert d.engine() == "direct" and d.options().ds
     res = run_word_to_tex(win, [str(good), str(empty), str(tmp_path / "khong_co.docx")], d)
     assert [r["n"] for r in res[:2]] == [1, 0] and res[2]["error"]
     html = summary_html(res)
     assert "tot.docx" in html and "→ <b>1</b> câu" in html and "→ <b>0</b> câu" in html and "chan_doan_rong" in html
+
+
+def test_word2tex_dialog_like_mylt(win, app, monkeypatch):
+    from PySide6.QtWidgets import QMessageBox
+    from nganhangde.ui.dialogs.word2tex import Word2TexDialog
+    monkeypatch.setattr(QMessageBox, "information", staticmethod(lambda *a, **k: 0))
+    win.settings.remove("w2t/rep")                           # cài đặt dùng chung cả phiên kiểm thử
+    d = Word2TexDialog(win)
+    assert [d.radios[k].text() for k in ("convert", "toggle", "mathpix", "gemini")] == [
+        "Dùng Convert Equations", "Dùng Toggle TeX", "Dùng Mathpix API", "Dùng Gemini"]
+    assert d.windowTitle() == "Tuỳ chọn chuyển Word/PDF sang TeX" and not d.cb_type.isEnabled()
+    assert {d.boxes[k].text() for k in d.boxes} == {"Chuyển hình", "Chuyển bảng", "Chuyển câu ĐS", "Chuyên đề", "Môn Hoá"}
+    d.radios["toggle"].setChecked(True)
+    d.e_mid.setText("id1")
+    d.e_mkey.setText("key1")
+    d.e_gkey.setText("gk")
+    d.boxes["ds"].setChecked(False)
+    d.rep_add("Δ", "\\Delta")
+    d.rep_add("x", "y")
+    d.t.selectRow(1)
+    d.rep_del()
+    d.g_rep.setChecked(True)
+    d._ok()
+    assert win.settings.value("w2t/engine2") == "toggle" and win.settings.value("mathpix/app_id") == "id1"
+    assert win.settings.value("ai/key") == "gk" and d.replacements() == [("Δ", "\\Delta")] and not d.options().ds
+    d2 = Word2TexDialog(win)                                 # mở lại: nhớ lựa chọn, bảng thay thế
+    assert d2.engine() == "toggle" and d2.replacements() == [("Δ", "\\Delta")]
+    d2.g_rep.setChecked(False)
+    assert d2.replacements() == []

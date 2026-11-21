@@ -32,6 +32,7 @@ class DocxOptions:
     chem: bool = False               # môn Hoá: chỉ số dưới/trên trong chữ thường (H₂O → H_{2}O)
     replacements: list[tuple[str, str]] = field(default_factory=list)   # «thay thế cá nhân»
     theory: bool = False             # chuyên đề/lý thuyết: giữ nguyên văn bản, không nhận dạng câu hỏi
+    ds: bool = True                  # nhận dạng câu Đúng/Sai (a) b) c) d)); tắt thì các ý a) b)… nằm trong đề bài
 
 
 @dataclass
@@ -416,7 +417,7 @@ def docx_to_ex(path: str, opts: DocxOptions | None = None, tag: str = "") -> tup
     text, rep = docx_to_latex(path, opts)
     if opts and opts.theory:
         return text, rep
-    return "\n".join(latex_text_to_ex(text, tag)) + "\n", rep
+    return "\n".join(latex_text_to_ex(text, tag, ds=getattr(opts, "ds", True))) + "\n", rep
 
 
 def copy_images(src_dir: str, dst_dir: str):

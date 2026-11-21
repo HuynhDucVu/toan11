@@ -11,6 +11,12 @@ Với bản một file:
 
 Kho câu hỏi `nganhang.db` nằm cạnh file exe. Cập nhật từ bản cũ: chỉ cần thay file exe, kho giữ nguyên.
 
+## Có gì mới ở bản 0.17.27 – Hộp «Tuỳ chọn chuyển Word/PDF sang TeX» giống MyLT
+- Viết lại phần chuyển Word/PDF → LaTeX theo đúng bố cục hộp thoại MyLT 2026: **Hiện Word**; cách đọc **Convert Equations / Toggle TeX / Mathpix API / Gemini** (thêm «Đọc trực tiếp» – không cần Word); tuỳ chọn **Chuyển hình, Chuyển bảng, Chuyển câu ĐS, Chuyên đề, Môn Hoá**; khung **Thông tin Mathpix API** (ID, Key, HDSD, Lưu) và **Thông tin Gemini AI** (API, HDSD, Lưu); bảng **Thay thế cá nhân** (STT, Thay, Bởi; nút ? A D S); nút **Đổi tên** (mẫu tên file kết quả).
+- **Một cửa cho Word và PDF**: Tệp → «Chuyển Word/PDF → LaTeX…» và nút «Word/PDF → LaTeX…» (Tiện ích) đều chọn được `.docx` lẫn `.pdf`; kết quả vào `DATA\WORD2EXTEST` / `DATA\PDF2TEX`; xong có nút nhập vào kho (3 bước).
+- Mathpix/Gemini với file Word: Word xuất PDF trước (cần Word), rồi gửi từng trang; với file PDF gửi thẳng.
+- Tuỳ chọn «Chuyển câu ĐS» tắt thì các ý a) b) c) d) giữ trong đề bài.
+
 ## Có gì mới ở bản 0.17.26 – Viết lại luồng chuyển Word → LaTeX
 - **Ba cách đọc** trong hộp «Tuỳ chọn Word → TeX»: (1) đọc trực tiếp file Word (nhanh, công thức Word thường); (2) **Word → PDF → Mathpix**; (3) **Word → PDF → AI Gemini/Claude**. Hai cách sau dùng Word xuất PDF (không gọi lệnh MathType nên không dính lỗi MathType) rồi đọc cả công thức MathType từ hình; cần Word trên máy và khoá Mathpix/AI. Word không xuất được PDF thì tự quay về đọc trực tiếp.
 - **Luôn hiện kết quả rõ ràng** sau khi chuyển: từng file ra bao nhiêu câu, lưu ở đâu, vì sao 0 câu; lỗi từng file không làm dừng cả lô. Ra 0 câu thì ghi `chan_doan_<tên>.txt`.
