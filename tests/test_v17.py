@@ -417,3 +417,24 @@ def test_layout_like_mylt(tmp_path, monkeypatch):
     old = tmp_path / "cu"
     (old / "de_xuat").mkdir(parents=True)
     assert appdirs.folder("de_xuat", str(old)).endswith("de_xuat")
+
+
+def test_phieu_tltn_2025(tmp_path):
+    import pytest
+    pytest.importorskip("pypdf")
+    pdfium = pytest.importorskip("pypdfium2")
+    from nganhangde import phieutltn as P
+    from nganhangde.generator import ExamVersion
+    from nganhangde.parser import Question
+    v = ExamVersion("813")
+    v.sections = {"TN": [Question("TN", "x", list("abcd"), [i % 4 == k for k in range(4)]) for i in range(40)],
+                  "DS": [Question("DS", "y", list("abcd"), [True, False, True, False]) for _ in range(8)],
+                  "KQ": [Question("KQ", "z", short_answer="$-0{,}9$"), Question("KQ", "z", short_answer="$12345$")], "TL": []}
+    pts, warn = P.marks_for(v)
+    assert len(pts) == 40 + 32 + 4 + 3 and any("dài hơn 4" in w for w in warn)   # 5 chữ số không tô được
+    files, w2 = P.export_sheets([v], str(tmp_path / "ph"))
+    assert len(files) == 2 and all(f.endswith(".pdf") for f in files)
+    img = pdfium.PdfDocument(files[1])[0].render(scale=1).to_pil().convert("L")
+    x, y = P.P1_X[0][0], P.P1_Y[0]                     # câu 1 đáp án A phải được tô đen
+    assert img.getpixel((int(x), int(y))) < 60
+    assert pdfium.PdfDocument(files[0])[0].render(scale=1).to_pil().convert("L").getpixel((int(x), int(y))) > 200

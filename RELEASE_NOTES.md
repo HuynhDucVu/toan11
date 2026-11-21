@@ -11,6 +11,10 @@ Với bản một file:
 
 Kho câu hỏi `nganhang.db` nằm cạnh file exe. Cập nhật từ bản cũ: chỉ cần thay file exe, kho giữ nguyên.
 
+## Có gì mới ở bản 0.17.11 – Phiếu TLTN THPT QG 2025 tô sẵn đáp án
+- Tuỳ chọn **«Phiếu TLTN THPT QG 2025»** (tab Phiếu chấm khi tạo đề): dùng đúng file phiếu của Bộ (40 câu nhiều lựa chọn · 8 câu Đúng/Sai · 6 câu trả lời ngắn), xuất **phiếu trắng** và **phiếu khoá tô sẵn đáp án + mã đề** cho từng mã đề (PDF, thư mục `phieu_TLTN_2025`). Đáp án trả lời ngắn quá 4 ký tự (kể cả dấu) hoặc mã đề quá 3 chữ số được ghi vào `CANH_BAO.txt`.
+- Vị trí ô tô đo từ chính file phiếu; kiểm tra bằng hình, nhưng chưa thử bằng máy quét/phần mềm chấm thật.
+
 ## Có gì mới ở bản 0.17.10 – Thư mục như MyLT 2026, Excel đáp án đúng mẫu MyLT, nhập kho rất lớn
 - **Bố cục thư mục giống MyLT 2026**: `DATA\\BANK`, `DATA\\DE` (đề trộn), `DATA\\EXAM`, `DATA\\AUTO`, `DATA\\MA TRAN DE`, `DATA\\TUONG TU`, `DATA\\WORD2EXTEST`, `DATA\\EXTEST2WORD`, `DATA\\PDF2TEX`, `DATA\\MOODLE XML`, `DATA\\MFORMS`, `DATA\\PDF QUIZ`, `DATA\\LOC ID`, `DATA\\LOC TIKZ`, `DATA\\IMG`, cùng `TEMPLATE`, `Map ID (DPS)`, `TEMP`, `LOG`. Các hộp thoại mở/lưu tự trỏ vào đúng thư mục. Máy đang dùng thư mục tên cũ (`de_xuat`, `mau_de`…) vẫn chạy, không tự di chuyển dữ liệu.
 - **Excel đáp án kiểu MyLT / TNMaker 2024** (theo file mẫu `11A2-LAN1-HOCKI1_DA_TNMaker2024.xlsx`): sheet «MyLT», số câu liên tục, mã đề ở hàng 1 (là kiểu mặc định).

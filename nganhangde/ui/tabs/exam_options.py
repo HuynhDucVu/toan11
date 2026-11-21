@@ -231,9 +231,12 @@ class ExamOptionsBox(QTabWidget):
         note2.setWordWrap(True)
         f.addRow(note2)
         f.addRow(self.c_qr)
+        self.c_tltn = QCheckBox("Phiếu TLTN THPT QG 2025 (mẫu của Bộ, 40·8·6): phiếu trắng + phiếu khoá tô sẵn đáp án từng mã đề (PDF)")
         self.c_sheet = QCheckBox("Phiếu trả lời: phiếu trắng để in + phiếu tô sẵn đáp án từng mã (phiếu khoá)")
         self.c_sheet.setChecked(val("sheet", False))
         f.addRow(self.c_sheet)
+        self.c_tltn.setChecked(val("tltn", False))
+        f.addRow(self.c_tltn)
         self.addTab(w, "Phiếu chấm")
 
         w = QWidget()
@@ -312,7 +315,7 @@ class ExamOptionsBox(QTabWidget):
                              omr_capacity=self.cb_cap.currentData(), gas=self.c_gas.isChecked(),
                              slides=self.c_slides.isChecked(), answers_end=self.c_ans_end.isChecked(),
                              gas_images=self.c_gas_img.isChecked(),
-                             even_pages=self.c_even.isChecked(), ans_toggle=self.c_toggle.isChecked(), per_folder=self.c_folder.isChecked(), answer_sheet=self.c_sheet.isChecked())
+                             even_pages=self.c_even.isChecked(), ans_toggle=self.c_toggle.isChecked(), tltn2025=self.c_tltn.isChecked(), per_folder=self.c_folder.isChecked(), answer_sheet=self.c_sheet.isChecked())
 
     def apply_thpt2026(self):
         self.cb_codemode.setCurrentIndex(self.cb_codemode.findData("seq"))
@@ -343,5 +346,5 @@ class ExamOptionsBox(QTabWidget):
                      ("online", self.c_online), ("online_sol", self.c_online_sol), ("moodle", self.c_moodle),
                      ("word", self.c_word), ("gas", self.c_gas), ("slides", self.c_slides), ("gas_img", self.c_gas_img),
                      ("ans_end", self.c_ans_end), ("even", self.c_even), ("sheet", self.c_sheet),
-                     ("per_folder", self.c_folder), ("ans_toggle", self.c_toggle)):
+                     ("per_folder", self.c_folder), ("ans_toggle", self.c_toggle), ("tltn", self.c_tltn)):
             self.st.setValue(f"{self.prefix}/opt_{k}", c.isChecked())
