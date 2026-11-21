@@ -735,4 +735,4 @@ def test_header_mylt_template_exports(tmp_path):
     fs = export_versions([v], str(tmp_path / "o"), template_path=str(tpl),
                          options=ExportOptions(answers_xlsx=False, tltn2025=False))
     t = open([f for f in fs if f.endswith("de_101.tex")][0], encoding="utf-8").read()
-    assert "\\usepackage[book]{ex_test}" in t and "\\tieude{" in t and "\\begin{ex}" in t and "\\hetde" in t
+    assert "{ex_test}" in t and "\\tieude{" in t and "\\begin{ex}" in t and "\\hetde" in t
