@@ -719,3 +719,20 @@ def test_docx_with_mathtype_ole_equation(tmp_path):
     assert "Giá trị của $x=\\dfrac{1}{2}$ bằng" in tex.replace("$x = \\dfrac", "$x=\\dfrac")
     qs = parse_tex(wordconv.import_docx(str(f), "", DocxOptions()))
     assert len(qs) == 1 and qs[0].answer_text == "B" and "\\dfrac{1}{2}" in qs[0].stem
+
+
+def test_header_mylt_template_exports(tmp_path):
+    from nganhangde import appdirs
+    from nganhangde.exporter import ExportOptions, export_versions
+    from nganhangde.generator import ExamVersion
+    from nganhangde.parser import Question
+    root = str(tmp_path / "app")
+    appdirs.ensure_layout(root)
+    tpl = tmp_path / "app" / "TEMPLATE" / "Header_MyLT.tex"
+    assert tpl.exists()
+    v = ExamVersion("101")
+    v.sections = {"TN": [Question("TN", "Tính $1+1$.", list("abcd"), [False, True, False, False])], "DS": [], "KQ": [], "TL": []}
+    fs = export_versions([v], str(tmp_path / "o"), template_path=str(tpl),
+                         options=ExportOptions(answers_xlsx=False, tltn2025=False))
+    t = open([f for f in fs if f.endswith("de_101.tex")][0], encoding="utf-8").read()
+    assert "\\usepackage[book]{ex_test}" in t and "\\tieude{" in t and "\\begin{ex}" in t and "\\hetde" in t

@@ -11,6 +11,9 @@ Với bản một file:
 
 Kho câu hỏi `nganhang.db` nằm cạnh file exe. Cập nhật từ bản cũ: chỉ cần thay file exe, kho giữ nguyên.
 
+## Có gì mới ở bản 0.17.30 – Kèm sẵn mẫu Header của MyLT
+- Thư mục `TEMPLATE` có thêm **`Header_MyLT.tex`** (đầu đề kiểu MyLT: `\usepackage[book]{ex_test}`, `\tieude`, `\chantrang`, `\tieudea…d`, `\hetde`, `\heva`, `\hoac`). Chọn ở ô «Kiểu file main có sẵn» khi tạo đề.
+
 ## Có gì mới ở bản 0.17.29 – Đọc thẳng công thức MathType, tab «Trộn đề» giống MyLT
 - **Công thức MathType (đối tượng OLE) trong file Word được chuyển thẳng sang LaTeX**, không cần Word/MathType: app đọc dữ liệu MTEF trong file (phân số `\dfrac`, căn, mũ/chỉ số, ngoặc, **hệ phương trình `\heva{…}` / `\hoac{…}`**, tổng/tích/tích phân có cận, `\lim`, vectơ, gạch ngang, ma trận, chữ Hy Lạp, ký hiệu…). Kết quả ghi «Đã đọc trực tiếp N công thức MathType». Công thức nào không đọc được thì để `[công thức]` và ghi chú. (Mới kiểm tra bằng công thức dựng theo đặc tả MTEF 5; chưa thử với đủ loại công thức thật – bạn gửi file thì tôi soát tiếp.)
 - Chuyển Word: không còn **gạch chân nhầm** «Câu N», «Lời giải», «Trả lời» khi chúng chỉ được tô màu; tên file/thư mục kết quả không còn **dấu cách và dấu tiếng Việt** (trước đây làm `\includegraphics` và pdflatex lỗi).

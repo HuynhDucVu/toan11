@@ -128,6 +128,7 @@ def ensure_layout(root: str | None = None) -> str:
             pass
     copies = [(os.path.join(PKG, "templates", "de_thi.tex"), os.path.join(folder("mau_de", root), "de_thi.tex")),
               (os.path.join(PKG, "templates", "nhd_extest.sty"), os.path.join(folder("mau_de", root), "ex_test_rut_gon.sty")),
+              (os.path.join(PKG, "templates", "Header_MyLT.tex"), os.path.join(folder("mau_de", root), "Header_MyLT.tex")),
               (os.path.join(PKG, "data", "map_id_toan_6_12.tex"), os.path.join(folder("map_id", root), "Map_ID_Toan_6_12.tex")),
               (os.path.join(PKG, "data", PHIEU_PDF), os.path.join(root, "DATA", PHIEU_PDF.replace("_", " ")))]
     for src, dst in copies:
