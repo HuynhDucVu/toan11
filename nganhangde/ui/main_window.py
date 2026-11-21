@@ -48,6 +48,7 @@ class MainWindow(LayoutMixin, BankActionsMixin, QMainWindow):
         m.addSeparator()
         self._act(m, "Nhập file .tex…", self.import_files, "Ctrl+I")
         self._act(m, "Nhập file Word (.docx)…", self.import_word)
+        self._act(m, "Nhập ngân hàng MyLT (Bank.mylt)…", self.import_mylt)
         self._act(m, "Xuất câu đang hiển thị/đã chọn…", self.export_selected, "Ctrl+E")
         self._act(m, "Xuất câu ra Word / Moodle / bài làm online…", self.export_other)
         m.addSeparator()
@@ -261,6 +262,28 @@ class MainWindow(LayoutMixin, BankActionsMixin, QMainWindow):
         self.stats_panel.reload()
         if notes:
             self.statusBar().showMessage("  ".join(notes), 20000)
+
+    def import_mylt(self):
+        from ..mylt_import import MyltError, import_mylt
+        p, _ = QFileDialog.getOpenFileName(self, "Chọn kho MyLT (thư mục MyLT\\DATA\\BANK)", "",
+                                           "Kho MyLT (*.mylt);;Mọi file (*.*)")
+        if not p:
+            return
+        QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
+        try:
+            r = import_mylt(self.bank, p)
+        except MyltError as e:
+            QMessageBox.warning(self, "Nhập ngân hàng MyLT", str(e))
+            return
+        finally:
+            QApplication.restoreOverrideCursor()
+        self.build_tree()
+        self.refresh()
+        msg = (f"Kho MyLT có {r['tong']} câu: đã thêm {r['them']} câu, bỏ {r['trung']} câu trùng"
+               + (f", {len(r['loi'])} câu lỗi:\n" + "\n".join(r["loi"][:15]) if r["loi"] else "") + ".")
+        if r["tong"] == 0:
+            msg += ("\n\nKho này đang trống. Kho thật thường ở thư mục MyLT đang dùng: …\\DATA\\BANK\\Bank.mylt.")
+        QMessageBox.information(self, "Nhập ngân hàng MyLT", msg)
 
     def open_app_folder(self):
         from ..appdirs import home

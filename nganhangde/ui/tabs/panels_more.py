@@ -394,17 +394,22 @@ class EditorPanel(QWidget):
         self.win, self.path = win, ""
         lay = QVBoxLayout(self)
         row = QHBoxLayout()
+        row2 = QHBoxLayout()
         for text, fn in (("Mới", self.new), ("Mở…", self.open), ("Lưu", self.save), ("Lưu thành…", self.save_as),
                          ("✅ Rà soát", self.review), ("📄 Biên dịch PDF", self.compile), ("Mở TeXstudio", self.texstudio),
-                         ("Nạp vào kho", self.to_bank), ("🤖 Câu đổi số AI", lambda: self.ai(5)),
+                         ("Nạp vào kho", self.to_bank), ("🔢 Câu đổi số tự động", self.autogen),
+                         ("🤖 Câu đổi số AI", lambda: self.ai(5)),
                          ("🤖 Lời giải AI", lambda: self.ai(6))):
             b = QPushButton(text)
             b.clicked.connect(fn)
-            row.addWidget(b)
+            (row if text in ("Mới", "Mở…", "Lưu", "Lưu thành…", "✅ Rà soát", "📄 Biên dịch PDF", "Mở TeXstudio")
+             else row2).addWidget(b)
         row.addStretch()
         self.l_file = QLabel("(chưa lưu)")
         row.addWidget(self.l_file)
+        row2.addStretch()
         lay.addLayout(row)
+        lay.addLayout(row2)
         row = QHBoxLayout()
         row.addWidget(QLabel("Chèn:"))
         for text, snip in SNIPPETS:
@@ -484,6 +489,49 @@ class EditorPanel(QWidget):
         from ...editor import open_in_texstudio
         if self.save() and not open_in_texstudio(self.path, 0, self.win.settings.value("pdf/texstudio", "")):
             _open(self.path)
+
+    def autogen(self):
+        """Câu đổi số tự động (không cần AI): chọn dạng, số câu → chèn vào cuối trang soạn thảo."""
+        from PySide6.QtWidgets import QDialog, QDialogButtonBox, QListWidget, QListWidgetItem
+        from ... import autogen
+        dlg = QDialog(self)
+        dlg.setWindowTitle("Câu đổi số tự động")
+        v = QVBoxLayout(dlg)
+        v.addWidget(QLabel("Chọn các dạng bài (Toán 12 – hàm số). Mỗi câu có ID, 4 phương án, hình và lời giải; "
+                           "số liệu ngẫu nhiên, không trùng nhau."))
+        lst = QListWidget()
+        for k, (name, _) in autogen.PROBLEMS.items():
+            it = QListWidgetItem(name)
+            it.setData(Qt.ItemDataRole.UserRole, k)
+            it.setCheckState(Qt.CheckState.Unchecked)
+            lst.addItem(it)
+        v.addWidget(lst)
+        row = QHBoxLayout()
+        row.addWidget(QLabel("Số câu mỗi dạng"))
+        sp = QSpinBox()
+        sp.setRange(1, 50)
+        sp.setValue(5)
+        row.addWidget(sp)
+        row.addStretch()
+        v.addLayout(row)
+        bb = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
+        bb.accepted.connect(dlg.accept)
+        bb.rejected.connect(dlg.reject)
+        v.addWidget(bb)
+        self._autogen_dlg = (dlg, lst, sp)
+        if not dlg.exec():
+            return
+        self._autogen_apply(lst, sp.value())
+
+    def _autogen_apply(self, lst, n):
+        from ... import autogen
+        kinds = [lst.item(i).data(Qt.ItemDataRole.UserRole) for i in range(lst.count())
+                 if lst.item(i).checkState() == Qt.CheckState.Checked]
+        blocks = [b for k in kinds for b in autogen.generate(k, n)]
+        if blocks:
+            self.ed.appendPlainText("\n" + "\n\n".join(blocks) + "\n")
+        self.out.append(f"Đã thêm {len(blocks)} câu đổi số tự động ({len(kinds)} dạng). Bấm «Rà soát» hoặc "
+                        "«Biên dịch PDF» để xem, «Nạp vào kho» để lưu.")
 
     def ai(self, tab):
         """Mở Trợ lý AI với các câu trong trang soạn thảo (hoặc trong đoạn đang bôi đen)."""

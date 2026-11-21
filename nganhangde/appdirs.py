@@ -10,7 +10,8 @@
     ├── sao_luu\\            bản sao lưu kho
     ├── anh\\                ảnh PNG xuất từ hình TikZ, ảnh câu hỏi
     ├── online\\             bài online, trình chiếu, Google Forms
-    └── tam\\                file tạm khi biên dịch xem trước (xoá thoải mái)
+    ├── tam\\                file tạm khi biên dịch xem trước (xoá thoải mái)
+    └── nhat_ky\\            nhật kí lỗi
 
 Thư mục gốc: biến môi trường NHD_HOME → thư mục chứa file .exe (bản đóng gói) → thư mục hiện tại (chạy mã nguồn).
 Nếu không ghi được (vd cài trong Program Files) thì dùng %LOCALAPPDATA%\\NganHangDe.
@@ -30,6 +31,7 @@ SUBDIRS = {
     "anh": "Ảnh PNG xuất từ hình TikZ / câu hỏi",
     "online": "Bài làm online, trình chiếu, file Google Forms",
     "tam": "File tạm khi biên dịch xem trước – xoá thoải mái",
+    "nhat_ky": "Nhật kí lỗi (nhat_ky.txt) – gửi cho người hỗ trợ khi phần mềm báo lỗi",
 }
 PKG = os.path.dirname(os.path.abspath(__file__))
 

@@ -189,7 +189,8 @@ def variation_table(expr: str, name: str = "y"):
 
 
 def variation_tikz(xs, sign, var, name="y", deriv_name=None, lgt=1.2, espcl=2.4) -> str:
-    deriv_name = deriv_name or f"{name}'"
+    if not deriv_name:
+        deriv_name = name[:-3] + "'(x)" if name.endswith("(x)") else f"{name}'"
     xs_s = ",".join(f"${x}$" for x in xs)
     line = ",".join(sign) + ("," if len(sign) == 2 * len(xs) - 2 else "")
     return ("\\begin{tikzpicture}\n"

@@ -11,7 +11,18 @@ Với bản một file:
 
 Kho câu hỏi `nganhang.db` nằm cạnh file exe. Cập nhật từ bản cũ: chỉ cần thay file exe, kho giữ nguyên.
 
-## Có gì mới ở bản 0.16.2 – Thư mục phần mềm gọn gàng như MyLT
+## Có gì mới ở bản 0.17.0 – Bổ sung theo MyLT 2018: nhập kho MyLT, file header, câu đổi số tự động, Tiện ích 2
+- **Nhập ngân hàng MyLT** (Tệp → Nhập ngân hàng MyLT): chọn file `Bank.mylt` trong thư mục `MyLT\DATA\BANK` → toàn bộ câu hỏi chuyển sang kho mới, giữ ID, câu tự luận, **số lần đã lấy ra đề**; câu trùng tự bỏ qua. Không cần cài Microsoft Access.
+- **Dùng file header của MyLT** làm mẫu đề: chép `Header.tex`, `Header1.tex`… vào thư mục `mau_de`, chọn ở ô *File mẫu .tex* (nút ▾). Phần mềm tự điền tên trường, kì thi, môn, thời gian, gọi `\tieude`, `\chantrang`, tiêu đề từng phần `\tieudea…\tieuded`, `\hetde` – đề ra đúng bố cục quen thuộc.
+- **Chuyển nhanh Map ID**: chép các file Map ID (Map ID_Goc, _HSG, _3Sach…) vào thư mục `map_id`, chọn ở Giải nghĩa ID → *Map ID trong thư mục map_id ▾*.
+- **Câu đổi số tự động** (tab Soạn thảo, không cần AI): 10 dạng Toán 12 – đơn điệu (công thức, bảng biến thiên, đồ thị), cực trị, số điểm cực trị hàm trùng phương, tìm m để đạt cực đại, GTLN/GTNN trên đoạn, tiệm cận, nhận dạng đồ thị; mỗi câu có ID, 4 phương án, hình và lời giải.
+- **Tiện ích 2**: xoá dòng trống/căn mã, đặt đáp án theo chuỗi, đưa đáp án đúng về A, chuyển mức độ trong ID (5 mức cũ → 4 mức), tách file theo chương/bài/dạng, nối file, tạo mã `\input`, xuất cả kho ra các file theo ID.
+- **Mỗi mã đề một thư mục** (Tuỳ chọn trộn đề → Trình bày).
+- Thư mục **`nhat_ky`**: khi phần mềm gặp lỗi, chi tiết được ghi vào `nhat_ky.txt`.
+- **Giao diện dễ nhìn hơn**: tab chính chữ to đậm, tab con có viền cam đánh dấu tab đang chọn; các tab vừa màn hình 1366 px.
+- Sửa: mẫu đề mặc định thiếu gói `tkz-tab` (câu có bảng biến thiên không biên dịch được); nhãn đạo hàm trong bảng biến thiên ghi `f'(x)`.
+
+## Bản 0.16.2 – Thư mục phần mềm gọn gàng như MyLT
 Lần đầu chạy, phần mềm tạo các thư mục con ngay cạnh file `NganHangDe.exe`:
 
 ```

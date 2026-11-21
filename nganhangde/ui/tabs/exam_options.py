@@ -129,9 +129,10 @@ class ExamOptionsBox(QTabWidget):
         self.c_zip = QCheckBox("Nén toàn bộ kết quả thành 1 file .zip")
         self.c_ans_end = QCheckBox("In bảng đáp án ở cuối file đề (trang riêng)")
         self.c_even = QCheckBox("Chèn trang trống để mỗi đề có số trang chẵn (in 2 mặt)")
+        self.c_folder = QCheckBox("Mỗi mã đề một thư mục riêng")
         for c, k in ((self.c_renum, "renumber"), (self.c_official, "official"), (self.c_scoring, "scoring"),
                      (self.c_showid, "showid"), (self.c_zip, "zip"), (self.c_ans_end, "ans_end"),
-                     (self.c_even, "even")):
+                     (self.c_even, "even"), (self.c_folder, "per_folder")):
             c.setChecked(val(k, False))
             v.addWidget(c)
         v.addStretch()
@@ -285,7 +286,7 @@ class ExamOptionsBox(QTabWidget):
                              qr_answers=self.c_qr.isChecked(), gas=self.c_gas.isChecked(),
                              slides=self.c_slides.isChecked(), answers_end=self.c_ans_end.isChecked(),
                              gas_images=self.c_gas_img.isChecked(),
-                             even_pages=self.c_even.isChecked(), answer_sheet=self.c_sheet.isChecked())
+                             even_pages=self.c_even.isChecked(), per_folder=self.c_folder.isChecked(), answer_sheet=self.c_sheet.isChecked())
 
     def apply_thpt2026(self):
         self.cb_codemode.setCurrentIndex(self.cb_codemode.findData("seq"))
@@ -314,5 +315,6 @@ class ExamOptionsBox(QTabWidget):
                      ("xlsx", self.c_xlsx), ("showid", self.c_showid), ("zip", self.c_zip),
                      ("online", self.c_online), ("online_sol", self.c_online_sol), ("moodle", self.c_moodle),
                      ("word", self.c_word), ("gas", self.c_gas), ("slides", self.c_slides), ("gas_img", self.c_gas_img),
-                     ("ans_end", self.c_ans_end), ("even", self.c_even), ("sheet", self.c_sheet)):
+                     ("ans_end", self.c_ans_end), ("even", self.c_even), ("sheet", self.c_sheet),
+                     ("per_folder", self.c_folder)):
             self.st.setValue(f"{self.prefix}/opt_{k}", c.isChecked())

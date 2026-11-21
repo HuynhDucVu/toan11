@@ -182,12 +182,30 @@ class GeneratorPanel(QWidget):
             if folder:
                 p = QFileDialog.getExistingDirectory(self, "Chọn thư mục", e.text())
             else:
-                p, _ = QFileDialog.getOpenFileName(self, "Chọn file mẫu", e.text(), "LaTeX (*.tex)")
+                from ...appdirs import path as app_path
+                p, _ = QFileDialog.getOpenFileName(self, "Chọn file mẫu / file header", e.text() or app_path("mau_de"),
+                                                   "LaTeX (*.tex)")
             if p:
                 e.setText(p)
         b.clicked.connect(pick)
         h.addWidget(e)
         h.addWidget(b)
+        if not folder:
+            from PySide6.QtWidgets import QMenu
+            m = QPushButton("▾")
+            m.setFixedWidth(28)
+            m.setToolTip("Chọn nhanh mẫu/header trong thư mục mau_de (chép Header.tex của MyLT vào đây là dùng được)")
+
+            def menu():
+                import glob
+                from ...appdirs import path as app_path
+                mn = QMenu(m)
+                mn.addAction("(mẫu mặc định)", lambda: e.setText(""))
+                for f in sorted(glob.glob(app_path("mau_de", "*.tex"))):
+                    mn.addAction(os.path.basename(f), lambda f=f: e.setText(f))
+                mn.exec(m.mapToGlobal(m.rect().bottomLeft()))
+            m.clicked.connect(menu)
+            h.addWidget(m)
         return e, w
 
     # --- ma trận

@@ -49,6 +49,7 @@ class ExportOptions:
     gas_images: bool = False          # Google Form dạng ảnh: mỗi câu thành ảnh PNG (cần LaTeX) + file .gs
     online_style: dict | None = None  # màu bài online / Blogger (online.version_html)
     gform: dict | None = None         # Google Form nhận kết quả bài online
+    per_folder: bool = False          # mỗi mã đề một thư mục con (de_101.tex, loigiai_101.tex… trong thư mục 101)
     answers_end: bool = False         # in bảng đáp án ở cuối chính file đề
     even_pages: bool = False          # chèn trang trống để mỗi đề có số trang chẵn (in 2 mặt không dính đề sau)
     answer_sheet: bool = False        # file phiếu trả lời: phiếu trắng + phiếu tô sẵn đáp án từng mã (phiếu khoá)
@@ -101,13 +102,13 @@ def section_heading(s: str, n: int, opt: "ExportOptions | None") -> str:
     return f"\\section*{{{SECTION_TITLE[s]}}}"
 
 
-def version_body(v: ExamVersion, with_solution: bool, opt: "ExportOptions | None" = None) -> str:
+def version_body(v: ExamVersion, with_solution: bool, opt: "ExportOptions | None" = None, heading=None) -> str:
     parts = []
     for s in SECTION_ORDER:
         qs = v.sections.get(s) or []
         if not qs:
             continue
-        parts.append(section_heading(s, len(qs), opt))
+        parts.append(heading(s, len(qs)) if heading else section_heading(s, len(qs), opt))
         if opt and opt.renumber:
             parts.append("\\setcounter{ex}{0}")
         parts.append(questions_to_tex(qs, with_solution, bool(opt and opt.show_id and with_solution)))
@@ -123,6 +124,60 @@ def scoring_tex(v: ExamVersion, sc=None) -> str:
 def score_ds(n_correct: int, sc=None) -> float:
     from .scoring import DEFAULT
     return (sc or DEFAULT).ds_score(n_correct)
+
+
+# ---------------------------------------------------------------- file header kiểu MyLT
+HEADER_TITLE_MACROS = {"tentruong": "TRUONG", "tengv": "GIAO_VIEN", "tenkythi": "KY_THI", "tenmonthi": "MON_THI",
+                       "thoigian": "THOI_GIAN"}
+HEADER_PART = {"TN": ("tieudea", "I"), "DS": ("tieudeb", "II"), "KQ": ("tieudec", "III"), "TL": ("tieuded", "IV")}
+
+
+def is_header(template: str) -> bool:
+    """File header kiểu MyLT: phần khai báo (gói, lệnh \\tieude, \\tentruong…) kết thúc bằng \\begin{document},
+    không có chỗ trống <<NOI_DUNG>>."""
+    return "<<NOI_DUNG>>" not in template and "\\begin{document}" in template
+
+
+def _defines(tpl: str, name: str) -> bool:
+    import re as _re
+    return bool(_re.search(r"\\(newcommand|renewcommand|def)\*?\s*\{?\\" + name + r"\b", tpl))
+
+
+def fill_header(tpl: str, v: ExamVersion, mode: str, with_solution: bool, opt: "ExportOptions | None",
+                values: dict) -> str:
+    """Dựng file đề từ header: đặt tuỳ chọn ex_test (dethi/loigiai), thay tên trường/kì thi… theo thông tin đề,
+    gọi \\tieude{số trang}{số câu}{mã đề}, \\chantrang, tiêu đề từng phần \\tieudea…\\tieuded nếu header có."""
+    import re as _re
+    head, _, _rest = tpl.partition("\\begin{document}")
+    if _re.search(r"\\usepackage(\[[^\]]*\])?\{ex_test\}", head):
+        head = _re.sub(r"\\usepackage(\[[^\]]*\])?\{ex_test\}",
+                       lambda m: "\\usepackage[" + ",".join([o for o in (m.group(1) or "[]")[1:-1].split(",")
+                                                            if o.strip() and o.strip() not in ("dethi", "loigiai")]
+                                                           + [mode]) + "]{ex_test}", head, count=1)
+    for macro, key in HEADER_TITLE_MACROS.items():
+        val = str(values.get(key, "") or "").strip()
+        if val and _defines(head, macro):
+            head = _re.sub(r"(\\newcommand\s*\{\\" + macro + r"\}\s*)\{[^{}]*\}",
+                           lambda m: m.group(1) + "{" + val.replace("\\", r"\\") + "}", head, count=1)
+    if "lastpage" not in head:
+        head += "\\usepackage{lastpage}\n"
+    head += ("\\providecommand{\\heva}[1]{\\left\\{\\begin{aligned}#1\\end{aligned}\\right.}\n"
+             "\\providecommand{\\hoac}[1]{\\left[\\begin{aligned}#1\\end{aligned}\\right.}\n")
+    n = sum(len(v.sections.get(s) or []) for s in SECTION_ORDER)
+    top = []
+    if _defines(head, "tieude"):
+        top.append(f"\\tieude{{\\pageref{{LastPage}}}}{{{n}}}{{{v.code}}}")
+    if _defines(head, "chantrang"):
+        top.append(f"\\chantrang{{\\pageref{{LastPage}}}}{{{v.code}}}")
+
+    def heading(s, k):
+        macro, roman = HEADER_PART[s]
+        if _defines(head, macro):
+            return (f"\\{macro}{{{roman}}}{{{k}}}" if s != "TL" else f"\\{macro}{{{roman}}}") + "\\par\\smallskip"
+        return section_heading(s, k, opt)
+    body = version_body(v, with_solution, opt, heading)
+    end = "\n\\hetde\n" if _defines(head, "hetde") else "\n\\begin{center}--- HẾT ---\\end{center}\n"
+    return head + "\\begin{document}\n" + "\n".join(top) + "\n" + body + end + "\\end{document}\n"
 
 
 def fill(template: str, **kw) -> str:
@@ -155,7 +210,20 @@ def export_versions(versions: list[ExamVersion], out_dir: str, *, template_path:
     files = []
     for v in versions:
         common = dict(TEN_DE=ten_de, TRUONG=truong, THOI_GIAN=thoi_gian, MA_DE=v.code, **(opt.header or {}))
+        vdir = os.path.join(out_dir, v.code) if opt.per_folder else out_dir
+        os.makedirs(vdir, exist_ok=True)
         for mode, prefix, sol in (("dethi", "de", False), ("loigiai", "loigiai", True)):
+            if is_header(tpl):
+                text = fill_header(tpl, v, mode, sol, opt, common)
+                if sol:
+                    text = text.replace("\\end{document}", "\\section*{Bảng đáp án}\n" + answer_table_tex(v)
+                                        + ("\n" + scoring_tex(v, opt.scoring_obj()) if opt.scoring else "")
+                                        + "\n\\end{document}", 1)
+                path = os.path.join(vdir, f"{prefix}_{v.code}.tex")
+                with open(path, "w", encoding="utf-8") as f:
+                    f.write(text)
+                files.append(path)
+                continue
             body = version_body(v, sol, opt)
             if not sol and opt.answers_end:
                 body += "\n\\newpage\n\\section*{Đáp án}\n" + answer_table_tex(v)
@@ -168,7 +236,7 @@ def export_versions(versions: list[ExamVersion], out_dir: str, *, template_path:
                     body += "\n" + qr_tex(v)
                 if opt.scoring:
                     body += "\n" + scoring_tex(v, opt.scoring_obj())
-            path = os.path.join(out_dir, f"{prefix}_{v.code}.tex")
+            path = os.path.join(vdir, f"{prefix}_{v.code}.tex")
             text = fill(tpl, MODE=mode, NOI_DUNG=body, **common)
             if "\\qrcode" in body and "{qrcode}" not in text:
                 text = text.replace("\\begin{document}", "\\usepackage{qrcode}\n\\begin{document}", 1)

@@ -23,10 +23,11 @@ class LayoutMixin:
         from .tabs.review import ReviewPanel
         from .tabs.stats import StatsPanel
         from .tabs.tools import ToolsPanel
+        from .tabs.utils2 import Utils2Panel
 
         def sub(*pages):
             t = QTabWidget()
-            t.setDocumentMode(True)
+            t.setObjectName("subTabs")
             for w, name in pages:
                 t.addTab(w, name)
             t.currentChanged.connect(lambda _i: self.on_tab_changed(None))
@@ -42,6 +43,7 @@ class LayoutMixin:
         self.tools_panel = ToolsPanel(self)
         self.stats_panel = StatsPanel(self)
         self.convert_panel = ConvertPanel(self)
+        self.utils2_panel = Utils2Panel(self)
         self.matrix_panel = MatrixPanel(self)
         self.geom_panel = GeomPanel(self)
         self.graph_panel = DrawPanel(self, ("graph", "chart"))
@@ -56,7 +58,8 @@ class LayoutMixin:
                       (self.filemix_panel, "Theo file"), (self.similar_panel, "Đề tương tự")), "📝 Trộn đề")
         mt.addTab(bank_widget, "📚 Câu hỏi")
         mt.addTab(self.matrix_panel, "🧮 Ma trận")
-        mt.addTab(sub((self.tools_panel, "Công cụ file"), (self.convert_panel, "Xuất && chuyển đổi"),
+        mt.addTab(sub((self.tools_panel, "Tiện ích 1"), (self.utils2_panel, "Tiện ích 2"),
+                      (self.convert_panel, "Xuất && chuyển đổi"),
                       (self.review_panel, "Rà soát"), (self.gen_q_panel, "Sinh câu"),
                       (self.stats_panel, "Thống kê")), "🛠 Tiện ích")
         mt.addTab(sub((self.geom_panel, "Dựng hình phẳng"), (self.solid_panel, "Hình khối")), "📐 Vẽ hình")
@@ -66,6 +69,9 @@ class LayoutMixin:
         mt.addTab(self.editor_panel, "✍ Soạn thảo")
         mt.addTab(self.info_panel, "ℹ Thông tin")
         mt.setCurrentIndex(1)
+        mt.tabBar().setExpanding(False)
+        for p in (self.graph_panel, self.bbt_panel, self.sol_panel, self.solid_panel):
+            p.sub.setObjectName("subTabs")
 
     def show_panel(self, w):
         """Chuyển tới widget w dù nó nằm trong tab con."""

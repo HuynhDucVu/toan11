@@ -25,6 +25,7 @@ def selftest() -> int:
     import pypdf  # noqa: F401  – PDF → LaTeX (cắt trang)
     import anthropic  # noqa: F401  – nhà cung cấp AI Claude
     import pypdfium2  # noqa: F401  – hoá ảnh hình TikZ
+    import access_parser  # noqa: F401  – nhập ngân hàng MyLT (Bank.mylt)
     from nganhangde.idmap import builtin_map
     nmap = len(builtin_map())
     import os as _os

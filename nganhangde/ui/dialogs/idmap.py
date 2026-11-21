@@ -38,6 +38,10 @@ class IdMapDialog(QDialog):
             b = QPushButton(text)
             b.clicked.connect(fn)
             row.addWidget(b)
+        quick = QPushButton("Map ID trong thư mục map_id ▾")
+        quick.setToolTip("Chuyển nhanh giữa các Map ID (chép các file Map ID của MyLT vào thư mục map_id)")
+        quick.clicked.connect(lambda: self.quick_menu(quick))
+        row.addWidget(quick)
         row.addStretch()
         ok = QPushButton("Lưu")
         ok.setObjectName("primary")
@@ -83,6 +87,24 @@ class IdMapDialog(QDialog):
         if dups:
             QMessageBox.warning(self, "Map ID có mã trùng", "Các mã sau được khai báo 2 lần, phần mềm giữ mục đầu:\n\n"
                                 + "\n".join(f"{k}: «{a}» / «{b}»" for k, a, b in dups))
+
+    def quick_menu(self, btn):
+        import glob
+        import os
+        from PySide6.QtWidgets import QMenu
+        from ...appdirs import path as app_path
+        from ...idmap import load_map
+        mn = QMenu(btn)
+        files = sorted(glob.glob(app_path("map_id", "*.tex")) + glob.glob(app_path("map_id", "*.txt")))
+        for f in files:
+            mn.addAction(os.path.basename(f), lambda f=f: self.ed.setPlainText(to_dash_text(load_map(f))))
+        if not files:
+            mn.addAction("(thư mục map_id trống)").setEnabled(False)
+        mn.addSeparator()
+        from PySide6.QtCore import QUrl
+        from PySide6.QtGui import QDesktopServices
+        mn.addAction("Mở thư mục map_id", lambda: QDesktopServices.openUrl(QUrl.fromLocalFile(app_path("map_id"))))
+        mn.exec(btn.mapToGlobal(btn.rect().bottomLeft()))
 
     def load_builtin(self):
         from ...idmap import builtin_map
