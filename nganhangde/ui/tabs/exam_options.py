@@ -181,6 +181,12 @@ class ExamOptionsBox(QTabWidget):
         hl.addWidget(self.e_omr_tpl)
         hl.addWidget(bt)
         self.c_qr = QCheckBox("In mã QR đáp án trong file lời giải")
+        from ...omr import PROFILES
+        self.cb_qrfmt = combo([("Gọn (0101|I:ABCD|II:1010|III:0,5)", "gon"), ("Kiểu MD:…;P1:…;P2:…;P3:…", "md"),
+                               ("JSON", "json")], "qrfmt", "gon")
+        self.cb_cap = combo([(v[0], k) for k, v in PROFILES.items()], "cap", "bgd2025")
+        f.addRow("Kiểu mã QR", self.cb_qrfmt)
+        f.addRow("Mẫu phiếu (kiểm tra số câu)", self.cb_cap)
         self.c_qr.setChecked(val("qr", False))
         self.cb_layout = combo([("Mỗi dòng 1 câu, mỗi cột 1 mã đề", "doc"), ("Mỗi dòng 1 mã đề, mỗi cột 1 câu", "ngang")],
                                "layout", "doc")
@@ -283,7 +289,8 @@ class ExamOptionsBox(QTabWidget):
                              moodle=self.c_moodle.isChecked(), word=self.c_word.isChecked() and self.c_word.isEnabled(),
                              diem=self.diem() if self._check_diem() else None,
                              omr_profile=self.cb_profile.currentData(), omr_template=self.e_omr_tpl.text().strip(),
-                             qr_answers=self.c_qr.isChecked(), gas=self.c_gas.isChecked(),
+                             qr_answers=self.c_qr.isChecked(), qr_format=self.cb_qrfmt.currentData(),
+                             omr_capacity=self.cb_cap.currentData(), gas=self.c_gas.isChecked(),
                              slides=self.c_slides.isChecked(), answers_end=self.c_ans_end.isChecked(),
                              gas_images=self.c_gas_img.isChecked(),
                              even_pages=self.c_even.isChecked(), per_folder=self.c_folder.isChecked(), answer_sheet=self.c_sheet.isChecked())
@@ -303,7 +310,8 @@ class ExamOptionsBox(QTabWidget):
     def save(self):
         self.mix.save()
         for k, w_ in (("codemode", self.cb_codemode), ("digits", self.cb_digits), ("layout", self.cb_layout),
-                      ("ds", self.cb_ds), ("sym", self.cb_sym), ("dec", self.cb_dec), ("profile", self.cb_profile)):
+                      ("ds", self.cb_ds), ("sym", self.cb_sym), ("dec", self.cb_dec), ("profile", self.cb_profile),
+                      ("qrfmt", self.cb_qrfmt), ("cap", self.cb_cap)):
             self.st.setValue(f"{self.prefix}/opt_{k}", w_.currentData())
         self.st.setValue(f"{self.prefix}/opt_start", self.sp_start.value())
         self.st.setValue(f"{self.prefix}/opt_step", self.sp_step.value())

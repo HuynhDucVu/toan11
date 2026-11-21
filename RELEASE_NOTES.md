@@ -11,6 +11,12 @@ Với bản một file:
 
 Kho câu hỏi `nganhang.db` nằm cạnh file exe. Cập nhật từ bản cũ: chỉ cần thay file exe, kho giữ nguyên.
 
+## Có gì mới ở bản 0.17.6 – Nhập Word có tuỳ chọn, nhiều mẫu phiếu, kiểu mã QR (theo bản Gemini)
+- **Word → TeX có hộp thoại tuỳ chọn**: bảng, hình ảnh, lý thuyết, công thức hoá học, bảng thay thế "cũ = mới"; tuỳ chọn chuyển công thức MathType qua Word (chưa thử trên máy có Word – cần phản hồi).
+- **Mẫu phiếu trả lời**: kiểm tra số câu theo phiếu BGD 2025 (40·8·6), Toán rút gọn (12·4·6), HSG (30·10·10), KHTN (16·3·12), TNMaker 40/60; cảnh báo cả độ dài mã đề.
+- **Kiểu mã QR đáp án**: gọn, `MD:…;P1:…;P2:…;P3:…`, hoặc JSON.
+- Chưa làm: phiếu TLTN 2025 chèn PDF, AI rà soát giải lại, xem PDF trong app, Mathpix.
+
 ## Có gì mới ở bản 0.17.5 – Quyển chuyên đề, Tiện ích 2 đầy đủ hơn (theo bản Gemini và MyLT)
 - **Xuất quyển chuyên đề** (Tiện ích → Xuất & chuyển đổi): gom câu hỏi theo chương – bài – dạng (tên lấy từ Map ID), có trang bìa, mục lục, đề + lời giải; xuất .tex hoặc biên dịch PDF luôn.
 - **Tiện ích 2** thêm: chèn `\dapso{đáp án}`, trộn thứ tự câu trong file, trộn phương án trong file, sắp xếp câu theo ID, gán một ID cho cả file, xoá ID / in ID sau câu / bỏ ID đã in.

@@ -28,16 +28,31 @@ LABEL = re.compile(r"^(?:(IV|III|II|I)\s*[.\-_ ]\s*)?(?:c[aâ]u|cau|q|question|c
 ROMAN = {"I": "TN", "II": "DS", "III": "KQ"}
 
 
-def check_capacity(versions: list[ExamVersion], cap: dict | None = None) -> list[str]:
-    """Cảnh báo khi đề không vừa phiếu: quá số câu mỗi phần, đáp án trả lời ngắn không tô được."""
+# Các mẫu phiếu (số câu tối đa từng phần, số chữ số mã đề)
+PROFILES = {
+    "bgd2025": ("Phiếu Bộ GD 2025 / QM2025 A4 (40 · 8 · 6)", {"TN": 40, "DS": 8, "KQ": 6}, 4),
+    "toan_12_4_6": ("Phiếu QM2025 Toán rút gọn (12 · 4 · 6)", {"TN": 12, "DS": 4, "KQ": 6}, 4),
+    "hsg_30_10_10": ("Phiếu QM2025 HSG (30 · 10 · 10)", {"TN": 30, "DS": 10, "KQ": 10}, 4),
+    "khtn_16_3_12": ("Phiếu QM2025 KHTN lên 10 (16 · 3 · 12)", {"TN": 16, "DS": 3, "KQ": 12}, 4),
+    "tnmaker60": ("TNMaker 60 câu trắc nghiệm", {"TN": 60, "DS": 0, "KQ": 0}, 3),
+    "tnmaker40": ("TNMaker 40 câu trắc nghiệm", {"TN": 40, "DS": 0, "KQ": 0}, 3),
+}
+
+
+def check_capacity(versions: list[ExamVersion], cap: dict | None = None, profile: str = "bgd2025") -> list[str]:
+    """Cảnh báo khi đề không vừa phiếu: quá số câu mỗi phần, đáp án trả lời ngắn không tô được, mã đề sai độ dài."""
     from .exporter import plain_answer
-    cap = cap or PHIEU_2025
+    label, pcap, digits = PROFILES.get(profile, PROFILES["bgd2025"])
+    cap = cap or pcap
     out = []
     for v in versions[:1] or []:
         for s, m in cap.items():
             n = len(v.sections.get(s) or [])
             if n > m:
                 out.append(f"{PART_NAME[s]} có {n} câu, phiếu chỉ có {m} ô – học sinh không tô hết được.")
+    for v in versions[:1]:
+        if len(v.code) != digits and digits:
+            out.append(f"Mã đề {v.code} dài {len(v.code)} chữ số, {label} dùng {digits} chữ số.")
     seen = set()
     for v in versions:
         for i, q in enumerate(v.sections.get("KQ") or [], 1):
@@ -50,9 +65,18 @@ def check_capacity(versions: list[ExamVersion], cap: dict | None = None) -> list
 
 
 # ---------------------------------------------------------------- mã QR đáp án
-def qr_payload(v: ExamVersion) -> str:
-    """Chuỗi ASCII gọn: 0101|I:ABCD…|II:1010,0011|III:0,92;-4 (Đ=1, S=0)."""
+def qr_payload(v: ExamVersion, fmt: str = "gon") -> str:
+    """Chuỗi ASCII gọn: 0101|I:ABCD…|II:1010,0011|III:0,92;-4 (Đ=1, S=0).
+    fmt = 'md': MD:0101;P1:ABCD…;P2:ĐSĐS|…;P3:0,92|-4 (kiểu bản Gemini); 'json': {"code":…,"p1":…}."""
     from .exporter import plain_answer
+    if fmt in ("md", "json"):
+        p1 = "".join(q.answer_text or "?" for q in v.sections.get("TN") or [])
+        p2 = ["".join("Đ" if c else "S" for c in q.correct) for q in v.sections.get("DS") or []]
+        p3 = [plain_answer(q.answer_text) for q in v.sections.get("KQ") or []]
+        if fmt == "json":
+            import json
+            return json.dumps({"code": v.code, "p1": p1, "p2": p2, "p3": p3}, ensure_ascii=False, separators=(",", ":"))
+        return f"MD:{v.code};P1:{p1};P2:{'|'.join(p2)};P3:{'|'.join(p3)}"
     parts = [v.code]
     tn = "".join(q.answer_text or "?" for q in v.sections.get("TN") or [])
     if tn:
@@ -66,8 +90,8 @@ def qr_payload(v: ExamVersion) -> str:
     return "|".join(parts)
 
 
-def qr_tex(v: ExamVersion) -> str:
-    data = qr_payload(v).replace("%", "\\%").replace("#", "\\#")
+def qr_tex(v: ExamVersion, fmt: str = "gon") -> str:
+    data = qr_payload(v, fmt).replace("%", "\\%").replace("#", "\\#")
     return ("\\begin{center}\\qrcode[height=3cm]{" + data + "}\\\\\n"
             "{\\footnotesize Mã QR đáp án mã đề " + v.code + " (Đ = 1, S = 0)}\\end{center}")
 

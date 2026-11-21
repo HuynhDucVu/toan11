@@ -9,7 +9,7 @@ from PySide6.QtWidgets import QDialog, QHBoxLayout, QPushButton, QTextBrowser, Q
 from ...generator import answer_distribution, overlap_report
 
 
-def versions_report_html(vs, out_dir) -> str:
+def versions_report_html(vs, out_dir, profile: str = 'bgd2025') -> str:
     """Báo cáo sau khi trộn: phân bố đáp án A/B/C/D từng mã đề và tỉ lệ trùng giữa các mã."""
     rows = "".join("<tr><td><b>{}</b></td>{}<td>{}</td></tr>".format(
         v.code, "".join(f"<td align=center>{n}</td>" for n in answer_distribution(v).values()),
@@ -24,9 +24,9 @@ def versions_report_html(vs, out_dir) -> str:
         html += (f"<p><b>Tỉ lệ câu trùng giữa các mã đề:</b> cao nhất {mx:.0%}"
                  + (" (cùng bộ câu, chỉ hoán vị)" if mx == 1 else "") + "</p>")
     from ...omr import check_capacity
-    warn = check_capacity(vs)
+    warn = check_capacity(vs, profile=profile)
     if warn:
-        html += ("<p style='color:#c00000'><b>Kiểm tra phiếu trả lời (mẫu 2025: 40 · 8 · 6 câu):</b><br>"
+        html += ("<p style='color:#c00000'><b>Kiểm tra phiếu trả lời (mẫu phiếu):</b><br>"
                  + "<br>".join(warn) + "</p>")
     html += ("<p>File: <code>de_*.tex</code> (đề), <code>loigiai_*.tex</code> (lời giải + bảng đáp án), "
              "<code>dap_an.csv</code>, <code>dap_an_bang.csv</code> (mỗi mã đề một dòng).</p>")
@@ -34,13 +34,13 @@ def versions_report_html(vs, out_dir) -> str:
 
 
 class ResultDialog(QDialog):
-    def __init__(self, parent, vs, out_dir, extra=""):
+    def __init__(self, parent, vs, out_dir, extra="", profile="bgd2025"):
         super().__init__(parent)
         self.setWindowTitle("Kết quả tạo đề")
         self.resize(620, 480)
         lay = QVBoxLayout(self)
         tb = QTextBrowser()
-        tb.setHtml(versions_report_html(vs, out_dir) + extra)
+        tb.setHtml(versions_report_html(vs, out_dir, profile) + extra)
         lay.addWidget(tb)
         row = QHBoxLayout()
         row.addStretch()

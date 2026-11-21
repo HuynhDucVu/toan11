@@ -137,7 +137,7 @@ def cmd_make(bank: Bank, a):
                             ten_de=cfg.get("ten_de", "ĐỀ KIỂM TRA"),
                             truong=cfg.get("truong", ""), thoi_gian=cfg.get("thoi_gian", 90), options=exp)
     from .omr import check_capacity
-    for w_ in check_capacity(vs):
+    for w_ in check_capacity(vs, profile=exp.omr_capacity):
         print("! Phiếu trả lời:", w_)
     bank.mark_used({q.db_id for v in vs for q in v.all_questions()})
     bank.log_batch(vs, ten_de=cfg.get("ten_de", ""), seed=a.seed, matrix=cfg.get("rules"), out_dir=a.out)

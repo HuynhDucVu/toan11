@@ -231,7 +231,10 @@ def _para(ctx, p) -> str:
     _parts(ctx, p, out)
     s = "".join(out)
     s = re.sub(r"\\underline\{([^{}]*)\}\\underline\{([^{}]*)\}", r"\\underline{\1\2}", s)   # gộp các đoạn liền nhau
-    return s.replace("\u00a0", " ").strip()
+    s = s.replace("\u00a0", " ").strip()
+    s = re.sub(r"\\\[(.+?)\\\]", lambda m: "$$" + m.group(1).strip() + "$$", s, flags=re.S)      # \[ … \] (Toggle TeX)
+    s = re.sub(r"\\\((.+?)\\\)", lambda m: "$" + m.group(1).strip() + "$", s, flags=re.S)       # \( … \)
+    return s.replace("\\frac{", "\\dfrac{").replace("\\ddfrac{", "\\dfrac{")
 
 
 def _table(ctx, tbl) -> str:

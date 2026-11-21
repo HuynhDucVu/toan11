@@ -317,16 +317,22 @@ class ToolsPanel(QWidget):
                          + rows + "</table>")
 
     def word_to_tex(self):
-        from ...wordconv import PandocMissing, import_docx
+        from ..dialogs.word2tex import Word2TexDialog, convert_word_file
         ps, _ = QFileDialog.getOpenFileNames(self, "Chọn file Word", self.win.settings.value("last_dir", ""),
                                              "Word (*.docx)")
+        if not ps:
+            return
+        dlg = Word2TexDialog(self.win)
+        if not dlg.exec():
+            return
         html_ = []
         for p in ps:
             try:
-                tex = import_docx(p)
-            except PandocMissing as e:
-                QMessageBox.warning(self, "Thiếu pandoc", str(e))
-                return
+                tex, notes = convert_word_file(self.win, p, dlg)
+            except Exception as e:  # noqa: BLE001 – file hỏng/đang mở
+                html_.append(f"<p style='color:#c00000'>✘ {os.path.basename(p)}: {e}</p>")
+                continue
+            html_.extend(f"<p style='color:#b36b00'>{os.path.basename(p)}: {n}</p>" for n in notes)
             out = os.path.splitext(p)[0] + "_tuWord.tex"
             with open(out, "w", encoding="utf-8") as f:
                 f.write(tex)

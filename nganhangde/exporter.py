@@ -45,6 +45,8 @@ class ExportOptions:
     omr_profile: str = "tnmaker"      # mẫu file đáp án phần mềm chấm: tnmaker | ngang | mau (theo file mẫu)
     omr_template: str = ""            # file .xlsx mẫu đáp án của phần mềm chấm (khi omr_profile = 'mau')
     qr_answers: bool = False          # in mã QR chứa đáp án trong file lời giải
+    qr_format: str = "gon"            # gon | md | json – kiểu chuỗi trong mã QR
+    omr_capacity: str = "bgd2025"     # mẫu phiếu để kiểm tra sức chứa (omr.PROFILES)
     gas: bool = False                 # file Apps Script (.gs) tạo Google Form cho mỗi mã đề
     gas_images: bool = False          # Google Form dạng ảnh: mỗi câu thành ảnh PNG (cần LaTeX) + file .gs
     online_style: dict | None = None  # màu bài online / Blogger (online.version_html)
@@ -233,7 +235,7 @@ def export_versions(versions: list[ExamVersion], out_dir: str, *, template_path:
                 body += "\n\\section*{Bảng đáp án}\n" + answer_table_tex(v)
                 if opt.qr_answers:
                     from .omr import qr_tex
-                    body += "\n" + qr_tex(v)
+                    body += "\n" + qr_tex(v, opt.qr_format)
                 if opt.scoring:
                     body += "\n" + scoring_tex(v, opt.scoring_obj())
             path = os.path.join(vdir, f"{prefix}_{v.code}.tex")

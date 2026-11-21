@@ -268,3 +268,21 @@ def test_topic_book(bank, tmp_path):
     if shutil.which("pdflatex"):
         from nganhangde.pdfbuild import compile_tex
         assert compile_tex(p).ok
+
+
+def test_omr_profiles_and_qr_formats():
+    from nganhangde import omr
+    from nganhangde.generator import ExamVersion
+    from nganhangde.parser import Question
+    v = ExamVersion("0101")
+    v.sections = {"TN": [Question("TN", "x", list("abcd"), [True, False, False, False])],
+                  "DS": [Question("DS", "y", list("abcd"), [True, False, True, False])],
+                  "KQ": [Question("KQ", "z", short_answer="$5$")], "TL": []}
+    md = omr.qr_payload(v, "md")
+    assert md.startswith("MD:0101;P1:A;P2:ĐSĐS;P3:")
+    assert '"code":"0101"' in omr.qr_payload(v, "json")
+    assert omr.check_capacity([v], profile="bgd2025") == []
+    big = ExamVersion("0101")
+    big.sections = {"TN": [v.sections["TN"][0]] * 15, "DS": [], "KQ": [], "TL": []}
+    assert omr.check_capacity([big], profile="toan_12_4_6")
+    assert not omr.check_capacity([big], profile="bgd2025")

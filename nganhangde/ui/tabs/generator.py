@@ -376,7 +376,7 @@ class GeneratorPanel(QWidget):
             ok = sum(r.ok for r in res)
             extra = (f"<p><b>Biên dịch PDF:</b> {ok}/{len(res)} file thành công.</p>"
                      + "".join(f"<p style='color:#c00000'>{r.summary()}</p>" for r in res if not r.ok))
-        ResultDialog(self, vs, out, extra).exec()
+        ResultDialog(self, vs, out, extra, self.export_options().omr_capacity).exec()
 
     def export_options(self):
         from ..dialogs.online_settings import load

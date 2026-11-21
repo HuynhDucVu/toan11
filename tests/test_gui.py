@@ -356,3 +356,23 @@ def test_seed_sample_and_welcome(win, app, monkeypatch):
     called.clear()
     win.welcome_if_empty()
     assert not called                                       # kho có câu thì không hiện
+
+
+def test_word_to_tex_dialog(win, app, monkeypatch, tmp_path):
+    import sys
+    sys.path.insert(0, os.path.dirname(__file__))
+    from test_v17 import _make_docx, _p
+    from PySide6.QtWidgets import QFileDialog
+    from nganhangde.ui.dialogs.word2tex import Word2TexDialog, convert_word_file
+    f = tmp_path / "de.docx"
+    _make_docx(str(f), _p("Câu 1. Tính $x$.") + _p("A. 1") + _p("B. 2", underline=True) + _p("C. 3") + _p("D. 4"))
+    d = Word2TexDialog(win)
+    d.e_rep.setPlainText("Tính = Giải")
+    d._ok()
+    tex, notes = convert_word_file(win, str(f), d)
+    assert "Giải $x$." in tex and "\\True 2" in tex
+    monkeypatch.setattr(Word2TexDialog, "exec", lambda self: 1)
+    monkeypatch.setattr(QFileDialog, "getOpenFileNames", staticmethod(lambda *a, **k: ([str(f)], "")))
+    win.show_panel(win.tools_panel)
+    win.tools_panel.word_to_tex()
+    assert (tmp_path / "de_tuWord.tex").exists()

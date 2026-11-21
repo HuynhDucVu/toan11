@@ -133,10 +133,13 @@ class BankActionsMixin:
         dlg.exec()
 
     def import_word(self):
-        from ..wordconv import PandocMissing, import_docx
+        from .dialogs.word2tex import Word2TexDialog, convert_word_file
         paths, _ = QFileDialog.getOpenFileNames(self, "Chọn file Word", self.settings.value("last_dir", ""),
                                                 "Word (*.docx)")
         if not paths:
+            return
+        w2t = Word2TexDialog(self)
+        if not w2t.exec():
             return
         tag, ok = QInputDialog.getText(self, "Nhập từ Word", "Nhãn nguồn gắn cho các câu (có thể để trống):")
         if not ok:
@@ -144,10 +147,8 @@ class BankActionsMixin:
         lines = []
         for p in paths:
             try:
-                tex = import_docx(p, tag.strip())
-            except PandocMissing as e:
-                QMessageBox.warning(self, "Thiếu pandoc", str(e))
-                return
+                tex, notes = convert_word_file(self, p, w2t, tag.strip())
+                lines.extend(f"⚠ {os.path.basename(p)}: {n}" for n in notes)
             except Exception as e:  # noqa: BLE001
                 lines.append(f"✘ {os.path.basename(p)}: {e}")
                 continue
