@@ -11,6 +11,10 @@ Với bản một file:
 
 Kho câu hỏi `nganhang.db` nằm cạnh file exe. Cập nhật từ bản cũ: chỉ cần thay file exe, kho giữ nguyên.
 
+## Có gì mới ở bản 0.17.24 – Chuyển Word → LaTeX đọc được đề đánh số tự động
+- Nhận **danh sách đánh số tự động của Word**: «Câu 1.», «Câu 2:», phương án A. B. C. D., ý a) b) c) d) vốn không nằm trong văn bản của đoạn (trước đây các đề này ra 0 câu). Đáp án gạch chân/tô màu vẫn nhận đúng.
+- **Phương án xếp trong bảng** (4 ô A–D, 1×4 hay 2×2) được dàn lại thành một câu trắc nghiệm, kể cả khi tắt «Chuyển bảng».
+
 ## Có gì mới ở bản 0.17.23 – Đọc kho MyLT qua Access Database Engine 64-bit
 - Nạp kho MyLT trên Windows: thử PowerShell 32-bit (Jet 4.0) trước, **không được thì thử PowerShell 64-bit** với «Microsoft Access Database Engine» đã cài (nhà cung cấp ACE.OLEDB.12.0). Lỗi của cả hai cách được ghi lại trong bảng chẩn đoán.
 

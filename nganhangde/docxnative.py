@@ -157,10 +157,114 @@ def _style(r):
     return va.attrib.get(f"{W}val") if va is not None else None
 
 
+def _wval(el, tag, default=""):
+    """Giá trị w:val của phần tử con <w:tag> (không gian tên WordprocessingML)."""
+    x = el.find(f"{W}{tag}") if el is not None else None
+    return x.attrib.get(f"{W}val", default) if x is not None else default
+
+
+def _roman(n: int, upper=True) -> str:
+    out = ""
+    for v, r in ((1000, "M"), (900, "CM"), (500, "D"), (400, "CD"), (100, "C"), (90, "XC"), (50, "L"), (40, "XL"),
+                 (10, "X"), (9, "IX"), (5, "V"), (4, "IV"), (1, "I")):
+        while n >= v:
+            out += r
+            n -= v
+    return out if upper else out.lower()
+
+
+def _fmt_number(n: int, fmt: str) -> str:
+    if fmt == "upperLetter":
+        return chr(ord("A") + (n - 1) % 26) * (1 + (n - 1) // 26)
+    if fmt == "lowerLetter":
+        return chr(ord("a") + (n - 1) % 26) * (1 + (n - 1) // 26)
+    if fmt == "upperRoman":
+        return _roman(n, True)
+    if fmt == "lowerRoman":
+        return _roman(n, False)
+    if fmt == "decimalZero":
+        return f"{n:02d}"
+    return str(n)
+
+
+class Numbering:
+    """Nhãn danh sách đánh số TỰ ĐỘNG của Word («Câu 1.», «A.», «a)»…) – chữ này không nằm trong văn bản đoạn nên
+    phải tính lại từ numbering.xml (kiểu số, mẫu «Câu %1.», số bắt đầu, đặt lại khi sang mục cha)."""
+
+    def __init__(self, zf):
+        self.abstract: dict[str, dict[int, dict]] = {}
+        self.nums: dict[str, tuple[str, dict[int, int]]] = {}
+        self.style_num: dict[str, tuple[str, int]] = {}
+        self.counters: dict[tuple[str, int], int] = {}
+        names = zf.namelist()
+        if "word/numbering.xml" in names:
+            root = ET.fromstring(zf.read("word/numbering.xml"))
+            for an in root.findall(f"{W}abstractNum"):
+                lv = {}
+                for l in an.findall(f"{W}lvl"):
+                    il = int(l.attrib.get(f"{W}ilvl", "0"))
+                    lv[il] = {"fmt": _wval(l, "numFmt", "decimal"), "text": _wval(l, "lvlText", f"%{il + 1}."),
+                              "start": int(_wval(l, "start", "1") or 1), "marked": _marked(l)}
+                self.abstract[an.attrib.get(f"{W}abstractNumId", "")] = lv
+            for n in root.findall(f"{W}num"):
+                aid = _wval(n, "abstractNumId", "")
+                ov = {}
+                for o in n.findall(f"{W}lvlOverride"):
+                    so = o.find(f"{W}startOverride")
+                    if so is not None:
+                        ov[int(o.attrib.get(f"{W}ilvl", "0"))] = int(so.attrib.get(f"{W}val", "1"))
+                self.nums[n.attrib.get(f"{W}numId", "")] = (aid, ov)
+        if "word/styles.xml" in names:
+            for st in ET.fromstring(zf.read("word/styles.xml")).findall(f"{W}style"):
+                np_ = st.find(f"{W}pPr/{W}numPr")
+                if np_ is not None:
+                    nid = _wval(np_, "numId", "")
+                    if nid:
+                        self.style_num[st.attrib.get(f"{W}styleId", "")] = (nid, int(_wval(np_, "ilvl", "0") or 0))
+
+    def label(self, p) -> tuple[str, bool] | None:
+        """(chữ nhãn, nhãn có gạch chân/tô màu) cho đoạn p; None nếu đoạn không đánh số tự động."""
+        ppr = p.find(f"{W}pPr")
+        if ppr is None:
+            return None
+        np_ = ppr.find(f"{W}numPr")
+        nid, il = ("", 0)
+        if np_ is not None:
+            nid, il = _wval(np_, "numId", ""), int(_wval(np_, "ilvl", "0") or 0)
+        sid = _wval(ppr, "pStyle", "")
+        if (not nid) and sid in self.style_num:
+            nid, il = self.style_num[sid]
+        if not nid or nid == "0" or nid not in self.nums:
+            return None
+        aid, ov = self.nums[nid]
+        lv = self.abstract.get(aid, {})
+        cur = lv.get(il)
+        if cur is None:
+            return None
+        key = (nid, il)
+        self.counters[key] = self.counters.get(key, ov.get(il, cur["start"]) - 1) + 1
+        for k in [k for k in self.counters if k[0] == nid and k[1] > il]:
+            del self.counters[k]                              # sang mục mới ⇒ các cấp con đếm lại từ đầu
+        if cur["fmt"] in ("bullet", "none"):
+            return None
+        text = cur["text"]
+        for j in range(il + 1):
+            c = self.counters.get((nid, j))
+            if c is None:
+                c = lv.get(j, {"start": 1})["start"]
+            text = text.replace(f"%{j + 1}", _fmt_number(c, lv.get(j, cur)["fmt"]))
+        if re.search(r"%\d", text):
+            text = re.sub(r"%\d", "", text)
+        ppr_r = ppr.find(f"{W}rPr")
+        marked = cur["marked"] or (ppr_r is not None and _marked(ppr))
+        return text.strip(), marked
+
+
 class _Ctx:
     def __init__(self, zf, rels, opts, rep, base):
         self.zf, self.rels, self.opts, self.rep, self.base = zf, rels, opts, rep, base
         self.n_img = 0
+        self.num = Numbering(zf)
 
 
 def _image(ctx: _Ctx, elem) -> str:
@@ -207,7 +311,7 @@ def _parts(ctx: _Ctx, elem, out: list[str]):
                     txt = "$_{" + txt + "}$"
                 elif va == "superscript":
                     txt = "$^{" + txt + "}$"
-            if _marked(c) and txt.strip():
+            if _marked(c) and txt.strip() and not getattr(ctx, "skip_mark", False):
                 m = re.match(r"^(\s*[A-Da-d]\s*[.)])(.*)$", txt, re.S) if not "".join(out).strip() else None
                 txt = (f"\\underline{{{m.group(1).strip()}}}{m.group(2)}" if m else f"\\underline{{{txt}}}")
             out.append(txt)
@@ -226,10 +330,26 @@ def _parts(ctx: _Ctx, elem, out: list[str]):
             _parts(ctx, c, out)
 
 
+def _first_run_marked(p) -> bool:
+    for r in p.iter(f"{W}r"):
+        if any((t.text or "").strip() for t in r.iter(f"{W}t")):
+            return _marked(r)
+    return False
+
+
 def _para(ctx, p) -> str:
     out: list[str] = []
-    _parts(ctx, p, out)
+    lab = ctx.num.label(p)                       # «Câu 1.», «A.», «a)» do Word tự đánh số
+    opt_marked = bool(lab and re.fullmatch(r"[A-Da-d][.)]", lab[0]) and (lab[1] or _first_run_marked(p)))
+    ctx.skip_mark = opt_marked                   # đáp án gạch chân: chỉ đánh dấu nhãn, không gạch chân lẫn vào nội dung
+    try:
+        _parts(ctx, p, out)
+    finally:
+        ctx.skip_mark = False
     s = "".join(out)
+    if lab and lab[0] and s.strip():
+        text = f"\\underline{{{lab[0]}}}" if opt_marked else lab[0]
+        s = text + " " + s
     s = re.sub(r"\\underline\{([^{}]*)\}\\underline\{([^{}]*)\}", r"\\underline{\1\2}", s)   # gộp các đoạn liền nhau
     s = s.replace("\u00a0", " ").strip()
     s = re.sub(r"\\\[(.+?)\\\]", lambda m: "$$" + m.group(1).strip() + "$$", s, flags=re.S)      # \[ … \] (Toggle TeX)
@@ -237,14 +357,28 @@ def _para(ctx, p) -> str:
     return s.replace("\\frac{", "\\dfrac{").replace("\\ddfrac{", "\\dfrac{")
 
 
-def _table(ctx, tbl) -> str:
+def _table(ctx, tbl, keep_table: bool = True) -> str:
     rows = []
+    raw = []
     for tr in tbl.findall(f"{W}tr"):
         cells = []
         for tc in tr.findall(f"{W}tc"):
-            cells.append(" ".join(_para(ctx, p) for p in tc.findall(f".//{W}p")).replace("&", r"\&").strip())
+            txt = " ".join(x for x in (_para(ctx, p) for p in tc.findall(f".//{W}p")) if x).strip()
+            raw.append(txt)
+            cells.append(txt.replace("&", r"\&"))
         rows.append(cells)
     if not rows:
+        return ""
+    # bảng chỉ để dàn 4 phương án / 4 ý (mỗi ô một mục: A. B. C. D. hoặc a) b) c) d); 1×4 hay 2×2) ⇒ trả về dòng chữ thường
+    flat = [c for c in raw if c]
+    marks = [re.match(r"^\s*(?:\\underline\{)?\s*([A-Da-d])\s*[.)]", c) for c in flat]
+    if len(flat) == 4 and all(marks):
+        seq = "".join(m.group(1) for m in marks)
+        if seq == "ABCD":
+            return " ".join(flat)
+        if seq == "abcd":
+            return "\n".join(flat)
+    if not keep_table:
         return ""
     n = max(len(r) for r in rows)
     body = "\\\\\\hline\n".join(" & ".join(r + [""] * (n - len(r))) for r in rows)
@@ -269,8 +403,10 @@ def docx_to_latex(path: str, opts: DocxOptions | None = None) -> tuple[str, Docx
                 s = _para(ctx, el)
                 if s:
                     lines.append(s)
-            elif el.tag == f"{W}tbl" and opts.tables:
-                lines.append(_table(ctx, el))
+            elif el.tag == f"{W}tbl":
+                t = _table(ctx, el, opts.tables)
+                if t:
+                    lines.append(t)
     return "\n".join(lines) + "\n", rep
 
 

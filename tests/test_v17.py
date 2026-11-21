@@ -563,3 +563,47 @@ def test_package_folder_copied_next_to_exports(tmp_path):
     import pytest
     with pytest.raises(ValueError):
         packages.install_package(str(tmp_path / "a.txt"))
+
+
+def test_docx_auto_numbering(tmp_path):
+    """Đề Word đánh số tự động: «Câu 1.», A–D, a)–d) không có trong văn bản đoạn."""
+    from nganhangde import wordconv
+    from nganhangde.docxnative import DocxOptions, docx_to_latex
+    W = 'xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"'
+    numbering = f"""<?xml version="1.0" encoding="UTF-8"?><w:numbering {W}>
+<w:abstractNum w:abstractNumId="0">
+ <w:lvl w:ilvl="0"><w:start w:val="1"/><w:numFmt w:val="decimal"/><w:lvlText w:val="Câu %1."/></w:lvl>
+ <w:lvl w:ilvl="1"><w:start w:val="1"/><w:numFmt w:val="upperLetter"/><w:lvlText w:val="%2."/></w:lvl>
+ <w:lvl w:ilvl="2"><w:start w:val="1"/><w:numFmt w:val="lowerLetter"/><w:lvlText w:val="%3)"/></w:lvl>
+</w:abstractNum><w:num w:numId="1"><w:abstractNumId w:val="0"/></w:num></w:numbering>"""
+
+    def para(text, lvl, underline=False):
+        r = (f'<w:r><w:rPr><w:u w:val="single"/></w:rPr><w:t>{text}</w:t></w:r>' if underline else f"<w:r><w:t>{text}</w:t></w:r>")
+        return f'<w:p><w:pPr><w:numPr><w:ilvl w:val="{lvl}"/><w:numId w:val="1"/></w:numPr></w:pPr>{r}</w:p>'
+    body = (para("Tính $1+1$.", 0) + para("1", 1) + para("2", 1, underline=True) + para("3", 1) + para("4", 1)
+            + para("Cho hàm số.", 0) + para("ý một", 2, underline=True) + para("ý hai", 2) + para("ý ba", 2) + para("ý bốn", 2, underline=True))
+    f = tmp_path / "de.docx"
+    _make_docx(str(f), body, media={"word/numbering.xml": numbering})
+    tex, _ = docx_to_latex(str(f))
+    assert "Câu 1. Tính" in tex and "Câu 2. Cho hàm số." in tex       # nhãn «Câu N.» được tính lại
+    assert "\\underline{B.} 2" in tex and "A. 1" in tex and "D. 4" in tex          # chữ phương án tự đánh số
+    assert "\\underline{a)} ý một" in tex and "d) ý bốn" in tex or "\\underline{d)} ý bốn" in tex
+    qs = parse_tex(wordconv.import_docx(str(f), "", DocxOptions()))
+    assert [q.qtype for q in qs] == ["TN", "DS"] and qs[0].answer_text == "B"
+    assert qs[1].correct == [True, False, False, True]
+
+
+def test_docx_options_in_table(tmp_path):
+    from nganhangde import wordconv
+    from nganhangde.docxnative import DocxOptions
+    def cell(t, u=False):
+        r = (f'<w:r><w:rPr><w:u w:val="single"/></w:rPr><w:t>{t}</w:t></w:r>' if u else f"<w:r><w:t>{t}</w:t></w:r>")
+        return f"<w:tc><w:p>{r}</w:p></w:tc>"
+    tbl = "<w:tbl><w:tr>" + cell("A. 1") + cell("B. 2", True) + cell("C. 3") + cell("D. 4") + "</w:tr></w:tbl>"
+    body = _p("Câu 1. Tính $1+1$.") + tbl + _p("Câu 2. Thêm.") + tbl.replace("B. 2", "B. 22")
+    f = tmp_path / "de.docx"
+    _make_docx(str(f), body)
+    for tables in (True, False):                          # bảng phương án luôn được dàn lại, kể cả khi tắt «Chuyển bảng»
+        qs = parse_tex(wordconv.import_docx(str(f), "", DocxOptions(tables=tables)))
+        assert len(qs) == 2 and qs[0].qtype == "TN" and qs[0].choices[1] == "2"
+        assert qs[0].answer_text == "B"
