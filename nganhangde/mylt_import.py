@@ -338,6 +338,55 @@ def extract_archive(path: str, password: str = DEFAULT_PASSWORD, out_dir: str | 
     raise MyltError(f"Không giải nén được (sai mật khẩu hoặc file hỏng): {last}")
 
 
+# ---------------------------------------------------------------- chẩn đoán, đồng bộ
+def diagnose(path: str) -> str:
+    """Báo cáo chi tiết khi đọc kho MyLT (để gửi cho người hỗ trợ nếu đọc lỗi hoặc ra 0 câu)."""
+    L = [f"File: {path}"]
+    try:
+        L.append(f"Dung lượng: {os.path.getsize(path):,} byte")
+        with open(path, "rb") as f:
+            head = f.read(0x98)
+        L.append(f"Đầu file: {'Jet 4 (Access 2000/2003)' if head[4:19] == b'Standard Jet DB' else 'không phải Jet/Access?'}; "
+                 f"mã phiên bản byte 0x14 = {head[0x14] if len(head) > 0x14 else '?'}")
+        pw = jet4_password(path)
+        L.append("Mật khẩu file Access: " + ("có (đã giải được)" if pw else "không đặt"))
+    except OSError as e:
+        return f"Không mở được file: {e}"
+    try:
+        from access_parser import AccessParser
+        db = AccessParser(path)
+        for t in [t for t in db.catalog if not str(t).startswith("MSys")]:
+            tb = db.parse_table(t)
+            cols = list(tb)
+            n = len(tb[cols[0]]) if cols else 0
+            L.append(f"Bảng {t}: {n} dòng; cột: {', '.join(map(str, cols))}; nhận cột nội dung: {pick_columns(cols) or 'KHÔNG'}")
+    except Exception as e:  # noqa: BLE001
+        L.append(f"access-parser: {type(e).__name__}: {e}")
+    for name, fn in (("OLEDB (Windows)", _read_oledb_ps), ("mdbtools", _read_mdbtools), ("ODBC", _read_odbc)):
+        if name.startswith("OLEDB") and os.name != "nt":
+            continue
+        try:
+            L.append(f"{name}: đọc được {len(fn(path))} dòng")
+        except Exception as e:  # noqa: BLE001
+            L.append(f"{name}: {str(e)[:160]}")
+    L.append("Công cụ giải nén: " + (", ".join(p for _, p in _tools()) or "không có WinRAR/7-Zip"))
+    return "\n".join(L)
+
+
+def sync_if_linked(bank, settings) -> dict | None:
+    """Kho MyLT đã «liên kết» (cài đặt mylt/link): nhập thêm câu mới từ file đó mỗi lần mở phần mềm.
+    Chỉ thêm, không xoá/sửa câu đã có. Trả về kết quả nhập hoặc None."""
+    path = str(settings.value("mylt/link", "") or "")
+    if not path or not os.path.isfile(path):
+        return None
+    mt = str(os.path.getmtime(path))
+    if str(settings.value("mylt/link_mtime", "")) == mt:
+        return None                                   # file không đổi từ lần đồng bộ trước
+    res = import_rows(bank, read_rows(path), source=path)
+    settings.setValue("mylt/link_mtime", mt)
+    return res
+
+
 # ---------------------------------------------------------------- nhập vào kho
 def import_rows(bank, rows, source: str = "Bank.mylt") -> dict:
     """Thêm các câu vào kho. Trả về {'them', 'trung', 'loi', 'tong'}; câu lỗi ghi lí do."""

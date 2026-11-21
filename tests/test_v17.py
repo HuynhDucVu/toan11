@@ -176,3 +176,66 @@ def test_jet4_password_roundtrip(tmp_path):
     p.write_bytes(b"\x00" * 200)
     assert m.jet4_password(str(p)) == ""
     assert "SELECT * FROM" in m.PS_SCRIPT and "Jet OLEDB:Database Password" in m.PS_SCRIPT
+
+
+def test_mylt_sync_and_diagnose(tmp_path, bank, monkeypatch):
+    from nganhangde import mylt_import as m
+    f = tmp_path / "Bank.mylt"
+    f.write_bytes(b"x")
+    rows = [{"NoiDung": "\\begin{ex}%[0D1N1-1]\nCâu đồng bộ mới $x$\n\\choice\n{\\True a}\n{b}\n{c}\n{d}\n\\loigiai{Chọn A.}\n\\end{ex}",
+             "IDCauHoi": "0D1N1-1", "TuLuan": 0, "SoLan": 0}]
+    monkeypatch.setattr(m, "read_rows", lambda p: rows)
+    st = {}
+    S = type("S", (), {"value": lambda self, k, d=None: st.get(k, d), "setValue": lambda self, k, v: st.__setitem__(k, v)})()
+    assert m.sync_if_linked(bank, S) is None                 # chưa liên kết
+    st["mylt/link"] = str(f)
+    n0 = bank.count()
+    assert m.sync_if_linked(bank, S)["them"] == 1 and bank.count() == n0 + 1
+    assert m.sync_if_linked(bank, S) is None                 # file không đổi ⇒ không nhập lại
+    assert "Dung lượng" in m.diagnose(str(f))
+
+
+def _make_docx(path, body_xml, media=None):
+    import zipfile
+    W = ('xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" '
+         'xmlns:m="http://schemas.openxmlformats.org/officeDocument/2006/math"')
+    doc = f'<?xml version="1.0" encoding="UTF-8"?><w:document {W}><w:body>{body_xml}</w:body></w:document>'
+    with zipfile.ZipFile(path, "w") as z:
+        z.writestr("word/document.xml", doc)
+        for k, v in (media or {}).items():
+            z.writestr(k, v)
+
+
+def _p(text="", underline=False, math=None):
+    r = (f'<w:r><w:rPr><w:u w:val="single"/></w:rPr><w:t xml:space="preserve">{text}</w:t></w:r>' if underline else
+         f'<w:r><w:t xml:space="preserve">{text}</w:t></w:r>') if text else ""
+    m = (f'<m:oMath><m:f><m:num><m:r><m:t>{math[0]}</m:t></m:r></m:num><m:den><m:r><m:t>{math[1]}</m:t></m:r></m:den>'
+         '</m:f></m:oMath>') if math else ""
+    return f"<w:p>{r}{m}</w:p>"
+
+
+def test_docx_native_reader(tmp_path, monkeypatch):
+    from nganhangde import wordconv
+    from nganhangde.docxnative import DocxOptions, docx_to_latex
+    body = (_p("Câu 1. Giá trị của ") + _p(math=("1", "2")) + _p("A. 1") + _p("B. 2", underline=True) + _p("C. 3") + _p("D. 4")
+            + _p("Lời giải. Chọn B.") + _p("Câu 2. Cho hàm số.") + _p("a) Mệnh đề 1", underline=True) + _p("b) Mệnh đề 2")
+            + _p("c) Mệnh đề 3") + _p("d) Mệnh đề 4", underline=True))
+    f = tmp_path / "de.docx"
+    _make_docx(str(f), body)
+    tex, rep = docx_to_latex(str(f))
+    assert "$\\dfrac{1}{2}$" in tex and "\\underline{B.} 2" in tex and rep.omml == 1 and rep.mathtype_ole == 0
+    monkeypatch.setattr(wordconv, "pandoc_path", lambda: (_ for _ in ()).throw(wordconv.PandocMissing("x")))
+    qs = parse_tex(wordconv.import_docx(str(f)))                      # không có pandoc ⇒ đọc bằng Python thuần
+    assert [q.qtype for q in qs] == ["TN", "DS"] and qs[0].answer_text == "B" and qs[1].correct == [True, False, False, True]
+    # tuỳ chọn thay thế cá nhân + chuyên đề (giữ văn bản)
+    out = wordconv.import_docx(str(f), "", DocxOptions(replacements=[("Mệnh đề", "Khẳng định")], theory=True))
+    assert "Khẳng định 1" in out and "\\begin{ex}" not in out
+
+
+def test_docx_mathtype_warning_and_table(tmp_path):
+    from nganhangde.docxnative import docx_to_latex
+    tbl = ('<w:tbl><w:tr><w:tc><w:p><w:r><w:t>x</w:t></w:r></w:p></w:tc><w:tc><w:p><w:r><w:t>y</w:t></w:r></w:p></w:tc></w:tr></w:tbl>')
+    f = tmp_path / "t.docx"
+    _make_docx(str(f), _p("Bảng:") + tbl, {"word/embeddings/oleObject1.bin": b"MathType"})
+    tex, rep = docx_to_latex(str(f))
+    assert "\\begin{tabular}{|c|c|}" in tex and rep.mathtype_ole == 1 and rep.warnings

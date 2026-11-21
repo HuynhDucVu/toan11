@@ -262,6 +262,15 @@ class MainWindow(LayoutMixin, BankActionsMixin, QMainWindow):
         self.refresh()
         self.gen_panel.update_avail()
         self.stats_panel.reload()
+        try:
+            from ..mylt_import import sync_if_linked
+            sy = sync_if_linked(bank, self.settings)
+            if sy and sy["them"]:
+                notes.append(f"Đã đồng bộ {sy['them']} câu mới từ kho MyLT đã liên kết.")
+                self.build_tree()
+                self.refresh()
+        except Exception as e:  # noqa: BLE001 – file bị khoá/hỏng: không chặn mở phần mềm
+            notes.append(f"Không đồng bộ được kho MyLT: {e}")
         if notes:
             self.statusBar().showMessage("  ".join(notes), 20000)
 
@@ -280,18 +289,26 @@ class MainWindow(LayoutMixin, BankActionsMixin, QMainWindow):
                                           QLineEdit.EchoMode.Normal, DEFAULT_PASSWORD)
             if not ok:
                 return
+        from ..mylt_import import diagnose
         QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
         try:
             r = import_mylt(self.bank, path, pw)
         except MyltError as e:
-            QMessageBox.warning(self, "Nhập ngân hàng MyLT", str(e))
+            box = QMessageBox(QMessageBox.Icon.Warning, "Nhập ngân hàng MyLT", str(e), parent=self)
+            if not path.lower().endswith((".rar", ".zip", ".7z")):
+                box.setDetailedText(diagnose(path))
+            box.exec()
             return
         finally:
             QApplication.restoreOverrideCursor()
+        if not path.lower().endswith((".rar", ".zip", ".7z")):
+            self.settings.setValue("mylt/link", os.path.abspath(path))        # nhớ để đồng bộ lần sau
+            self.settings.setValue("mylt/link_mtime", str(os.path.getmtime(path)))
         self.build_tree()
         self.refresh()
         msg = (f"Kho MyLT có {r['tong']} câu: đã thêm {r['them']} câu, bỏ {r['trung']} câu trùng"
                + (f", {len(r['loi'])} câu lỗi:\n" + "\n".join(r["loi"][:15]) if r["loi"] else "") + ".")
+        msg += "\n\nPhần mềm đã nhớ kho này: lần sau mở phần mềm sẽ tự thêm các câu mới (nếu file Bank.mylt thay đổi)."
         if r["tong"] == 0:
             msg += ("\n\nKho này đang TRỐNG (kho mẫu đi kèm bản cài MyLT). Kho thật nằm ở máy đang dùng MyLT, thường là "
                     "…\\DATA\\BANK\\Bank.mylt và nặng vài MB – dùng «Tìm kho MyLT trên máy…» để tìm.")

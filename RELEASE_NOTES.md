@@ -11,7 +11,12 @@ Với bản một file:
 
 Kho câu hỏi `nganhang.db` nằm cạnh file exe. Cập nhật từ bản cũ: chỉ cần thay file exe, kho giữ nguyên.
 
-## Có gì mới ở bản 0.17.3 – Đọc kho MyLT bằng bộ máy Access của Windows
+## Có gì mới ở bản 0.17.4 – Đọc kho MyLT bền hơn, nhập Word không cần pandoc
+- **Kho MyLT**: khi nhập `Bank.mylt` bị lỗi hoặc ra 0 câu, bấm *Chi tiết* trong thông báo để xem **báo cáo chẩn đoán** (đọc bằng cách nào, bảng/cột/số dòng) – gửi báo cáo này cho người hỗ trợ là sửa được ngay.
+- **Tự đồng bộ kho MyLT**: sau lần nhập đầu, mỗi lần mở phần mềm, nếu file `Bank.mylt` có thay đổi thì tự thêm các câu mới (chỉ thêm, không xoá/sửa câu đã có).
+- **Nhập file Word (.docx) không cần cài pandoc**: phần mềm tự đọc Word bằng Python – công thức Word (OMML) sang LaTeX, bảng, hình, đáp án **gạch chân hoặc tô màu** (cách MyLT), báo số công thức MathType (đối tượng OLE) nếu có. Máy có pandoc thì vẫn dùng pandoc như cũ.
+
+## Bản 0.17.3 – Đọc kho MyLT bằng bộ máy Access của Windows
 - **Đọc `Bank.mylt` chắc chắn hơn trên Windows**: phần mềm mở file bằng chính Microsoft Jet (OLEDB) qua PowerShell 32-bit có sẵn trong Windows, **tự lấy mật khẩu của file Access** (MyLT đặt `MyLT@2018` trong phần đầu file) – không cần cài Access. Nếu cách này không chạy được thì tự quay về cách đọc cũ (không cần mật khẩu). Ý tưởng cách đọc lấy từ bản Gemini thầy/cô gửi.
 - Thư mục `gemini_v4.6/` trong kho GitHub: bản Gemini lưu để đối chiếu (không đóng gói vào phần mềm).
 

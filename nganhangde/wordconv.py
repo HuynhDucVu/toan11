@@ -254,8 +254,18 @@ def _flatten_lists(latex: str) -> str:
     return ENUM_RE.sub(conv, latex)
 
 
-def import_docx(path: str, tag: str = "") -> str:
-    """Đọc file Word → nội dung .tex gồm các khối \\begin{ex}…\\end{ex}."""
+def import_docx(path: str, tag: str = "", opts=None) -> str:
+    """Đọc file Word → nội dung .tex gồm các khối \\begin{ex}…\\end{ex}.
+    Có pandoc thì dùng pandoc; máy chưa cài pandoc (hoặc có `opts` – tuỳ chọn riêng) thì đọc bằng Python thuần
+    (docxnative: công thức Word, bảng, hình, đáp án gạch chân/tô màu)."""
+    if opts is not None:
+        from .docxnative import docx_to_ex
+        return docx_to_ex(path, opts, tag)[0]
+    try:
+        pandoc_path()
+    except PandocMissing:
+        from .docxnative import docx_to_ex
+        return docx_to_ex(path, None, tag)[0]
     latex = _run(["-f", "docx", "-t", "latex", "--wrap=none", os.path.abspath(path)])
     latex = latex.replace("\\(", "$").replace("\\)", "$").replace("\\[", "$$").replace("\\]", "$$")
     latex = re.sub(r"\\ul\{", r"\\underline{", latex)
