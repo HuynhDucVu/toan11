@@ -108,22 +108,22 @@ def current_exe() -> str | None:
 
 
 def update_script(pid: int, new_exe: str, target: str) -> str:
-    """Nội dung file .bat thay exe sau khi phần mềm thoát (Windows)."""
+    """Nội dung file .bat thay exe sau khi phần mềm thoát (Windows).
+    Không dùng tasklist/find (khi chạy ngầm chúng mở cửa sổ đen và có thể treo): chỉ thử chép đè exe, đang chạy thì
+    Windows từ chối ⇒ chờ 1 giây rồi thử lại, tối đa ~90 giây."""
     backup = os.path.splitext(target)[0] + "_cu.exe"
     return f"""@echo off
-chcp 65001 >nul
-rem Cap nhat Ngan hang de thi – tu dong tao boi phan mem
+rem Cap nhat Ngan hang de thi (phan mem dang chay co PID {pid}) - tu dong tao boi phan mem
 set /a n=0
-:wait
-tasklist /FI "PID eq {pid}" 2>nul | find "{pid}" >nul
-if not errorlevel 1 (
-  set /a n+=1
-  if %n% GEQ 60 goto fail
-  timeout /t 1 /nobreak >nul
-  goto wait
-)
-copy /Y "{target}" "{backup}" >nul
-copy /Y "{new_exe}" "{target}" >nul || goto fail
+copy /Y "{target}" "{backup}" >nul 2>&1
+:try
+copy /Y "{new_exe}" "{target}" >nul 2>&1
+if not errorlevel 1 goto ok
+set /a n+=1
+if %n% GEQ 90 goto fail
+ping -n 2 127.0.0.1 >nul
+goto try
+:ok
 del "{new_exe}" >nul 2>&1
 start "" "{target}"
 goto end
@@ -147,5 +147,5 @@ def apply_update(new_exe: str) -> None:
     bat = os.path.join(tempfile.gettempdir(), "capnhat_nganhangde.bat")
     with open(bat, "w", encoding="utf-8") as f:
         f.write(update_script(os.getpid(), new_exe, target))
-    flags = 0x00000008 | 0x08000000          # DETACHED_PROCESS | CREATE_NO_WINDOW
+    flags = 0x08000000                       # CREATE_NO_WINDOW (không DETACHED_PROCESS: nếu không, mỗi lệnh con mở một cửa sổ đen)
     subprocess.Popen(["cmd", "/c", bat], creationflags=flags, close_fds=True)

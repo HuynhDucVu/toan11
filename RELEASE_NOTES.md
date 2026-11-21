@@ -11,6 +11,10 @@ Với bản một file:
 
 Kho câu hỏi `nganhang.db` nằm cạnh file exe. Cập nhật từ bản cũ: chỉ cần thay file exe, kho giữ nguyên.
 
+## Có gì mới ở bản 0.17.21 – Sửa lỗi tự cập nhật mở cửa sổ đen `find "…"` và bị treo
+- Trình tự cập nhật không còn dùng lệnh `tasklist | find` (khi chạy ngầm chúng mở cửa sổ đen và có thể treo mãi): nay chỉ thử chép đè file exe, phần mềm còn chạy thì Windows từ chối nên chờ rồi thử lại (tối đa ~90 giây), xong tự mở lại.
+- **Nếu đang kẹt cửa sổ đen cũ**: mở Task Manager, tắt `find.exe` và `cmd.exe`, xoá `%TEMP%\capnhat_nganhangde.bat`, rồi chép tay file NganHangDe.exe mới nhất từ trang Releases đè lên file cũ.
+
 ## Có gì mới ở bản 0.17.20 – Thư mục gói lệnh LaTeX: file xuất ra luôn biên dịch được
 - Thư mục mới **`TEMPLATE\\GOI LENH`**: chép vào đây **ex_test.sty bản mới nhất** và các gói riêng (.sty, .cls, .def…). Menu **Công cụ → Cài gói ex_test / gói lệnh LaTeX…** chép giúp.
 - Biên dịch trong phần mềm dùng các gói ở thư mục này; **có ex_test.sty thật ở đây thì không dùng gói rút gọn** đi kèm.
