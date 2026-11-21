@@ -318,7 +318,7 @@ class ToolsPanel(QWidget):
                          + rows + "</table>")
 
     def word_to_tex(self):
-        from ..dialogs.word2tex import Word2TexDialog, convert_word_file
+        from ..dialogs.word2tex import Word2TexDialog, convert_word_file, output_paths
         ps, _ = QFileDialog.getOpenFileNames(self, "Chọn file Word", self.win.settings.value("last_dir", "") or __import__("nganhangde.appdirs", fromlist=["folder"]).folder("word2extest"),
                                              "Word (*.docx)")
         if not ps:
@@ -334,12 +334,12 @@ class ToolsPanel(QWidget):
                 html_.append(f"<p style='color:#c00000'>✘ {os.path.basename(p)}: {e}</p>")
                 continue
             html_.extend(f"<p style='color:#b36b00'>{os.path.basename(p)}: {n}</p>" for n in notes)
-            out = os.path.splitext(p)[0] + "_tuWord.tex"
+            out = output_paths(p)[0]                              # DATA\\WORD2EXTEST
             with open(out, "w", encoding="utf-8") as f:
                 f.write(tex)
             qs = parse_tex(tex)
             self.files.addItem(out)
-            html_.append(f"<p>{os.path.basename(p)} → <b>{len(qs)}</b> câu: {out}</p>")
+            html_.append(f"<p>{os.path.basename(p)} → <b>{len(qs)}</b> câu, đã lưu vào <code>DATA\\WORD2EXTEST</code>: {out}</p>")
         if html_:
             self.show_result("Word → LaTeX", "".join(html_) + "<p>File mới đã thêm vào danh sách bên trái – "
                              "bấm «Soát lỗi soạn thảo» để kiểm tra đáp án nhận dạng được.</p>")

@@ -375,7 +375,9 @@ def test_word_to_tex_dialog(win, app, monkeypatch, tmp_path):
     monkeypatch.setattr(QFileDialog, "getOpenFileNames", staticmethod(lambda *a, **k: ([str(f)], "")))
     win.show_panel(win.tools_panel)
     win.tools_panel.word_to_tex()
-    assert (tmp_path / "de_tuWord.tex").exists()
+    from nganhangde.appdirs import folder
+    out = os.path.join(folder("word2extest"), "de_tuWord.tex")
+    assert os.path.exists(out) and not (tmp_path / "de_tuWord.tex").exists()     # lưu ở DATA\\WORD2EXTEST, không cạnh file Word
 
 
 def test_import_wizard(win, app, monkeypatch, tmp_path):

@@ -133,7 +133,7 @@ class BankActionsMixin:
         dlg.exec()
 
     def import_word(self):
-        from .dialogs.word2tex import Word2TexDialog, convert_word_file
+        from .dialogs.word2tex import Word2TexDialog, convert_word_file, output_paths
         paths, _ = QFileDialog.getOpenFileNames(self, "Chọn file Word", self.settings.value("last_dir", "") or __import__("nganhangde.appdirs", fromlist=["folder"]).folder("word2extest"),
                                                 "Word (*.docx)")
         if not paths:
@@ -152,7 +152,7 @@ class BankActionsMixin:
             except Exception as e:  # noqa: BLE001
                 lines.append(f"✘ {os.path.basename(p)}: {e}")
                 continue
-            out = os.path.splitext(p)[0] + "_tuWord.tex"
+            out = output_paths(p)[0]                              # DATA\\WORD2EXTEST
             with open(out, "w", encoding="utf-8") as f:
                 f.write(tex)
             qs = parse_tex(tex)

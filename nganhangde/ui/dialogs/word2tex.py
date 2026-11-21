@@ -78,6 +78,16 @@ class Word2TexDialog(QDialog):
                            theory=b["theory"].isChecked(), replacements=self.replacements())
 
 
+def output_paths(docx_path: str) -> tuple[str, str]:
+    """(file .tex, thư mục hình) – đều nằm trong DATA\\WORD2EXTEST: <tên>_tuWord.tex và <tên>_tuWord_hinh\\.
+    (hình để cạnh file .tex nên \\includegraphics biên dịch được ngay)"""
+    from ...appdirs import folder
+    d = folder("word2extest")
+    os.makedirs(d, exist_ok=True)
+    stem = os.path.splitext(os.path.basename(docx_path))[0]
+    return os.path.join(d, stem + "_tuWord.tex"), os.path.join(d, stem + "_tuWord_hinh")
+
+
 def convert_word_file(win: MainWindow, path: str, dlg: Word2TexDialog, tag: str = "") -> tuple[str, list[str]]:
     """Một file Word → nội dung .tex theo tuỳ chọn; trả về (tex, các cảnh báo)."""
     from ... import wordcom
@@ -93,7 +103,7 @@ def convert_word_file(win: MainWindow, path: str, dlg: Word2TexDialog, tag: str 
         else:
             notes.append(f"Chưa đổi được MathType qua Word: {msg}")
     opts = dlg.options()
-    opts.image_dir = os.path.splitext(path)[0] + "_hinh"
+    opts.image_dir = output_paths(path)[1]
     tex, rep2 = docx_to_ex(src, opts, tag)
     notes += rep2.warnings if src == path else []
     return tex, notes
