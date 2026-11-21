@@ -11,6 +11,9 @@ Với bản một file:
 
 Kho câu hỏi `nganhang.db` nằm cạnh file exe. Cập nhật từ bản cũ: chỉ cần thay file exe, kho giữ nguyên.
 
+## Có gì mới ở bản 0.17.34 – Xoá tạm và lịch sử để cập nhật sạch
+- Tab **⬆ Cập nhật** có nút **🧹 Xoá tạm và lịch sử cập nhật**: xoá bản tải dở, file `.bat` cập nhật cũ, thư mục tạm của phần mềm, thư mục giải nén cũ `_MEI…` (bỏ qua thư mục đang dùng), thư mục `TEMP`, và lịch sử «Bỏ qua bản này» / lần kiểm tra; tuỳ chọn xoá luôn `NganHangDe_cu.exe`. Kho, cài đặt và file đã xuất không bị xoá. Phần mềm cũng tự dọn tạm trước mỗi lần tải bản mới.
+
 ## Có gì mới ở bản 0.17.33 – Tab «Tạo đề theo ID» giống MyLT hơn
 - Dưới bảng: dải nút **? H A C E D O U** (hướng dẫn · chỉ hiện dòng đã lấy · chọn tất cả dòng · xoá hết số đã nhập · xuất Excel · xoá số ở dòng đang chọn · đưa vào ma trận và mở Tuỳ chọn đề · hoàn tác), nhãn **Đã chọn:** và **phân trang** Đầu / Trước / [trang] / Sau / Cuối (100 dòng một trang; số đã nhập giữ khi sang trang khác).
 - Góc dưới phải tab Trộn đề có nút **Tạo đề** (tạo theo trang con đang mở) và **Thoát**.

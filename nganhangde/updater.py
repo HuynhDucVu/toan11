@@ -157,3 +157,67 @@ def apply_update(new_exe: str) -> None:
     env = {k: v for k, v in os.environ.items() if not k.startswith("_PYI") and k != "_MEIPASS2"}
     env["PYINSTALLER_RESET_ENVIRONMENT"] = "1"
     subprocess.Popen(["cmd", "/c", bat], creationflags=flags, close_fds=True, env=env)
+
+
+def _rm(path: str) -> tuple[int, int]:
+    """Xoá file/thư mục; trả về (số file, số byte) đã xoá (bỏ qua mục đang bị khoá)."""
+    import shutil
+    n = b = 0
+    try:
+        if os.path.isdir(path):
+            for r, _d, fs in os.walk(path):
+                for f in fs:
+                    try:
+                        b += os.path.getsize(os.path.join(r, f))
+                        n += 1
+                    except OSError:
+                        pass
+            shutil.rmtree(path, ignore_errors=True)
+        else:
+            b, n = os.path.getsize(path), 1
+            os.remove(path)
+    except OSError:
+        return 0, 0
+    return n, b
+
+
+def cleanup_temp(include_backup: bool = False) -> dict:
+    """Dọn file tạm trước khi cập nhật: bản tải dở (nhd_update_*), file .bat cập nhật cũ, thư mục tạm của phần mềm
+    (nhd_*), thư mục giải nén cũ của PyInstaller (_MEI*, bỏ qua thư mục đang dùng hoặc bị khoá), thư mục TEMP của phần
+    mềm; tuỳ chọn xoá bản sao lưu NganHangDe_cu.exe. Trả về {'items', 'files', 'bytes'}."""
+    import glob
+    tmp = tempfile.gettempdir()
+    targets = []
+    for pat in ("nhd_*", "capnhat_nganhangde.bat"):
+        targets += glob.glob(os.path.join(tmp, pat))
+    cur = os.path.abspath(getattr(sys, "_MEIPASS", "") or "")
+    for d in glob.glob(os.path.join(tmp, "_MEI*")):
+        if os.path.abspath(d) == cur or not os.path.isdir(d):
+            continue
+        dlls = glob.glob(os.path.join(d, "python3*.dll"))
+        try:
+            for f in dlls:                      # DLL đang được tiến trình khác dùng thì không xoá được ⇒ bỏ qua thư mục đó
+                os.rename(f, f)
+                os.remove(f)
+        except OSError:
+            continue
+        targets.append(d)
+    try:
+        from .appdirs import folder
+        t = folder("tam")
+        if os.path.isdir(t):
+            targets += [os.path.join(t, x) for x in os.listdir(t)]
+    except OSError:
+        pass
+    if include_backup:
+        exe = current_exe()
+        if exe:
+            targets += glob.glob(os.path.join(os.path.dirname(exe), "*_cu.exe"))
+    out = {"items": 0, "files": 0, "bytes": 0}
+    for t in targets:
+        n, b = _rm(t)
+        if n or not os.path.exists(t):
+            out["items"] += 1
+        out["files"] += n
+        out["bytes"] += b
+    return out

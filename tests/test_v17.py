@@ -744,3 +744,27 @@ def test_parse_choicetf_environment_form():
     q = parse_tex(t)[0]
     assert q.qtype == "DS" and q.correct == [True, False, False, True] and q.stem == "Xác định đúng sai"
     assert "\\choiceTF" in q.to_latex(True)
+
+
+def test_cleanup_temp_for_update(tmp_path, monkeypatch):
+    import os
+    import tempfile
+    from nganhangde import updater
+    tmp = tmp_path / "tmp"
+    tmp.mkdir()
+    monkeypatch.setattr(tempfile, "tempdir", str(tmp))
+    (tmp / "nhd_update_abc").mkdir()
+    (tmp / "nhd_update_abc" / "NganHangDe_0.exe").write_bytes(b"x" * 1000)
+    (tmp / "capnhat_nganhangde.bat").write_text("@echo off")
+    (tmp / "_MEI123").mkdir()
+    (tmp / "_MEI123" / "python312.dll").write_bytes(b"d")
+    (tmp / "_MEI123" / "lib.pyd").write_bytes(b"p")
+    (tmp / "khac.txt").write_text("giu")
+    from nganhangde import appdirs
+    tam = appdirs.folder("tam")
+    os.makedirs(tam, exist_ok=True)
+    open(os.path.join(tam, "rac.tex"), "w").write("x")
+    res = updater.cleanup_temp()
+    assert res["files"] >= 5 and res["bytes"] >= 1000
+    assert (tmp / "khac.txt").exists() and not (tmp / "nhd_update_abc").exists() and not (tmp / "_MEI123").exists()
+    assert not (tmp / "capnhat_nganhangde.bat").exists() and not os.path.exists(os.path.join(tam, "rac.tex"))

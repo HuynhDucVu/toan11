@@ -31,7 +31,10 @@ class UpdatePanel(QWidget):
         self.b_go.setObjectName("primary")
         self.b_skip = QPushButton("Bỏ qua bản này")
         self.b_page = QPushButton("Mở trang Releases")
-        for b in (self.b_check, self.b_go, self.b_skip, self.b_page):
+        self.b_clean = QPushButton("🧹 Xoá tạm và lịch sử cập nhật")
+        self.b_clean.setToolTip("Xoá file tạm, bản tải dở, file .bat cập nhật cũ, thư mục giải nén cũ _MEI… và lịch sử «Bỏ qua bản này» "
+                                "để cập nhật sạch")
+        for b in (self.b_check, self.b_go, self.b_skip, self.b_page, self.b_clean):
             row.addWidget(b)
         row.addStretch()
         lay.addLayout(row)
@@ -55,6 +58,7 @@ class UpdatePanel(QWidget):
         self.b_go.clicked.connect(self.download)
         self.b_skip.clicked.connect(self.skip)
         self.b_page.clicked.connect(self.open_page)
+        self.b_clean.clicked.connect(self.clean)
         self._refresh_head()
         self._set_buttons()
 
@@ -127,6 +131,10 @@ class UpdatePanel(QWidget):
         from ... import updater
         if not self.rel or not self.can_apply():
             return
+        try:
+            updater.cleanup_temp()                    # dọn bản tải dở/tạm cũ trước khi tải bản mới
+        except Exception:  # noqa: BLE001
+            pass
         self.bar.setVisible(True)
         self.bar.setValue(0)
         self._set_buttons(busy=True)
@@ -155,6 +163,28 @@ class UpdatePanel(QWidget):
             QApplication.quit()
         w.finished.connect(done)
         w.start()
+
+    def clean(self):
+        """Xoá tạm + lịch sử cập nhật (nhắc, bỏ qua bản, lần kiểm tra) rồi cho kiểm tra lại từ đầu."""
+        from ... import updater
+        ans = QMessageBox.question(self, "Xoá tạm và lịch sử cập nhật",
+                                   "Xoá file tạm (bản tải dở, file .bat cập nhật, thư mục giải nén cũ _MEI…, thư mục TEMP của phần mềm) "
+                                   "và lịch sử cập nhật (bản đã bỏ qua, lần kiểm tra gần nhất)?\n\n"
+                                   "Kho câu hỏi, cài đặt và file đã xuất KHÔNG bị xoá.\n"
+                                   "Có xoá luôn bản sao lưu NganHangDe_cu.exe không? (Yes = xoá cả bản sao lưu)",
+                                   QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No | QMessageBox.StandardButton.Cancel,
+                                   QMessageBox.StandardButton.No)
+        if ans == QMessageBox.StandardButton.Cancel:
+            return
+        res = updater.cleanup_temp(include_backup=ans == QMessageBox.StandardButton.Yes)
+        for k in ("update/skip", "update/last_check"):
+            self.st.remove(k)
+        self.rel = None
+        self.notes.clear()
+        self._refresh_head()
+        self._set_buttons()
+        self.status.setText(f"<b style='color:#2e7d32'>Đã xoá {res['items']} mục tạm ({res['files']} file, "
+                            f"{res['bytes'] / 1048576:.1f} MB) và lịch sử cập nhật.</b> Bấm «Kiểm tra bản mới» để cập nhật.")
 
     def skip(self):
         if self.rel:
