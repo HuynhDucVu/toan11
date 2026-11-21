@@ -130,12 +130,131 @@ def _read_odbc(path):
     raise MyltError("không thấy bảng câu hỏi")
 
 
+def _rc4(key: bytes, buf: bytes) -> bytes:
+    sbox = list(range(256))
+    j = 0
+    for i in range(256):
+        j = (j + sbox[i] + key[i % len(key)]) & 0xFF
+        sbox[i], sbox[j] = sbox[j], sbox[i]
+    i = j = 0
+    out = bytearray()
+    for b in buf:
+        i = (i + 1) & 0xFF
+        j = (j + sbox[i]) & 0xFF
+        sbox[i], sbox[j] = sbox[j], sbox[i]
+        out.append(b ^ sbox[(sbox[i] + sbox[j]) & 0xFF])
+    return bytes(out)
+
+
+def jet4_password(path: str) -> str:
+    """Mật khẩu của file Access (Jet 4) ghi trong phần đầu file – MyLT đặt mật khẩu để Access không mở được.
+    Chỉ dùng để mở chính file của người dùng bằng bộ máy Access của Windows; trả về '' nếu không đặt mật khẩu."""
+    import struct
+    try:
+        with open(path, "rb") as f:
+            data = f.read(0x98)
+        if len(data) < 0x98 or data[0x14] != 1:
+            return ""
+        raw = _rc4(bytes([0xC7, 0xDA, 0x39, 0x6B]), data[0x18:0x98])[0x2A:0x52]
+        mask = struct.unpack_from("<H", raw, 36)[0]
+        chars = []
+        for idx in range(20):
+            v = struct.unpack_from("<H", raw, idx * 2)[0]
+            if idx % 2 == 0:
+                v ^= mask
+            if v == 0:
+                break
+            chars.append(chr(v))
+        pw = "".join(chars)
+        return pw if pw.isprintable() else ""
+    except (OSError, struct.error, ValueError):
+        return ""
+
+
+PS_SCRIPT = r"""param([string]$MdbPath, [string]$OutFile, [string]$PwFile)
+$ErrorActionPreference = "Stop"
+$pw = ""
+if (Test-Path $PwFile) { $pw = [System.IO.File]::ReadAllText($PwFile, [System.Text.Encoding]::UTF8) }
+$conn = $null; $last = ""
+foreach ($prov in @("Microsoft.Jet.OLEDB.4.0", "Microsoft.ACE.OLEDB.12.0")) {
+    try {
+        $cs = "Provider=$prov;Data Source=$MdbPath;"
+        if ($pw -ne "") { $cs += "Jet OLEDB:Database Password=$pw;" }
+        $c = New-Object System.Data.OleDb.OleDbConnection($cs)
+        $c.Open(); $conn = $c; break
+    } catch { $last = $_.Exception.Message }
+}
+if ($null -eq $conn) { throw "Không mở được bằng OLEDB: $last" }
+try {
+    $names = @("QUEST")
+    foreach ($r in $conn.GetSchema("Tables").Rows) {
+        if ($r["TABLE_TYPE"] -eq "TABLE" -and $names -notcontains $r["TABLE_NAME"]) { $names += $r["TABLE_NAME"] }
+    }
+    $utf8 = New-Object System.Text.UTF8Encoding($false)
+    foreach ($t in $names) {
+        try {
+            $cmd = $conn.CreateCommand(); $cmd.CommandText = "SELECT * FROM [" + $t + "]"
+            $rd = $cmd.ExecuteReader()
+        } catch { continue }
+        $cols = @(); for ($i = 0; $i -lt $rd.FieldCount; $i++) { $cols += $rd.GetName($i) }
+        if (-not ($cols | Where-Object { $_ -match "(?i)noidung|n.i dung|content" })) { $rd.Close(); continue }
+        $sw = New-Object System.IO.StreamWriter($OutFile, $false, $utf8)
+        try {
+            while ($rd.Read()) {
+                $o = [ordered]@{}
+                for ($i = 0; $i -lt $cols.Count; $i++) {
+                    $o[$cols[$i]] = if ($rd.IsDBNull($i)) { $null } else { [string]$rd.GetValue($i) }
+                }
+                $sw.WriteLine(($o | ConvertTo-Json -Compress))
+            }
+        } finally { $sw.Close(); $rd.Close() }
+        return
+    }
+    throw "Không thấy bảng câu hỏi"
+} finally { $conn.Close() }
+"""
+
+
+def _read_oledb_ps(path: str) -> list[dict]:
+    """Windows: đọc bằng Microsoft Jet OLEDB qua PowerShell 32-bit (có sẵn trên mọi máy Windows; Jet 4.0 chỉ có bản 32-bit)."""
+    import json
+    if os.name != "nt":
+        raise MyltError("OLEDB chỉ có trên Windows")
+    ps = os.path.join(os.environ.get("SystemRoot", r"C:\Windows"), "SysWOW64", "WindowsPowerShell", "v1.0", "powershell.exe")
+    if not os.path.isfile(ps):
+        ps = shutil.which("powershell") or "powershell"
+    d = tempfile.mkdtemp(prefix="nhd_oledb_")                   # thư mục tạm riêng – không ghi cạnh file kho
+    try:
+        script, pwf, out = (os.path.join(d, n) for n in ("read.ps1", "pw.txt", "out.jsonl"))
+        with open(script, "w", encoding="utf-8-sig") as f:
+            f.write(PS_SCRIPT)
+        with open(pwf, "w", encoding="utf-8") as f:
+            f.write(jet4_password(path))
+        r = subprocess.run([ps, "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", script, path, out, pwf],
+                           capture_output=True, timeout=240, creationflags=0x08000000)
+        if r.returncode != 0 or not os.path.exists(out):
+            msg = (r.stderr or r.stdout).decode("utf-8", "replace").strip()
+            raise MyltError(msg or "PowerShell không xuất được dữ liệu")
+        rows = []
+        with open(out, encoding="utf-8", errors="replace") as f:
+            for line in f:
+                if line.strip():
+                    rows.append(json.loads(line))
+        cm = pick_columns(list(rows[0])) if rows else {}
+        return _normalize(rows, cm) if cm else []
+    finally:
+        shutil.rmtree(d, ignore_errors=True)
+
+
 def read_rows(path: str) -> list[dict]:
-    """Các dòng {NoiDung, IDCauHoi, TuLuan, SoLan} của kho MyLT."""
+    """Các dòng {NoiDung, IDCauHoi, TuLuan, SoLan} của kho MyLT. Windows: thử bộ máy Access (OLEDB) trước."""
     if not os.path.isfile(path):
         raise MyltError(f"Không thấy file {path}")
     errors = []
-    for name, fn in (("access-parser", _read_access_parser), ("mdbtools", _read_mdbtools), ("ODBC", _read_odbc)):
+    readers = [("access-parser", _read_access_parser), ("mdbtools", _read_mdbtools), ("ODBC", _read_odbc)]
+    if os.name == "nt":
+        readers.insert(0, ("OLEDB", _read_oledb_ps))
+    for name, fn in readers:
         try:
             return fn(path)
         except ImportError:

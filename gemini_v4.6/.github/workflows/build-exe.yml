@@ -1,0 +1,29 @@
+name: Test and Build Windows Release
+
+on:
+  push:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+      - name: Run 5 automated test suites
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: python -m pytest tests/test_extest_v33.py tests/test_shuffler_invariants.py tests/test_cv7991_cv1239.py tests/test_db_fts5_migration.py tests/test_converters_mock.py -v
+      - name: Build Windows bundle (--onedir)
+        run: pyinstaller --noconfirm --clean NganHangDe.spec
+      - uses: actions/upload-artifact@v4
+        with:
+          name: NganHangDe-Windows-v1.0
+          path: dist/NganHangDe/

@@ -155,3 +155,24 @@ def test_mylt_archive(tmp_path, monkeypatch):
     assert open(out, "rb").read() == b"du lieu gia"
     with pytest.raises(m.MyltError):
         m.extract_archive(str(z), "sai", str(tmp_path / "o2"))
+
+
+def test_jet4_password_roundtrip(tmp_path):
+    import struct
+    from nganhangde import mylt_import as m
+    mask = 0xAA7F
+    raw = bytearray(40)
+    for i in range(20):
+        v = ord("MyLT@2018"[i]) if i < 9 else 0
+        struct.pack_into("<H", raw, i * 2, v ^ mask if i % 2 == 0 else v)
+    plain = bytearray(0x80)
+    plain[0x2A:0x52] = raw
+    head = bytearray(0x98)
+    head[0x14] = 1
+    head[0x18:0x98] = m._rc4(bytes([0xC7, 0xDA, 0x39, 0x6B]), bytes(plain))
+    p = tmp_path / "Bank.mylt"
+    p.write_bytes(bytes(head))
+    assert m.jet4_password(str(p)) == "MyLT@2018"
+    p.write_bytes(b"\x00" * 200)
+    assert m.jet4_password(str(p)) == ""
+    assert "SELECT * FROM" in m.PS_SCRIPT and "Jet OLEDB:Database Password" in m.PS_SCRIPT

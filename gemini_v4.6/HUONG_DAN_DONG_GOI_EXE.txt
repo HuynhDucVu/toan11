@@ -1,0 +1,21 @@
+HƯỚNG DẪN ĐÓNG GÓI VÀ CHẠY NganHangDe.exe (toan11 — chuẩn MyLT 2026)
+=====================================================================
+
+1. Giải nén toàn bộ tệp ZIP này vào một thư mục không dấu trên máy Windows
+   (Ví dụ: D:\toan11_mylt2026_v1.2).
+
+2. Đóng gói ra tệp chạy .exe (chỉ cần làm 1 lần):
+   - Nháy đúp chuột vào tệp: build_exe.bat
+   - Script sẽ tự động:
+       [1/3] Cài đủ các thư viện trong requirements.txt
+       [2/3] Chạy bộ kiểm thử tự động pytest
+       [3/3] Đóng gói toàn bộ mã nguồn + mẫu Phiếu TLTN 2025 + Map ID + config.ini
+             thành thư mục chạy độc lập: dist\NganHangDe\NganHangDe.exe
+
+3. Sử dụng hằng ngày:
+   - Nháy đúp: dist\NganHangDe\NganHangDe.exe (hoặc chạy trực tiếp chay_ung_dung.bat).
+   - Vào Tab "Tiện ích" -> "Phiếu 2025 · Tikz2Pic · Blogger · Config" để dán Gemini API Key
+     mới vào config.ini và sử dụng toàn bộ tính năng ghép phiếu 2025, Tikz2Pic, Blogger Form.
+
+LƯU Ý: Nếu Windows Defender cảnh báo tệp .exe mới đóng gói, hãy thêm thư mục dist\NganHangDe
+vào danh sách loại trừ (Exclusions) của Windows Security.

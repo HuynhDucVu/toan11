@@ -1,0 +1,30 @@
+\documentclass[12pt,a4paper]{article}
+\usepackage{iftex}
+\ifXeTeX
+  \usepackage{fontspec}
+  \setmainfont{Times New Roman}
+\else
+  \usepackage[utf8]{inputenc}
+  \usepackage[T5]{fontenc}
+\fi
+\usepackage{amsmath,amssymb,graphicx,xcolor}
+\usepackage{tikz,tkz-tab}
+\usetikzlibrary{calc,patterns}
+\usepackage[top=1.8cm,bottom=1.8cm,left=1.8cm,right=1.8cm]{geometry}
+\IfFileExists{ex_test.sty}{%
+  \usepackage[<<MODE>>]{ex_test}%
+}{%
+  \usepackage[<<MODE>>]{nhd_extest}%
+}
+
+\begin{document}
+\begin{center}
+  {\Large\bfseries <<TEN_DE>>}\\[4pt]
+  \textbf{MÃ ĐỀ: <<MA_DE>>}
+\end{center}
+\hrule
+\vspace{8pt}
+
+<<NOI_DUNG>>
+
+\end{document}

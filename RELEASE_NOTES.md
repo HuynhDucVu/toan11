@@ -11,7 +11,11 @@ Với bản một file:
 
 Kho câu hỏi `nganhang.db` nằm cạnh file exe. Cập nhật từ bản cũ: chỉ cần thay file exe, kho giữ nguyên.
 
-## Có gì mới ở bản 0.17.2 – Có sẵn ngân hàng mẫu để dùng thử
+## Có gì mới ở bản 0.17.3 – Đọc kho MyLT bằng bộ máy Access của Windows
+- **Đọc `Bank.mylt` chắc chắn hơn trên Windows**: phần mềm mở file bằng chính Microsoft Jet (OLEDB) qua PowerShell 32-bit có sẵn trong Windows, **tự lấy mật khẩu của file Access** (MyLT đặt `MyLT@2018` trong phần đầu file) – không cần cài Access. Nếu cách này không chạy được thì tự quay về cách đọc cũ (không cần mật khẩu). Ý tưởng cách đọc lấy từ bản Gemini thầy/cô gửi.
+- Thư mục `gemini_v4.6/` trong kho GitHub: bản Gemini lưu để đối chiếu (không đóng gói vào phần mềm).
+
+## Bản 0.17.2 – Có sẵn ngân hàng mẫu để dùng thử
 - **Nạp ngân hàng mẫu** (Tệp → Nạp ngân hàng mẫu): khoảng **100 câu** gồm 22 câu Toán 10 (đề mẫu có ID, đáp án, lời giải) và các câu đổi số hàm số Toán 12 có hình, lời giải – thử trộn đề, rà soát, vẽ hình ngay khi chưa có dữ liệu riêng. Nạp nhiều lần không bị nhân đôi.
 - **Mở phần mềm khi kho trống** sẽ hiện hướng dẫn 3 cách có dữ liệu: nhập kho MyLT, nhập file .tex, hoặc nạp ngân hàng mẫu.
 
