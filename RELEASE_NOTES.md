@@ -11,6 +11,8 @@ Với bản một file:
 
 Kho câu hỏi `nganhang.db` nằm cạnh file exe. Cập nhật từ bản cũ: chỉ cần thay file exe, kho giữ nguyên.
 
+## Bản 0.17.32 – Hộp «Chọn file Map ID» mở sẵn thư mục `Map ID (DPS)`.
+
 ## Có gì mới ở bản 0.17.31 – Nhận dạng câu Đúng/Sai viết dạng môi trường
 - Câu Đúng/Sai viết `\begin{choiceTF} {…}{…}{…}{…} \end{choiceTF}` (cũng `choice`, `choiceTFt`) nay được nhận là **Đúng/Sai** (trước đây bị xếp nhầm vào tự luận).
 - Lưu ý: kho MyLT cũ (kiểu trước năm 2025) hầu như không có câu Đúng/Sai nên bảng thống kê ghi 0 là đúng dữ liệu.

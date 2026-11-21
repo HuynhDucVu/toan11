@@ -67,7 +67,8 @@ class IdMapDialog(QDialog):
         self.info.setText(txt)
 
     def load(self):
-        p, _ = QFileDialog.getOpenFileName(self, "Chọn file Map ID", "",
+        from ...appdirs import path as app_path
+        p, _ = QFileDialog.getOpenFileName(self, "Chọn file Map ID", app_path("map_id"),
                                            "Map ID (*.tex *.txt);;Tất cả (*.*)")
         if not p:
             return
