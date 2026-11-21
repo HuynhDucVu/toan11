@@ -11,6 +11,9 @@ Với bản một file:
 
 Kho câu hỏi `nganhang.db` nằm cạnh file exe. Cập nhật từ bản cũ: chỉ cần thay file exe, kho giữ nguyên.
 
+## Có gì mới ở bản 0.17.25 – Chuyển Word: tự ghi báo cáo chẩn đoán khi ra 0 câu
+- Khi chuyển Word → LaTeX mà không nhận dạng được câu hỏi nào (hoặc file có công thức MathType dạng đối tượng), phần mềm ghi file **`chan_doan_<tên>.txt`** vào `DATA\WORD2EXTEST`: số công thức Word/MathType, hình, bảng, đoạn đánh số tự động, những dòng chữ app đọc được và nhận dạng được (Câu N, A–D, a–d…). Gửi file này để biết chính xác vì sao.
+
 ## Có gì mới ở bản 0.17.24 – Chuyển Word → LaTeX đọc được đề đánh số tự động
 - Nhận **danh sách đánh số tự động của Word**: «Câu 1.», «Câu 2:», phương án A. B. C. D., ý a) b) c) d) vốn không nằm trong văn bản của đoạn (trước đây các đề này ra 0 câu). Đáp án gạch chân/tô màu vẫn nhận đúng.
 - **Phương án xếp trong bảng** (4 ô A–D, 1×4 hay 2×2) được dàn lại thành một câu trắc nghiệm, kể cả khi tắt «Chuyển bảng».

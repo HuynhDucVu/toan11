@@ -109,4 +109,17 @@ def convert_word_file(win: MainWindow, path: str, dlg: Word2TexDialog, tag: str 
     opts.image_dir = output_paths(path)[1]
     tex, rep2 = docx_to_ex(src, opts, tag)
     notes += rep2.warnings if src == path else []
+    from ...parser import parse_tex
+    n = len(parse_tex(tex)) if tex.strip() else 0
+    if n == 0 or rep.mathtype_ole:
+        # kết quả rỗng/thiếu: ghi báo cáo «phần mềm nhìn thấy gì trong file» để dễ tìm nguyên nhân
+        from ...docxnative import diagnose_docx
+        rp = os.path.join(os.path.dirname(output_paths(path)[0]), "chan_doan_" + os.path.splitext(os.path.basename(path))[0] + ".txt")
+        try:
+            with open(rp, "w", encoding="utf-8") as f:
+                f.write(diagnose_docx(path, opts))
+            notes.append(("Không nhận dạng được câu hỏi nào. " if n == 0 else "") +
+                         f"Đã ghi báo cáo chẩn đoán: {rp} (gửi file này cho người hỗ trợ).")
+        except OSError:
+            pass
     return tex, notes

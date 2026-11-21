@@ -607,3 +607,11 @@ def test_docx_options_in_table(tmp_path):
         qs = parse_tex(wordconv.import_docx(str(f), "", DocxOptions(tables=tables)))
         assert len(qs) == 2 and qs[0].qtype == "TN" and qs[0].choices[1] == "2"
         assert qs[0].answer_text == "B"
+
+
+def test_docx_diagnosis_report(tmp_path):
+    from nganhangde.docxnative import diagnose_docx
+    f = tmp_path / "x.docx"
+    _make_docx(str(f), _p("Tiêu đề đề thi") + _p("Câu 1. Tính $1+1$.") + _p("A. 1") + _p("B. 2", underline=True))
+    rp = diagnose_docx(str(f))
+    assert "Số đoạn: 4" in rp and "Câu N=1" in rp and "A./B./C./D.=2" in rp and "có \\underline=1" in rp

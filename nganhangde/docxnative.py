@@ -422,3 +422,39 @@ def docx_to_ex(path: str, opts: DocxOptions | None = None, tag: str = "") -> tup
 def copy_images(src_dir: str, dst_dir: str):
     if os.path.isdir(src_dir):
         shutil.copytree(src_dir, dst_dir, dirs_exist_ok=True)
+
+
+def diagnose_docx(path: str, opts: DocxOptions | None = None, n_lines: int = 40) -> str:
+    """Báo cáo chẩn đoán khi chuyển Word ra ít/không có câu hỏi: phần mềm «nhìn thấy» gì trong file.
+    Có thể gửi báo cáo này cho người hỗ trợ (chỉ gồm đầu các dòng chữ, không gồm hình)."""
+    import collections
+    L = [f"File: {os.path.basename(path)}"]
+    try:
+        rep = triage(path)
+        L.append(f"Công thức Word (OMML): {rep.omml} · MathType dạng đối tượng (OLE): {rep.mathtype_ole} · "
+                 f"hình: {rep.images} · bảng: {rep.tables}")
+        with zipfile.ZipFile(path) as zf:
+            names = zf.namelist()
+            L.append("Thành phần: " + ", ".join(n for n in names if n.startswith("word/") and n.count("/") == 1)[:300])
+            root = ET.fromstring(zf.read("word/document.xml"))
+            ps = root.findall(f".//{W}p")
+            numbered = sum(1 for p in ps if p.find(f"{W}pPr/{W}numPr") is not None)
+            L.append(f"Số đoạn: {len(ps)} · đoạn đánh số tự động: {numbered} · khung chữ (textbox): "
+                     f"{len(root.findall(f'.//{W}txbxContent'))} · thay đổi theo dõi (ins/del): "
+                     f"{len(root.findall(f'.//{W}ins')) + len(root.findall(f'.//{W}del'))}")
+        text, _ = docx_to_latex(path, opts)
+        lines = [ln for ln in text.split("\n") if ln.strip()]
+        from .wordconv import ANS_RE, DS_RE, OPT_RE, Q_START
+        c = collections.Counter()
+        for ln in lines:
+            c["Câu N"] += bool(Q_START.match(ln))
+            c["A./B./C./D."] += bool(OPT_RE.match(ln.strip()))
+            c["a)/b)/c)/d)"] += bool(DS_RE.match(ln))
+            c["Đáp án:"] += bool(ANS_RE.match(ln))
+            c["có \\underline"] += "\\underline" in ln
+        L.append("Dòng chữ app đọc được: %d · nhận dạng: " % len(lines) + ", ".join(f"{k}={v}" for k, v in c.items()))
+        L.append("--- %d dòng đầu (cắt 110 ký tự) ---" % n_lines)
+        L += [ln[:110] for ln in lines[:n_lines]]
+    except Exception as e:  # noqa: BLE001
+        L.append(f"Không đọc được file: {type(e).__name__}: {e}")
+    return "\n".join(L) + "\n"
