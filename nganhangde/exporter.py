@@ -348,6 +348,9 @@ def export_versions(versions: list[ExamVersion], out_dir: str, *, template_path:
     if opt.make_zip:
         from .tools import zip_dir
         files.append(zip_dir(out_dir))
+    from .packages import copy_packages
+    for d in sorted({os.path.dirname(f) for f in files if f.endswith(".tex")}):
+        copy_packages(d)                       # ex_test.sty bản mới nhất + gói riêng cạnh file xuất ra
     return files
 
 

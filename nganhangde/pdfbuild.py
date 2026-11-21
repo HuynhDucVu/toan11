@@ -206,14 +206,22 @@ def compile_tex(tex_path: str, engine: str | None = None, *, runs: int = 2, time
     with open(tex_path, encoding="utf-8", errors="ignore") as f:
         src = f.read()
     lite_copy = None
+    from .packages import list_packages, package_dir
+    pkg_dir = ""
+    try:
+        if list_packages():
+            pkg_dir = package_dir()                    # TEMPLATE\GOI LENH: ex_test.sty mới nhất + gói riêng
+    except OSError:
+        pass
+    search = [d for d in (extest_dir, pkg_dir) if d]
     if re.search(r"\\usepackage(\[[^\]]*\])?\{ex_test\}", src) and \
-            not has_package(engine, "ex_test.sty", [work, extest_dir]):
+            not has_package(engine, "ex_test.sty", [work] + search):
         lite_copy = os.path.join(work, "ex_test.sty")
         shutil.copyfile(LITE_STY, lite_copy)
         res.used_lite = True
     env = dict(os.environ)
-    if extest_dir:
-        env["TEXINPUTS"] = extest_dir + os.pathsep + env.get("TEXINPUTS", "")
+    if search:
+        env["TEXINPUTS"] = os.pathsep.join(search) + os.pathsep + env.get("TEXINPUTS", "")
     os.makedirs(os.path.join(work, "ans"), exist_ok=True)        # ex_test ghi đáp án vào ans/
     cmd = [engine, "-interaction=nonstopmode", "-halt-on-error", os.path.basename(tex_path)]
     log = ""
@@ -254,7 +262,12 @@ def preview_questions(questions, *, mode: str = "loigiai", template_path: str | 
                       extest_dir: str = "", title: str = "XEM TRƯỚC", out_dir: str | None = None) -> BuildResult:
     """Dựng tài liệu tạm cho một/nhiều câu (theo file mẫu đề) rồi biên dịch – dùng để xem nhanh PDF."""
     from .exporter import fill, load_template, questions_to_tex
-    out_dir = out_dir or tempfile.mkdtemp(prefix="nhd_pdf_")
+    if not out_dir:                                   # như MyLT: TEMP\build – gom file tạm biên dịch một chỗ
+        try:
+            from .appdirs import path as app_path
+            out_dir = tempfile.mkdtemp(prefix="xem_", dir=_ensure(app_path("tam", "build")))
+        except OSError:
+            out_dir = tempfile.mkdtemp(prefix="nhd_pdf_")
     os.makedirs(out_dir, exist_ok=True)
     body = questions_to_tex(list(questions), with_solution=(mode == "loigiai"))
     tex = fill(load_template(template_path), MODE=mode, NOI_DUNG=body, TEN_DE=title, MA_DE="—",
@@ -263,6 +276,11 @@ def preview_questions(questions, *, mode: str = "loigiai", template_path: str | 
     with open(p, "w", encoding="utf-8") as f:
         f.write(tex)
     return compile_tex(p, engine, runs=1, extest_dir=extest_dir)
+
+
+def _ensure(d: str) -> str:
+    os.makedirs(d, exist_ok=True)
+    return d
 
 
 def compile_many(paths, engine=None, progress=None, **kw) -> list[BuildResult]:

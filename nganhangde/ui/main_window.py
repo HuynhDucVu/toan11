@@ -90,6 +90,7 @@ class MainWindow(LayoutMixin, BankActionsMixin, QMainWindow):
         self._act(m, "Biên dịch file .tex → PDF…", self.compile_files)
         self._act(m, "Cài đặt biên dịch PDF…", self.pdf_settings_dialog)
         self._act(m, "Cài đặt AI (Gemini, Claude, OpenAI…)…", lambda: GeminiSettingsDialog(self).exec())
+        self._act(m, "Cài gói ex_test / gói lệnh LaTeX vào thư mục biên dịch…", self.install_packages)
         self._act(m, "Tải pandoc (để xuất file Word)…", self.download_pandoc)
         self._act(m, "Giao diện (màu, cỡ chữ) & Mathpix…", self.appearance)
         self._act(m, "Ảnh → LaTeX bằng Mathpix…", self.mathpix_image)
@@ -724,6 +725,26 @@ class MainWindow(LayoutMixin, BankActionsMixin, QMainWindow):
     def cleanup_bank(self):
         from .dialogs.cleanup import CleanupDialog
         CleanupDialog(self).exec()
+
+    def install_packages(self):
+        """Chép ex_test.sty (bản mới nhất) và các gói riêng vào TEMPLATE\\GOI LENH."""
+        from .. import packages
+        ps, _ = QFileDialog.getOpenFileNames(self, "Chọn ex_test.sty và các gói .sty/.cls cần dùng", "",
+                                             "Gói LaTeX (*.sty *.cls *.def *.cfg *.clo);;Tất cả (*.*)")
+        done, errs = [], []
+        for p in ps:
+            try:
+                packages.install_package(p)
+                done.append(os.path.basename(p))
+            except (OSError, ValueError) as e:
+                errs.append(f"{os.path.basename(p)}: {e}")
+        have = packages.list_packages()
+        QMessageBox.information(
+            self, "Gói lệnh LaTeX",
+            (f"Đã chép: {', '.join(done)}\n\n" if done else "") + (("Lỗi: " + "; ".join(errs) + "\n\n") if errs else "")
+            + f"Thư mục gói lệnh: {packages.package_dir()}\nHiện có: {', '.join(have) or '(trống)'}\n\n"
+            + ("Đã có ex_test.sty: khi biên dịch phần mềm dùng bản này (không dùng gói rút gọn) và chép các gói cạnh "
+               "mọi file xuất ra." if packages.has_extest() else "Chưa có ex_test.sty – chép bản mới nhất vào đây."))
 
     def download_pandoc(self) -> bool:
         """Tải pandoc về thư mục phần mềm (có thanh tiến trình). Trả về True nếu đã có pandoc dùng được."""

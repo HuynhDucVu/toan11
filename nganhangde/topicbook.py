@@ -2,6 +2,7 @@
 đề bài + lời giải ngay dưới từng câu (hoặc chỉ đề, để lời giải riêng)."""
 from __future__ import annotations
 
+import os
 from collections import OrderedDict
 
 from .idcode import parse_id
@@ -53,4 +54,6 @@ def topic_book_tex(questions, names: dict | None = None, *, title="CHUYÊN ĐỀ
 def export_topic_book(questions, names, path: str, **kw) -> str:
     with open(path, "w", encoding="utf-8") as f:
         f.write(topic_book_tex(questions, names, **kw))
+    from .packages import copy_packages
+    copy_packages(os.path.dirname(os.path.abspath(path)))        # ex_test.sty… cạnh file để biên dịch ở đâu cũng được
     return path

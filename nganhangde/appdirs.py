@@ -50,6 +50,7 @@ LAYOUT = {
     "anh": ("DATA/IMG", "anh", "Ảnh PNG xuất từ hình TikZ / câu hỏi"),
     "mau_de": ("TEMPLATE", "mau_de", "File mẫu đề de_thi.tex (sửa theo trường), gói ex_test rút gọn"),
     "map_id": ("Map ID (DPS)", "map_id", "Danh mục ID (Map ID) dạng .tex"),
+    "goi_lenh": ("TEMPLATE/GOI LENH", "", "Gói lệnh LaTeX dùng khi biên dịch: chép ex_test.sty (bản mới nhất) và các gói riêng vào đây"),
     "pandoc": ("pandoc", "", "pandoc.exe (tải bằng Công cụ → Tải pandoc) – chuyển LaTeX → Word"),
     "tam": ("TEMP", "tam", "File tạm khi biên dịch xem trước – xoá thoải mái"),
     "nhat_ky": ("LOG", "nhat_ky", "Nhật kí lỗi (nhat_ky.txt) – gửi cho người hỗ trợ khi phần mềm báo lỗi"),
@@ -113,6 +114,18 @@ def ensure_layout(root: str | None = None) -> str:
                     + "".join(f"{LAYOUT[k][0].replace('/', chr(92)) + chr(92):<26} – {LAYOUT[k][2]}\n"
                               for k in dict.fromkeys(LAYOUT) if k not in ("online",)) +
                     "\nChép nguyên thư mục này (kể cả file .exe) sang máy khác/USB là dùng được ngay, giữ đủ kho và cài đặt.\n")
+    readme_pk = os.path.join(folder("goi_lenh", root), "DOC_TOI.txt")
+    if not os.path.exists(readme_pk):
+        try:
+            with open(readme_pk, "w", encoding="utf-8") as f:
+                f.write("GÓI LỆNH LATEX DÙNG KHI BIÊN DỊCH\n\n"
+                        "Chép vào đây ex_test.sty (bản mới nhất) và các gói/lớp riêng (.sty, .cls, .def…).\n"
+                        "- Biên dịch trong phần mềm: dùng các gói ở đây (có ex_test.sty thật thì không dùng gói rút gọn).\n"
+                        "- Mọi file xuất ra (đề, lời giải, quyển chuyên đề…) được chép kèm các gói này, nên mở bằng\n"
+                        "  TeXstudio/Overleaf/máy khác vẫn biên dịch được ngay.\n"
+                        "Cách chép nhanh: menu Công cụ → «Cài gói ex_test / gói lệnh LaTeX…».\n")
+        except OSError:
+            pass
     copies = [(os.path.join(PKG, "templates", "de_thi.tex"), os.path.join(folder("mau_de", root), "de_thi.tex")),
               (os.path.join(PKG, "templates", "nhd_extest.sty"), os.path.join(folder("mau_de", root), "ex_test_rut_gon.sty")),
               (os.path.join(PKG, "data", "map_id_toan_6_12.tex"), os.path.join(folder("map_id", root), "Map_ID_Toan_6_12.tex")),

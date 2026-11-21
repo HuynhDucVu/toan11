@@ -537,3 +537,29 @@ def test_word_to_ex_inline_double_dollar(tmp_path):
     from nganhangde.wordconv import latex_text_to_ex
     blocks = latex_text_to_ex("Câu 1. Cho $$x$$ thoả $$x>0$$.\nA. $$1$$\nB. $$2$$\nC. $$3$$\nD. $$4$$\n")
     assert blocks and "$$" not in blocks[0] and "$x$" in blocks[0]
+
+
+def test_package_folder_copied_next_to_exports(tmp_path):
+    import os
+    from nganhangde import packages
+    from nganhangde.exporter import ExportOptions, export_versions
+    from nganhangde.generator import ExamVersion
+    from nganhangde.parser import Question
+    v = ExamVersion("101")
+    v.sections = {"TN": [Question("TN", "x", list("abcd"), [True, False, False, False])], "DS": [], "KQ": [], "TL": []}
+    out1 = tmp_path / "o1"
+    export_versions([v], str(out1), options=ExportOptions(answers_xlsx=False, tltn2025=False))
+    assert not (out1 / "ex_test.sty").exists()              # thư mục gói lệnh trống: không chép gì (không chép gói rút gọn)
+    fake = tmp_path / "ex_test.sty"
+    fake.write_text("% ex_test moi nhat\n\\ProvidesPackage{ex_test}\n", encoding="utf-8")
+    packages.install_package(str(fake))
+    assert packages.has_extest() and "ex_test.sty" in packages.list_packages()
+    out2 = tmp_path / "o2"
+    try:
+        export_versions([v], str(out2), options=ExportOptions(answers_xlsx=False, tltn2025=False, per_folder=True))
+        assert (out2 / "101" / "ex_test.sty").exists()       # cạnh từng file đề
+    finally:
+        os.remove(os.path.join(packages.package_dir(), "ex_test.sty"))      # thư mục phần mềm dùng chung cả phiên kiểm thử
+    import pytest
+    with pytest.raises(ValueError):
+        packages.install_package(str(tmp_path / "a.txt"))

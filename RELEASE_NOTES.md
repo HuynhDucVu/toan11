@@ -11,6 +11,13 @@ Với bản một file:
 
 Kho câu hỏi `nganhang.db` nằm cạnh file exe. Cập nhật từ bản cũ: chỉ cần thay file exe, kho giữ nguyên.
 
+## Có gì mới ở bản 0.17.20 – Thư mục gói lệnh LaTeX: file xuất ra luôn biên dịch được
+- Thư mục mới **`TEMPLATE\\GOI LENH`**: chép vào đây **ex_test.sty bản mới nhất** và các gói riêng (.sty, .cls, .def…). Menu **Công cụ → Cài gói ex_test / gói lệnh LaTeX…** chép giúp.
+- Biên dịch trong phần mềm dùng các gói ở thư mục này; **có ex_test.sty thật ở đây thì không dùng gói rút gọn** đi kèm.
+- Mọi file xuất ra (đề, lời giải, quyển chuyên đề, từng thư mục mã đề…) được **chép kèm các gói này**, nên mở bằng TeXstudio/Overleaf/máy khác vẫn biên dịch được ngay.
+- Xem PDF nhanh ghi file tạm vào `TEMP\\build` (như MyLT).
+- Cần bạn chép file `ex_test.sty` bản mới nhất của bạn vào thư mục gói lệnh (phần mềm chưa kèm sẵn vì không phải của phần mềm này).
+
 ## Có gì mới ở bản 0.17.19 – Chuyển Word: không treo Word khi MathType lỗi, sửa `$$…$$`
 - Khi lệnh MathType trong Word lỗi hoặc kẹt hộp thoại («You cannot close Microsoft Word because a dialog box is open»), phần mềm **tự đóng cửa sổ Word do nó mở** sau 90 giây (không đụng các file Word khác của bạn) và báo cách làm tay; chuyển Word vẫn chạy tiếp bằng bộ đọc có sẵn.
 - Ô «Dùng Word + MathType» được ghi rõ là thử nghiệm; hướng dẫn đổi công thức MathType tay (MathType → Convert Equations… → Equations to TeX) rồi chuyển file .docx.
