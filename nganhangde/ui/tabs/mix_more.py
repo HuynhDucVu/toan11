@@ -36,8 +36,8 @@ def export_with_gen_options(win, versions, title="Kết quả trộn đề", log
         return False
     ids = {q.db_id for v in versions for q in v.all_questions() if q.db_id is not None}
     if ids:
-        win.bank.mark_used(ids)
-        win.bank.log_batch(versions, ten_de=gp.e_ten.text(), matrix=log_rules or [], out_dir=out)
+        win.pool_bank().mark_used(ids)
+        win.pool_bank().log_batch(versions, ten_de=gp.e_ten.text(), matrix=log_rules or [], out_dir=out)
     gp.opts.save()
     ResultDialog(win, versions, out, '', gp.export_options().omr_capacity).exec()
     return True
@@ -63,27 +63,64 @@ class _Base(QWidget):
 
     def note(self, lay):
         lb = QLabel("<i>Thông tin đầu đề, thư mục xuất, file mẫu và «Tuỳ chọn trộn đề» lấy theo tab "
-                    "<b>Theo ma trận</b>.</i>")
+                    "<b>Tuỳ chọn đề</b>.</i>")
         lb.setWordWrap(True)
         lay.addWidget(lb)
 
 
 class PickPanel(_Base):
-    """Tự chọn câu: lấy câu đang chọn ở tab Câu hỏi đưa vào giỏ, sắp xếp, rồi trộn."""
+    """Tạo đề tự chọn: bảng các câu của nguồn (ngân hàng hoặc file) để chọn → giỏ đề, sắp xếp, rồi trộn."""
+
+    SRC_LIMIT = 3000
 
     def __init__(self, win):
         super().__init__(win)
         lay = QVBoxLayout(self)
-        lay.addWidget(QLabel("Chọn câu ở tab <b>Câu hỏi</b> (giữ Ctrl/Shift để chọn nhiều) rồi bấm "
-                             "<b>Thêm câu đang chọn</b>. Thứ tự trong giỏ là thứ tự của đề gốc."))
+        g = QGroupBox("Câu trong nguồn (chọn nhiều dòng bằng Ctrl/Shift rồi «Thêm câu đã chọn»)")
+        gl = QVBoxLayout(g)
+        f = QHBoxLayout()
+        self.cb_type = QComboBox()
+        self.cb_type.addItem("Mọi loại", "")
+        for k, v in (("TN", "TN"), ("DS", "ĐS"), ("KQ", "SA"), ("TL", "TL")):
+            self.cb_type.addItem(v, k)
+        self.e_id = QLineEdit()
+        self.e_id.setPlaceholderText("ID (vd 0D2?1-*)")
+        self.e_text = QLineEdit()
+        self.e_text.setPlaceholderText("tìm trong đề bài")
+        for w_, lab in ((self.cb_type, "Loại"), (self.e_id, "ID"), (self.e_text, "Nội dung")):
+            f.addWidget(QLabel(lab))
+            f.addWidget(w_, 1 if w_ is not self.cb_type else 0)
+        b = QPushButton("Lọc")
+        b.clicked.connect(self.reload)
+        self.e_id.returnPressed.connect(self.reload)
+        self.e_text.returnPressed.connect(self.reload)
+        f.addWidget(b)
+        b = QPushButton("➕ Thêm câu đã chọn")
+        b.setObjectName("primary")
+        b.clicked.connect(self.add_from_source)
+        f.addWidget(b)
+        gl.addLayout(f)
+        self.src = QTableWidget(0, 5)
+        self.src.setHorizontalHeaderLabels(["STT", "Loại", "ID", "Nội dung", "Đã dùng"])
+        self.src.horizontalHeader().setSectionResizeMode(3, QHeaderView.ResizeMode.Stretch)
+        self.src.verticalHeader().setVisible(False)
+        self.src.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+        self.src.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+        self.src.doubleClicked.connect(lambda _i: self.add_from_source())
+        gl.addWidget(self.src, 1)
+        self.l_src = QLabel()
+        gl.addWidget(self.l_src)
+        lay.addWidget(g, 3)
+        lay.addWidget(QLabel("<b>Giỏ đề</b> – thứ tự trong giỏ là thứ tự của đề gốc. (Cũng có thể chọn câu ở tab Câu hỏi rồi "
+                             "bấm «Thêm câu đang chọn».)"))
         self.t = QTableWidget(0, 4)
         self.t.setHorizontalHeaderLabels(["#", "Loại", "ID", "Nội dung"])
         self.t.horizontalHeader().setSectionResizeMode(3, QHeaderView.ResizeMode.Stretch)
         self.t.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         self.t.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
-        lay.addWidget(self.t, 1)
+        lay.addWidget(self.t, 2)
         row = QHBoxLayout()
-        for text, fn in (("➕ Thêm câu đang chọn", self.add_selected), ("Bỏ câu", self.remove),
+        for text, fn in (("➕ Thêm câu đang chọn ở tab Câu hỏi", self.add_selected), ("Bỏ câu", self.remove),
                          ("▲", lambda: self.move(-1)), ("▼", lambda: self.move(1)), ("Xoá giỏ", self.clear)):
             b = QPushButton(text)
             b.clicked.connect(fn)
@@ -104,6 +141,47 @@ class PickPanel(_Base):
         lay.addLayout(row)
         self.note(lay)
         self.basket = []
+
+    # ---------------------------------------------------------------- bảng nguồn
+    def reload(self):
+        pool = self.win.pool_bank()
+        self._src = []
+        if pool is not None:
+            kw = {"qtype": self.cb_type.currentData() or None, "limit": self.SRC_LIMIT + 1}
+            if self.e_id.text().strip():
+                kw["id_like"] = self.e_id.text().strip()
+            if self.e_text.text().strip():
+                kw["text"] = self.e_text.text().strip()
+            self._src = pool.search(**kw)
+        more = len(self._src) > self.SRC_LIMIT
+        self._src = self._src[:self.SRC_LIMIT]
+        used = {}
+        if pool is not None and self._src:
+            try:
+                used = dict(pool.con.execute("SELECT id, used_count FROM questions").fetchall())
+            except Exception:  # noqa: BLE001
+                used = {}
+        self.src.setRowCount(len(self._src))
+        for r, q in enumerate(self._src):
+            for c, v in enumerate((str(r + 1), {"DS": "ĐS", "KQ": "SA"}.get(q.qtype, q.qtype), q.id_code,
+                                   " ".join(q.stem.split())[:200], str(used.get(q.db_id, 0)))):
+                it = QTableWidgetItem(v)
+                self.src.setItem(r, c, it)
+        self.l_src.setText(f"{len(self._src):,} câu" + (f" (chỉ hiện {self.SRC_LIMIT:,} câu đầu – lọc thêm để thu hẹp)" if more else ""))
+
+    def add_from_source(self):
+        have = {q.db_id for q in self.basket}
+        for r in sorted({i.row() for i in self.src.selectedIndexes()}):
+            q = self._src[r] if r < len(self._src) else None
+            if q is not None and q.db_id not in have:
+                self.basket.append(q)
+                have.add(q.db_id)
+        self._refresh()
+
+    def showEvent(self, e):
+        super().showEvent(e)
+        if not getattr(self, "_src", None):
+            self.reload()
 
     def _refresh(self):
         self.t.setRowCount(len(self.basket))
@@ -286,14 +364,14 @@ class SimilarExamPanel(_Base):
         if self.c_each.isChecked():
             vs, used = [], set()
             for c in codes:
-                qs, nt = similar_exam(self.win.bank, sample, rng, same_level=self.c_level.isChecked(),
+                qs, nt = similar_exam(self.win.pool_bank(), sample, rng, same_level=self.c_level.isChecked(),
                                       keep_missing=self.c_keep.isChecked(), exclude_ids=used,
                                       widen=self.cb_widen.currentData(), by_content=self.c_content.isChecked())
                 used |= {q.db_id for q in qs if q.db_id is not None}
                 notes += [f"Mã {c}: {x}" for x in nt]
                 vs += mix_versions(sections_from_questions(qs), [c], rng, self.mix_opt())
         else:
-            qs, notes = similar_exam(self.win.bank, sample, rng, same_level=self.c_level.isChecked(),
+            qs, notes = similar_exam(self.win.pool_bank(), sample, rng, same_level=self.c_level.isChecked(),
                                      keep_missing=self.c_keep.isChecked(), widen=self.cb_widen.currentData(),
                                      by_content=self.c_content.isChecked())
             vs = mix_versions(sections_from_questions(qs), codes, rng, self.mix_opt())

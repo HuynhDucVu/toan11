@@ -280,11 +280,11 @@ class GeneratorPanel(QWidget):
         return out
 
     def update_avail(self):
-        if not self.win.bank:
+        if not self.win.pool_bank():
             return
         total, ok = 0, True
         for i, r in enumerate(self.rules_dicts()):
-            n = len(self.win.bank.search(qtype=r["qtype"], id_like=r["id"], muc_do=r["muc_do"]))
+            n = len(self.win.pool_bank().search(qtype=r["qtype"], id_like=r["id"], muc_do=r["muc_do"]))
             it = self.t.item(i, 4)
             if it:
                 it.setText(str(n))
@@ -353,19 +353,19 @@ class GeneratorPanel(QWidget):
         codes = self.codes() or self.opts.codes(self.e_n.value())
         seed = int(self.e_seed.text()) if self.e_seed.text().strip().isdigit() else None
         sections = None
-        excl = self.win.bank.recent_question_ids(self.sp_recent.value()) if self.sp_recent.value() else set()
+        excl = self.win.pool_bank().recent_question_ids(self.sp_recent.value()) if self.sp_recent.value() else set()
         try:
             if self.c_preview.isChecked() and not self.c_diff.isChecked():
                 import random as _r
                 from ...generator import pick_questions
-                sections = pick_questions(self.win.bank, rules, _r.Random(seed), self.c_unused.isChecked(), excl,
+                sections = pick_questions(self.win.pool_bank(), rules, _r.Random(seed), self.c_unused.isChecked(), excl,
                                           self.opts.mix_options().solution_filter)
                 dlg = SwapDialog(self, sections, rules)
                 if not dlg.exec():
                     return
                 sections = dlg.sections
             ov = self.sp_overlap.value()
-            vs = make_versions(self.win.bank, rules, len(codes), codes=codes,
+            vs = make_versions(self.win.pool_bank(), rules, len(codes), codes=codes,
                                seed=seed, same_questions=not self.c_diff.isChecked(),
                                prefer_unused=self.c_unused.isChecked(), options=self.opts.mix_options(),
                                max_overlap=(ov / 100 if self.c_diff.isChecked() and ov < 100 else None),
@@ -381,8 +381,8 @@ class GeneratorPanel(QWidget):
         except (OSError, ValueError) as e:
             QMessageBox.critical(self, "Lỗi ghi file", str(e))
             return
-        self.win.bank.mark_used({q.db_id for v in vs for q in v.all_questions()})
-        self.win.bank.log_batch(vs, ten_de=self.e_ten.text(), seed=seed, matrix=rd, out_dir=out)
+        self.win.pool_bank().mark_used({q.db_id for v in vs for q in v.all_questions()})
+        self.win.pool_bank().log_batch(vs, ten_de=self.e_ten.text(), seed=seed, matrix=rd, out_dir=out)
         self.win.refresh()
         for k, v in (("ten", self.e_ten.text()), ("truong", self.e_truong.text()), ("tg", self.e_tg.value()),
                      ("n", self.e_n.value()), ("ma", self.e_ma.text()), ("out", out),
@@ -419,7 +419,7 @@ class GeneratorPanel(QWidget):
                                            "Excel (*.xlsx);;LaTeX (*.tex)")
         if p:
             from ...exporter import matrix_spec
-            matrix_spec(self.win.bank, [Rule.from_dict(r) for r in rd], p)
+            matrix_spec(self.win.pool_bank(), [Rule.from_dict(r) for r in rd], p)
             QDesktopServices.openUrl(QUrl.fromLocalFile(p))
 
     def export_cv7991(self):

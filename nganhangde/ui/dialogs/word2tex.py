@@ -246,12 +246,22 @@ class Word2TexDialog(QDialog):
 
 
 # ====================================================================== luồng chuyển
+def safe_name(s: str) -> str:
+    """Tên file an toàn cho LaTeX: bỏ dấu tiếng Việt, khoảng trắng/ký tự lạ → «_» (pdflatex không nhận tên có dấu cách)."""
+    import re
+
+    from ...textnorm import unaccent
+    s = unaccent(s).replace("đ", "d").replace("Đ", "D")
+    s = re.sub(r"[^A-Za-z0-9._-]+", "_", s).strip("._")
+    return s or "file"
+
+
 def output_paths(src_path: str, win_settings=None) -> tuple[str, str]:
     """(file .tex, thư mục hình) trong DATA\\WORD2EXTEST; tên theo mẫu «Đổi tên» (mặc định <tên>_tuWord)."""
     from ...appdirs import folder
     d = folder("word2extest")
     os.makedirs(d, exist_ok=True)
-    stem = os.path.splitext(os.path.basename(src_path))[0]
+    stem = safe_name(os.path.splitext(os.path.basename(src_path))[0])
     tpl = "{ten}_tuWord"
     if win_settings is not None:
         tpl = str(win_settings.value("w2t/outname", tpl)) or tpl
@@ -270,10 +280,9 @@ def _client_gemini(dlg: Word2TexDialog):
 def convert_word_file(win, path: str, dlg: Word2TexDialog, tag: str = "") -> tuple[str, list[str]]:
     """Một file Word → nội dung .tex theo cách đọc «trực tiếp / Convert Equations / Toggle TeX»; trả về (tex, ghi chú)."""
     from ... import wordcom
-    from ...docxnative import docx_to_ex, triage
+    from ...docxnative import docx_to_ex
     notes = []
     src = path
-    rep = triage(path)
     eng = dlg.engine()
     if eng in ("convert", "toggle"):
         ok, out, msg = wordcom.convert_mathtype(path, "convert" if eng == "convert" else "toggle_tex", dlg.c_show.isChecked())
@@ -286,9 +295,11 @@ def convert_word_file(win, path: str, dlg: Word2TexDialog, tag: str = "") -> tup
     opts.image_dir = output_paths(path, dlg.st)[1]
     tex, rep2 = docx_to_ex(src, opts, tag)
     notes += rep2.warnings if src == path else []
+    if rep2.mathtype_ok:
+        notes.append(f"Đã đọc trực tiếp {rep2.mathtype_ok} công thức MathType sang LaTeX.")
     from ...parser import parse_tex
     n = len(parse_tex(tex)) if tex.strip() else 0
-    if n == 0 or rep.mathtype_ole:
+    if n == 0 or rep2.mathtype_fail:
         # kết quả rỗng/thiếu: ghi báo cáo «phần mềm nhìn thấy gì trong file» để dễ tìm nguyên nhân
         from ...docxnative import diagnose_docx
         rp = os.path.join(os.path.dirname(output_paths(path, dlg.st)[0]),

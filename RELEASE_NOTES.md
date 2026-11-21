@@ -11,6 +11,13 @@ Với bản một file:
 
 Kho câu hỏi `nganhang.db` nằm cạnh file exe. Cập nhật từ bản cũ: chỉ cần thay file exe, kho giữ nguyên.
 
+## Có gì mới ở bản 0.17.29 – Đọc thẳng công thức MathType, tab «Trộn đề» giống MyLT
+- **Công thức MathType (đối tượng OLE) trong file Word được chuyển thẳng sang LaTeX**, không cần Word/MathType: app đọc dữ liệu MTEF trong file (phân số `\dfrac`, căn, mũ/chỉ số, ngoặc, **hệ phương trình `\heva{…}` / `\hoac{…}`**, tổng/tích/tích phân có cận, `\lim`, vectơ, gạch ngang, ma trận, chữ Hy Lạp, ký hiệu…). Kết quả ghi «Đã đọc trực tiếp N công thức MathType». Công thức nào không đọc được thì để `[công thức]` và ghi chú. (Mới kiểm tra bằng công thức dựng theo đặc tả MTEF 5; chưa thử với đủ loại công thức thật – bạn gửi file thì tôi soát tiếp.)
+- Chuyển Word: không còn **gạch chân nhầm** «Câu N», «Lời giải», «Trả lời» khi chúng chỉ được tô màu; tên file/thư mục kết quả không còn **dấu cách và dấu tiếng Việt** (trước đây làm `\includegraphics` và pdflatex lỗi).
+- **Tab «Trộn đề» theo MyLT 2026**: thanh nguồn ⦿ *Từ ngân hàng câu hỏi* / ○ *Từ Files* (chọn một hoặc nhiều file; câu được nạp vào kho tạm để chọn và trộn), nút *Mở ngân hàng*, *Nhập câu hỏi*; các trang con **Tạo đề theo ID · Tạo đề tự chọn · Tạo đề theo file · Tạo đề tương tự · Tuỳ chọn đề**.
+- **Tạo đề theo ID**: khung *Chọn nhanh* (Lớp, Môn, Chương, Bài, Dạng, Mức độ, Loại, Số câu → *Lọc*, *Lấy*) và bảng *Chọn theo ID* (STT, ID dạng `0D0?1-1`, Lớp, Môn, Chương, Bài/dạng, Loại TN/ĐS/SA, Đã có N/H/V/C, số câu cần lấy từng mức).
+- **Tạo đề tự chọn**: bảng các câu trong nguồn (lọc theo loại, ID, nội dung) để chọn nhiều dòng đưa vào giỏ đề.
+
 ## Có gì mới ở bản 0.17.28 – Sửa lỗi «Failed to load Python DLL … python312.dll» sau khi tự cập nhật
 - Sau khi tự cập nhật, bản mới được mở lên kế thừa biến môi trường của bản cũ nên dùng nhầm thư mục giải nén tạm `_MEIxxxx` đã bị xoá. Nay phần mềm bỏ các biến đó (và đặt `PYINSTALLER_RESET_ENVIRONMENT=1`) và chờ vài giây trước khi mở lại.
 - Nếu đang gặp lỗi này: đóng thông báo lỗi rồi **bấm đúp lại NganHangDe.exe** (mở mới hoàn toàn thì chạy bình thường); nếu vẫn lỗi, xoá các thư mục `_MEI…` trong `%TEMP%` hoặc thêm phần mềm vào danh sách loại trừ của diệt virus.

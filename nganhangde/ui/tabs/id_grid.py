@@ -1,81 +1,128 @@
-"""Trộn đề → «Chọn theo ID»: bảng mọi dạng (lớp – môn – chương – bài – dạng) có trong kho, số câu có sẵn từng mức độ
-N/H/V/C; gõ số câu muốn lấy ở từng mức độ → thành ma trận (mỗi ô ≠ 0 là một dòng ma trận) rồi tạo đề."""
+"""Trộn đề → «Tạo đề theo ID» (như MyLT 2026): khung «Chọn nhanh» (Lớp, Môn, Chương, Bài, Dạng, Mức độ, Loại, Số câu → Lọc /
+Lấy) và bảng «Chọn theo ID» liệt kê mọi dạng (lớp – môn – chương – bài – dạng) có trong nguồn câu hỏi (ngân hàng hoặc các file),
+số câu có sẵn từng mức độ N/H/V/C; nhập số câu muốn lấy ở từng mức độ → ma trận (mỗi ô ≠ 0 là một dòng) rồi tạo đề."""
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QColor
-from PySide6.QtWidgets import (QAbstractItemView, QComboBox, QHBoxLayout, QHeaderView, QLabel, QLineEdit, QMessageBox,
-    QPushButton, QSpinBox, QTableWidget, QTableWidgetItem, QVBoxLayout, QWidget)
-
-from ..common import TEN_LOAI
+from PySide6.QtWidgets import (QAbstractItemView, QComboBox, QGridLayout, QGroupBox, QHBoxLayout, QHeaderView, QLabel,
+                               QLineEdit, QMessageBox, QPushButton, QSpinBox, QTableWidget, QTableWidgetItem, QVBoxLayout,
+                               QWidget)
 
 if TYPE_CHECKING:
     from ..main_window import MainWindow
 
 LEVELS = ["N", "H", "V", "C"]
-COLS = ["ID", "Bài › dạng", "Loại", "Có N/H/V/C", "Nhận biết", "Thông hiểu", "Vận dụng", "Vận dụng cao", "Tổng có",
-        "Tổng lấy"]
+LEVEL_NAMES = ("Nhận biết", "Thông hiểu", "Vận dụng", "Vận dụng cao")
+LOAI = {"TN": "TN", "DS": "ĐS", "KQ": "SA", "TL": "TL"}           # tên loại như MyLT: SA = trả lời ngắn
+COLS = ["STT", "ID", "Lớp", "Môn", "Chương", "Bài, dạng", "Loại", "Đã có (N/H/V/C)", "Nhận biết", "Thông hiểu", "Vận dụng",
+        "Vận dụng cao", "Tổng lấy"]
+C_LV0 = 8            # cột đầu của 4 cột mức độ
+C_TOTAL = 12
+
+
+def lop_label(code: str) -> str:
+    return str(10 + int(code)) if code.isdigit() and int(code) <= 2 else code
 
 
 class IdGridPanel(QWidget):
     def __init__(self, win: MainWindow):
         super().__init__()
         self.win = win
-        self.rows = []                      # [(khoá ID không mức độ, lop, mon, chuong, bai, dang, qtype, {mức: n})]
+        self.rows = []                      # [((lop, mon, chuong, bai, dang, qtype), tên bài/dạng, {mức: n})]
+        self._shown = []
+        self.counts: dict[tuple, dict] = {}
+        self._names: dict[str, str] = {}
         lay = QVBoxLayout(self)
+
+        # ---------------- Chọn nhanh
+        g = QGroupBox("Chọn nhanh")
+        gl = QGridLayout(g)
+        self.q = {}
+        spec = (("lop", "Lớp", 0, 0), ("mon", "Môn", 1, 0), ("chuong", "Chương", 2, 0),
+                ("bai", "Bài", 0, 2), ("dang", "Dạng", 1, 2), ("muc", "Mức độ", 2, 2))
+        for key, text, r, c in spec:
+            cb = QComboBox()
+            cb.setMinimumWidth(150)
+            self.q[key] = cb
+            gl.addWidget(QLabel(text), r, c)
+            gl.addWidget(cb, r, c + 1)
+        self.q["loai"] = QComboBox()
+        self.sp_n = QComboBox()
+        for n in (1, 2, 3, 4, 5, 6, 8, 10, 12, 15, 20):
+            self.sp_n.addItem(str(n), n)
+        gl.addWidget(QLabel("Loại"), 0, 4)
+        gl.addWidget(self.q["loai"], 0, 5)
+        gl.addWidget(QLabel("Số câu"), 1, 4)
+        gl.addWidget(self.sp_n, 1, 5)
+        b_loc, b_lay = QPushButton("Lọc"), QPushButton("Lấy")
+        gl.addWidget(b_loc, 2, 4)
+        gl.addWidget(b_lay, 2, 5)
+        gl.setColumnStretch(1, 1)
+        gl.setColumnStretch(3, 1)
+        b_loc.clicked.connect(self.apply_filter)
+        b_lay.clicked.connect(self.take_quick)
+        for key in ("lop", "mon", "chuong", "bai"):
+            self.q[key].currentIndexChanged.connect(lambda _=0, k=key: self._cascade(k))
+        lay.addWidget(g)
+
+        # ---------------- Chọn theo ID
+        g = QGroupBox("Chọn theo ID")
+        gl = QVBoxLayout(g)
         f = QHBoxLayout()
-        self.cb_lop = QComboBox()
-        self.cb_type = QComboBox()
-        self.cb_type.addItem("Mọi loại", "")
-        for k, v in TEN_LOAI.items():
-            self.cb_type.addItem(v, k)
-        self.e_find = QLineEdit()
-        self.e_find.setPlaceholderText("lọc theo ID hoặc tên bài/dạng (không dấu cũng được)")
-        self.cb_chuong = QComboBox()
-        self.cb_chuong.setToolTip("Chỉ hiện các bài của chương này (ẩn bài các chương khác) để tạo đề theo chương")
-        self.cb_chuong.currentIndexChanged.connect(lambda _=0: self.apply_filter())
-        self.cb_taken = QComboBox()
-        for t, d in (("Tất cả dạng", ""), ("Dạng đã lấy", "1"), ("Dạng chưa lấy", "0")):
-            self.cb_taken.addItem(t, d)
-        for w_, lab in ((self.cb_lop, "Lớp"), (self.cb_type, "Loại"), (self.cb_chuong, "Chương"), (self.e_find, "Tìm"), (self.cb_taken, "")):
-            if lab:
-                f.addWidget(QLabel(lab))
-            f.addWidget(w_, 2 if w_ is self.e_find else 0)
+        self.cb_conv = QComboBox()
+        self.cb_conv.addItem("ID hiện có")
+        self.cb_conv.setToolTip("Chuyển ID sang chương trình khác (KNTT/CTST/CD) cần bảng ConvID của MyLT – chưa có")
+        self.cb_conv.setEnabled(False)
+        f.addWidget(QLabel("Chuyển ID"))
+        f.addWidget(self.cb_conv)
         b = QPushButton("Lọc")
         b.clicked.connect(self.apply_filter)
         f.addWidget(b)
-        b = QPushButton("🔄 Nạp lại từ kho")
-        b.clicked.connect(self.reload)
-        f.addWidget(b)
-        lay.addLayout(f)
+        self.f = {}
+        for key, text in (("lop", "Lớp"), ("mon", "Môn"), ("chuong", "Chương"), ("bai", "Bài"), ("loai", "Loại"),
+                          ("kieu", "Kiểu ID"), ("lay", "Đã lấy")):
+            cb = QComboBox()
+            self.f[key] = cb
+            f.addWidget(QLabel(text))
+            f.addWidget(cb, 3 if key in ("chuong", "bai") else 0)
+            cb.currentIndexChanged.connect(lambda _=0: self.apply_filter())
+        self.e_find = QLineEdit()
+        self.e_find.setPlaceholderText("tìm ID/tên (không dấu cũng được)")
+        self.e_find.returnPressed.connect(self.apply_filter)
+        f.addWidget(self.e_find, 2)
+        gl.addLayout(f)
+        self.t = QTableWidget(0, len(COLS))
+        self.t.setHorizontalHeaderLabels(COLS)
+        self.t.horizontalHeader().setSectionResizeMode(5, QHeaderView.ResizeMode.Stretch)
+        self.t.verticalHeader().setVisible(False)
+        self.t.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+        self.t.itemChanged.connect(self._changed)
+        for c, w in ((0, 40), (1, 90), (2, 40), (3, 40), (4, 60), (6, 50), (7, 110), (8, 78), (9, 78), (10, 78), (11, 90), (12, 70)):
+            self.t.setColumnWidth(c, w)
+        gl.addWidget(self.t, 1)
+        lay.addWidget(g, 1)
+
+        # ---------------- dưới
         q = QHBoxLayout()
-        q.addWidget(QLabel("Lấy nhanh: mỗi dạng đang hiện lấy"))
+        q.addWidget(QLabel("Điền nhanh: mỗi dòng đang hiện lấy"))
         self.sp_quick = QSpinBox()
         self.sp_quick.setRange(0, 20)
         self.sp_quick.setValue(1)
         q.addWidget(self.sp_quick)
         q.addWidget(QLabel("câu mức"))
         self.cb_quick = QComboBox()
-        for lv, name in zip(LEVELS, ("Nhận biết", "Thông hiểu", "Vận dụng", "Vận dụng cao")):
+        for lv, name in zip(LEVELS, LEVEL_NAMES):
             self.cb_quick.addItem(name, lv)
         q.addWidget(self.cb_quick)
-        b = QPushButton("Điền")
-        b.clicked.connect(self.quick_fill)
-        q.addWidget(b)
-        b = QPushButton("Xoá số đã nhập")
-        b.clicked.connect(self.clear_counts)
-        q.addWidget(b)
+        for text, fn in (("Điền", self.quick_fill), ("Xoá số đã nhập", self.clear_counts), ("🔄 Nạp lại", self.reload)):
+            b = QPushButton(text)
+            b.clicked.connect(fn)
+            q.addWidget(b)
         q.addStretch()
         lay.addLayout(q)
-        self.t = QTableWidget(0, len(COLS))
-        self.t.setHorizontalHeaderLabels(COLS)
-        self.t.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
-        self.t.verticalHeader().setVisible(False)
-        self.t.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
-        self.t.itemChanged.connect(self._changed)
-        lay.addWidget(self.t, 1)
         row = QHBoxLayout()
         self.l_sum = QLabel()
         row.addWidget(self.l_sum)
@@ -89,57 +136,132 @@ class IdGridPanel(QWidget):
             b.clicked.connect(fn)
             row.addWidget(b)
         lay.addLayout(row)
-        self.counts: dict[tuple, dict] = {}
+        self._init_static()
+
+    # ---------------------------------------------------------------- bộ lọc
+    def _init_static(self):
+        for cb in (self.q["loai"], self.f["loai"]):
+            cb.addItem("Mọi loại", "")
+            for k, v in LOAI.items():
+                cb.addItem(v, k)
+        self.q["muc"].addItem("Mọi mức độ", "")
+        for lv, name in zip(LEVELS, LEVEL_NAMES):
+            self.q["muc"].addItem(name, lv)
+        for t, d in (("Tất cả", ""), ("ID6 (có dạng)", "6"), ("ID5 (không dạng)", "5")):
+            self.f["kieu"].addItem(t, d)
+        for t, d in (("Tất cả", ""), ("Đã lấy", "1"), ("Chưa lấy", "0")):
+            self.f["lay"].addItem(t, d)
+
+    def _fill(self, cb: QComboBox, items, all_text: str):
+        cur = cb.currentData()
+        cb.blockSignals(True)
+        cb.clear()
+        cb.addItem(all_text, "")
+        for data, text in items:
+            cb.addItem(text, data)
+        cb.setCurrentIndex(max(0, cb.findData(cur)))
+        cb.blockSignals(False)
+
+    def _cascade(self, changed: str):
+        """Chọn Lớp → chỉ còn Môn thuộc lớp đó… (các ô phía dưới trong khung «Chọn nhanh»); rồi lọc bảng."""
+        order = ["lop", "mon", "chuong", "bai", "dang"]
+        all_text = {"lop": "Mọi lớp", "mon": "Mọi môn", "chuong": "Mọi chương", "bai": "Mọi bài", "dang": "Mọi dạng"}
+        keys = [k for k, _, _ in self.rows]
+        for k in order[order.index(changed) + 1:]:
+            def ok(key):
+                for up in order[:order.index(k)]:
+                    cb = self.q.get(up)
+                    v = (cb.currentData() if cb is not None else "") or ""
+                    if v and self._value(key, up) != v:
+                        return False
+                return True
+            vals = sorted({self._value(key, k) for key in keys if ok(key)} - {""})
+            self._fill(self.q[k], [(v, self._label(k, v)) for v in vals], all_text[k])
+        self.apply_filter()
+
+    @staticmethod
+    def _value(key, k):
+        lop, mon, ch, bai, dang = key[:5]
+        if k == "lop":
+            return lop
+        if k == "mon":
+            return lop + mon
+        if k == "chuong":
+            return lop + mon + ch
+        if k == "bai":
+            return lop + mon + ch + bai
+        return lop + mon + ch + bai + "-" + dang if dang else ""
+
+    def _label(self, k, v):
+        n = self._names
+        if k == "lop":
+            return f"Lớp {lop_label(v)}"
+        if k == "mon":
+            return n.get(v) or f"Môn {v[1:]}"
+        if k == "chuong":
+            return f"{v[2:]}. {n.get(v, 'Chương ' + v[2:])}"
+        if k == "bai":
+            return f"Bài {v[3:]}: {n.get(v, '')}".strip().rstrip(":")
+        return f"Dạng {v.split('-')[-1]}: {n.get(v, '')}".strip().rstrip(":")
 
     # ---------------------------------------------------------------- dữ liệu
     def reload(self):
-        names = self.win.bank.idmap()
+        self._names = self.win.bank.idmap() if self.win.bank else {}
+        pool = self.win.pool_bank()
         agg: dict[tuple, dict] = {}
-        for r in self.win.bank.id_level_stats():
+        for r in (pool.id_level_stats() if pool else []):
             key = (r["lop"] or "", r["mon"] or "", r["chuong"] or "", r["bai"] or "", r["dang"] or "", r["qtype"])
             agg.setdefault(key, {})[r["muc_do"] or "?"] = r["n"]
         self.rows = []
+        names = self._names
         for (lop, mon, ch, bai, dang, qt), lv in sorted(agg.items()):
             kb = lop + mon + ch + bai
             name = " › ".join(x for x in (names.get(kb, f"Bài {bai}"), names.get(f"{kb}-{dang}", f"Dạng {dang}" if dang
                                                                                   else "")) if x)
             self.rows.append(((lop, mon, ch, bai, dang, qt), name, lv))
-        lops = sorted({k[0] for k, _, _ in self.rows})
-        cur = self.cb_lop.currentData()
-        self.cb_lop.blockSignals(True)
-        self.cb_lop.clear()
-        self.cb_lop.addItem("Mọi lớp", "")
-        for x in lops:
-            self.cb_lop.addItem(names.get(x) or f"Lớp {x}", x)
-        self.cb_lop.setCurrentIndex(max(0, self.cb_lop.findData(cur)))
-        self.cb_lop.blockSignals(False)
-        cur = self.cb_chuong.currentData()
-        self.cb_chuong.blockSignals(True)
-        self.cb_chuong.clear()
-        self.cb_chuong.addItem("Mọi chương", "")
-        for k in sorted({k[0] + k[1] + k[2] for k, _, _ in self.rows}):
-            self.cb_chuong.addItem(f"{k} – {names.get(k, 'Chương ' + k[2:])}", k)
-        self.cb_chuong.setCurrentIndex(max(0, self.cb_chuong.findData(cur)))
-        self.cb_chuong.blockSignals(False)
+        keys = [k for k, _, _ in self.rows]
+        for k, all_text in (("lop", "Mọi lớp"), ("mon", "Mọi môn"), ("chuong", "Mọi chương"), ("bai", "Mọi bài"),
+                            ("dang", "Mọi dạng")):
+            vals = sorted({self._value(key, k) for key in keys} - {""})
+            items = [(v, self._label(k, v)) for v in vals]
+            if k in self.q:
+                self._fill(self.q[k], items, all_text)
+            if k in self.f:
+                self._fill(self.f[k], items, all_text)
         self.apply_filter()
+
+    def _passes(self, key, name, lv, idk, find):
+        from ...textnorm import unaccent
+        lop, mon, ch, bai, dang, qt = key
+        for src in (self.q, self.f):
+            for k, part in (("lop", lop), ("mon", lop + mon), ("chuong", lop + mon + ch), ("bai", lop + mon + ch + bai),
+                            ("dang", lop + mon + ch + bai + "-" + dang)):
+                cb = src.get(k)
+                v = cb.currentData() if cb is not None else ""
+                if v and part != v:
+                    return False
+            lo = src["loai"].currentData()
+            if lo and qt != lo:
+                return False
+        ki = self.f["kieu"].currentData()
+        if ki == "6" and not dang or ki == "5" and dang:
+            return False
+        got = sum(self.counts.get(key, {}).values())
+        la = self.f["lay"].currentData()
+        if la == "1" and not got or la == "0" and got:
+            return False
+        if find and find not in unaccent(f"{idk} {name}".lower()):
+            return False
+        return True
 
     def visible_rows(self):
         from ...textnorm import unaccent
-        lop, qt, taken = self.cb_lop.currentData(), self.cb_type.currentData(), self.cb_taken.currentData()
         find = unaccent(self.e_find.text().strip().lower())
         out = []
         for key, name, lv in self.rows:
-            idk = key[0] + key[1] + key[2] + key[3] + (f"-{key[4]}" if key[4] else "")
-            if lop and key[0] != lop or qt and key[5] != qt:
-                continue
-            if self.cb_chuong.currentData() and key[0] + key[1] + key[2] != self.cb_chuong.currentData():
-                continue
-            if find and find not in unaccent(f"{idk} {name}".lower()):
-                continue
-            got = sum(self.counts.get(key, {}).values())
-            if taken == "1" and not got or taken == "0" and got:
-                continue
-            out.append((key, idk, name, lv))
+            idk = key[0] + key[1] + key[2] + "?" + key[3] + (f"-{key[4]}" if key[4] else "")
+            if self._passes(key, name, lv, idk, find):
+                out.append((key, idk, name, lv))
         return out
 
     def apply_filter(self):
@@ -148,10 +270,12 @@ class IdGridPanel(QWidget):
         self.t.setRowCount(len(self._shown))
         for r, (key, idk, name, lv) in enumerate(self._shown):
             have = "/".join(str(lv.get(x, 0)) for x in LEVELS)
-            cells = [idk, name, TEN_LOAI.get(key[5], key[5]), have]
+            cells = [str(r + 1), idk, lop_label(key[0]), key[1], key[2], name, LOAI.get(key[5], key[5]), have]
             for c, v in enumerate(cells):
                 it = QTableWidgetItem(v)
                 it.setFlags(Qt.ItemFlag.ItemIsEnabled | Qt.ItemFlag.ItemIsSelectable)
+                if c in (0, 2, 3, 4, 6, 7):
+                    it.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
                 self.t.setItem(r, c, it)
             for j, x in enumerate(LEVELS):
                 n = self.counts.get(key, {}).get(x, 0)
@@ -160,20 +284,20 @@ class IdGridPanel(QWidget):
                 if not lv.get(x):
                     it.setFlags(Qt.ItemFlag.ItemIsSelectable)
                     it.setBackground(QColor("#eeeeee"))
-                self.t.setItem(r, 4 + j, it)
-            for c, v in ((8, sum(v for k, v in lv.items() if k in LEVELS)), (9, sum(self.counts.get(key, {}).values()))):
-                it = QTableWidgetItem(str(v))
-                it.setFlags(Qt.ItemFlag.ItemIsEnabled)
-                self.t.setItem(r, c, it)
+                self.t.setItem(r, C_LV0 + j, it)
+            it = QTableWidgetItem(str(sum(self.counts.get(key, {}).values())))
+            it.setFlags(Qt.ItemFlag.ItemIsEnabled)
+            it.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+            self.t.setItem(r, C_TOTAL, it)
         self.t.blockSignals(False)
         self._summary()
 
     def _changed(self, it):
         c, r = it.column(), it.row()
-        if not 4 <= c <= 7 or r >= len(self._shown):
+        if not C_LV0 <= c < C_LV0 + 4 or r >= len(self._shown):
             return
         key, _, _, lv = self._shown[r]
-        x = LEVELS[c - 4]
+        x = LEVELS[c - C_LV0]
         try:
             n = max(0, int(it.text().strip() or 0))
         except ValueError:
@@ -183,7 +307,7 @@ class IdGridPanel(QWidget):
         self.t.blockSignals(True)
         it.setText(str(n) if n else "")
         it.setForeground(QColor("#c00000") if n and n == lv.get(x, 0) else QColor("black"))
-        self.t.item(r, 9).setText(str(sum(self.counts[key].values())))
+        self.t.item(r, C_TOTAL).setText(str(sum(self.counts[key].values())))
         self.t.blockSignals(False)
         self._summary()
 
@@ -191,8 +315,17 @@ class IdGridPanel(QWidget):
         tot = {}
         for key, d in self.counts.items():
             tot[key[5]] = tot.get(key[5], 0) + sum(d.values())
-        self.l_sum.setText("Đã chọn: " + (" · ".join(f"{TEN_LOAI[k]} {v}" for k, v in tot.items() if v) or "chưa có") +
-                           f" · tổng <b>{sum(tot.values())}</b> câu")
+        self.l_sum.setText("Đã chọn: " + (" · ".join(f"{LOAI.get(k, k)} {v}" for k, v in tot.items() if v) or "chưa có") +
+                           f" · tổng <b>{sum(tot.values())}</b> câu · đang hiện {len(self._shown)} dòng")
+
+    def take_quick(self):
+        """«Lấy»: với các dòng đang hiện, đặt số câu theo ô «Số câu» ở mức độ đã chọn (mọi mức nếu «Mọi mức độ»)."""
+        n, muc = self.sp_n.currentData(), self.q["muc"].currentData()
+        for key, _, _, lv in self._shown:
+            for x in ([muc] if muc else LEVELS):
+                if lv.get(x):
+                    self.counts.setdefault(key, {})[x] = min(n, lv.get(x, 0))
+        self.apply_filter()
 
     def quick_fill(self):
         x, n = self.cb_quick.currentData(), self.sp_quick.value()

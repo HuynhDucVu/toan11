@@ -238,7 +238,7 @@ def test_docx_mathtype_warning_and_table(tmp_path):
     f = tmp_path / "t.docx"
     _make_docx(str(f), _p("Bảng:") + tbl, {"word/embeddings/oleObject1.bin": b"MathType"})
     tex, rep = docx_to_latex(str(f))
-    assert "\\begin{tabular}{|c|c|}" in tex and rep.mathtype_ole == 1 and rep.warnings
+    assert "\\begin{tabular}{|c|c|}" in tex and rep.mathtype_ole == 1 and rep.mathtype_ok == 0
 
 
 def test_tools2_extras():
@@ -615,3 +615,107 @@ def test_docx_diagnosis_report(tmp_path):
     _make_docx(str(f), _p("Tiêu đề đề thi") + _p("Câu 1. Tính $1+1$.") + _p("A. 1") + _p("B. 2", underline=True))
     rp = diagnose_docx(str(f))
     assert "Số đoạn: 4" in rp and "Câu N=1" in rp and "A./B./C./D.=2" in rp and "có \\underline=1" in rp
+
+
+def _mtef_char(face, code, opt=0, fontpos=None):
+    b = bytearray([2, opt | (0x04 if fontpos is not None else 0), 128 + face, code & 255, code >> 8])
+    if fontpos is not None:
+        b.append(fontpos)
+    return bytes(b)
+
+
+def _mtef_header():
+    return bytes([5, 1, 0, 4, 0]) + b"DSMT4\x00" + b"\x00"
+
+
+def test_mtef_quadratic_formula_and_templates():
+    """Công thức nghiệm –b ± √(b²–4ac) / 2a theo đúng ví dụ trong đặc tả MTEF v5."""
+    from nganhangde import mtef
+    END, LINE = b"\x00", b"\x01\x00"
+    minus = _mtef_char(6, 0x2212, fontpos=0x2D)
+    pm = _mtef_char(6, 0x00B1, fontpos=0xB1)
+    var = lambda c: _mtef_char(3, ord(c))
+    num = lambda c: _mtef_char(8, ord(c))
+    # TMPL mũ: ô chỉ số dưới rỗng (LINE NULL) rồi ô mũ
+    sup_tmpl = bytes([3, 0, 28, 0, 0]) + bytes([1, 1]) + bytes([1, 0]) + num("2") + END + END
+    radicand = bytes([1, 0]) + var("b") + sup_tmpl + minus + num("4") + var("a") + var("c") + END
+    root = bytes([3, 0, 10, 0, 0]) + radicand + bytes([1, 1]) + END
+    numer = bytes([1, 0]) + minus + var("b") + pm + root + END
+    denom = bytes([1, 0]) + num("2") + var("a") + END
+    frac = bytes([3, 0, 11, 0, 0]) + numer + denom + END
+    stream = _mtef_header() + bytes([9, 0, 128]) + bytes([1, 0]) + frac + END + END
+    res = mtef.mtef_to_latex(stream)
+    assert res.latex.replace(" ", "") == "\\dfrac{-b\\pm\\sqrt{b^{2}-4ac}}{2a}"
+    # tiêu đề OLE 28 byte đứng trước MTEF
+    ole = (bytes([28, 0]) + bytes(26)) + stream
+    assert mtef.native_to_latex(ole).latex == res.latex
+    # hệ phương trình: ngoặc nhọn trái + PILE → \heva{…}
+    eq1 = bytes([1, 0]) + var("x") + _mtef_char(6, 0x2B, fontpos=0x2B) + var("y") + _mtef_char(6, 0x3D, fontpos=0x3D) + num("1") + END
+    eq2 = bytes([1, 0]) + var("x") + minus + var("y") + _mtef_char(6, 0x3D, fontpos=0x3D) + num("3") + END
+    pile = bytes([4, 0, 1, 0]) + eq1 + eq2 + END
+    brace = bytes([3, 0, 2, 1, 0]) + bytes([1, 0]) + pile + END + END           # chỉ có ngoặc trái (variation 1)
+    sys_ = _mtef_header() + bytes([1, 0]) + brace + END + END
+    assert mtef.mtef_to_latex(sys_).latex == "\\heva{x+y=1 \\\\ x-y=3}"
+    # tích phân có cận, lim, chữ Hy Lạp
+    sub = bytes([1, 0]) + num("0") + END
+    sup = bytes([1, 0]) + num("1") + END
+    body = bytes([1, 0]) + var("f") + _mtef_char(6, 0x28, fontpos=0x28) + var("x") + _mtef_char(6, 0x29, fontpos=0x29) + END
+    integ = bytes([3, 0, 15, 1, 0]) + body + sup + sub + _mtef_char(6, 0x222B) + END
+    s2 = _mtef_header() + bytes([1, 0]) + integ + _mtef_char(4, 0x03B1) + var("x") + END + END
+    assert mtef.mtef_to_latex(s2).latex.replace(" ", "") == "\\int_{0}^{1}f(x)\\alphax"
+
+
+def _build_ole(stream_name: str, payload: bytes) -> bytes:
+    """Tệp OLE (Compound File v3) tối thiểu chứa một luồng ≥ 4096 byte (dùng thử đọc «Equation Native»)."""
+    import struct
+    data = payload + bytes(max(0, 4096 - len(payload)))
+    nsec = (len(data) + 511) // 512
+    data += bytes(nsec * 512 - len(data))
+    fat = [0xFFFFFFFD, 0xFFFFFFFE] + [i + 1 for i in range(3, 2 + nsec)] + [0xFFFFFFFE]
+    fat += [0xFFFFFFFF] * (128 - len(fat))
+
+    def dirent(name, typ, child, start, size):
+        nm = name.encode("utf-16-le") + b"\0\0" if name else b""
+        return (nm + bytes(64 - len(nm)) + struct.pack("<H", len(nm)) + bytes([typ, 1]) +
+                struct.pack("<III", 0xFFFFFFFF, 0xFFFFFFFF, child) + bytes(16) + bytes(4) + bytes(16) +
+                struct.pack("<I", start) + struct.pack("<Q", size))
+    entries = dirent("Root Entry", 5, 1, 0xFFFFFFFE, 0) + dirent(stream_name, 2, 0xFFFFFFFF, 2, len(data)) + \
+        dirent("", 0, 0xFFFFFFFF, 0, 0) * 2
+    hdr = (bytes([0xD0, 0xCF, 0x11, 0xE0, 0xA1, 0xB1, 0x1A, 0xE1]) + bytes(16) + struct.pack("<HHHHH", 0x3E, 3, 0xFFFE, 9, 6) +
+           bytes(6) + struct.pack("<IIIIIIIII", 0, 1, 1, 0, 4096, 0xFFFFFFFE, 0, 0xFFFFFFFE, 0) +
+           struct.pack("<I", 0) + struct.pack("<108I", *([0xFFFFFFFF] * 108)))
+    return hdr + struct.pack("<128I", *fat) + entries + data
+
+
+def test_docx_with_mathtype_ole_equation(tmp_path):
+    """File Word có công thức MathType (đối tượng OLE) được đọc thẳng sang LaTeX, không cần Word/MathType."""
+    import zipfile
+    from nganhangde import wordconv
+    from nganhangde.docxnative import DocxOptions, docx_to_latex
+    END = b"\x00"
+    var = lambda c: _mtef_char(3, ord(c))
+    num = lambda c: _mtef_char(8, ord(c))
+    frac = bytes([3, 0, 11, 0, 0]) + bytes([1, 0]) + num("1") + END + bytes([1, 0]) + num("2") + END + END
+    mtef = _mtef_header() + bytes([1, 0]) + var("x") + _mtef_char(6, 0x3D, fontpos=0x3D) + frac + END + END
+    ole = _build_ole("Equation Native", bytes([28, 0]) + bytes(26) + mtef)
+    ns = ('xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" '
+          'xmlns:o="urn:schemas-microsoft-com:office:office" '
+          'xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:v="urn:schemas-microsoft-com:vml"')
+
+    def obj():
+        return ('<w:r><w:object><v:shape><v:imagedata r:id="rId9"/></v:shape>'
+                '<o:OLEObject Type="Embed" ProgID="Equation.DSMT4" ShapeID="s" DrawAspect="Content" r:id="rId7"/></w:object></w:r>')
+    body = (f'<w:p><w:r><w:t xml:space="preserve">Câu 1. Giá trị của </w:t></w:r>{obj()}<w:r><w:t xml:space="preserve"> bằng</w:t></w:r></w:p>'
+            '<w:p><w:r><w:t>A. 1</w:t></w:r></w:p><w:p><w:r><w:rPr><w:u w:val="single"/></w:rPr><w:t>B. 2</w:t></w:r></w:p>'
+            '<w:p><w:r><w:t>C. 3</w:t></w:r></w:p><w:p><w:r><w:t>D. 4</w:t></w:r></w:p>')
+    f = tmp_path / "mt.docx"
+    with zipfile.ZipFile(f, "w") as z:
+        z.writestr("word/document.xml", f'<?xml version="1.0"?><w:document {ns}><w:body>{body}</w:body></w:document>')
+        z.writestr("word/_rels/document.xml.rels", '<?xml version="1.0"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
+                   '<Relationship Id="rId7" Type="x" Target="embeddings/oleObject1.bin"/></Relationships>')
+        z.writestr("word/embeddings/oleObject1.bin", ole)
+    tex, rep = docx_to_latex(str(f))
+    assert rep.mathtype_ole == 1 and rep.mathtype_ok == 1 and rep.mathtype_fail == 0
+    assert "Giá trị của $x=\\dfrac{1}{2}$ bằng" in tex.replace("$x = \\dfrac", "$x=\\dfrac")
+    qs = parse_tex(wordconv.import_docx(str(f), "", DocxOptions()))
+    assert len(qs) == 1 and qs[0].answer_text == "B" and "\\dfrac{1}{2}" in qs[0].stem

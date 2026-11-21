@@ -56,8 +56,18 @@ class LayoutMixin:
         self.update_panel = UpdatePanel(self)
         self.draw_panel = self.graph_panel          # tên cũ
         mt = self.main_tabs
-        mt.addTab(sub((self.idgrid_panel, "Chọn theo ID"), (self.gen_panel, "Theo ma trận ID"), (self.pick_panel, "Tự chọn câu"),
-                      (self.filemix_panel, "Theo file"), (self.similar_panel, "Đề tương tự")), "📝 Trộn đề")
+        from PySide6.QtWidgets import QWidget
+        from .tabs.mix_source import MixSourceBar
+        mix = QWidget()                                # Trộn đề = thanh nguồn (ngân hàng/files) + các trang con như MyLT 2026
+        mv = QVBoxLayout(mix)
+        mv.setContentsMargins(4, 4, 4, 0)
+        self.mix_source_bar = MixSourceBar(self)
+        mv.addWidget(self.mix_source_bar)
+        mix.inner_tabs = sub((self.idgrid_panel, "Tạo đề theo ID"), (self.pick_panel, "Tạo đề tự chọn"),
+                             (self.filemix_panel, "Tạo đề theo file"), (self.similar_panel, "Tạo đề tương tự"),
+                             (self.gen_panel, "Tuỳ chọn đề"))
+        mv.addWidget(mix.inner_tabs, 1)
+        mt.addTab(mix, "📝 Trộn đề")
         mt.addTab(bank_widget, "📚 Câu hỏi")
         mt.addTab(self.matrix_panel, "🧮 Ma trận")
         mt.addTab(sub((self.tools_panel, "Tiện ích 1"), (self.utils2_panel, "Tiện ích 2"),
@@ -92,9 +102,13 @@ class LayoutMixin:
 
     def current_panel(self):
         w = self.main_tabs.currentWidget()
-        while isinstance(w, QTabWidget):
-            w = w.currentWidget()
-        return w
+        while True:
+            if isinstance(w, QTabWidget):
+                w = w.currentWidget()
+            elif hasattr(w, "inner_tabs"):
+                w = w.inner_tabs.currentWidget()
+            else:
+                return w
 
     # ---------------------------------------------------------------- xem câu hỏi từ file
     def _source_box(self):

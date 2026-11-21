@@ -22,6 +22,7 @@ R = "{http://schemas.openxmlformats.org/officeDocument/2006/relationships}"
 A = "{http://schemas.openxmlformats.org/drawingml/2006/main}"
 REL = "{http://schemas.openxmlformats.org/package/2006/relationships}"
 V = "{urn:schemas-microsoft-com:vml}"
+O = "{urn:schemas-microsoft-com:office:office}"
 
 
 @dataclass
@@ -41,6 +42,8 @@ class DocxReport:
     mathtype_ole: int = 0
     images: int = 0
     tables: int = 0
+    mathtype_ok: int = 0             # công thức MathType đã đọc trực tiếp (MTEF → LaTeX)
+    mathtype_fail: int = 0
     warnings: list[str] = field(default_factory=list)
 
 
@@ -54,9 +57,6 @@ def triage(path: str) -> DocxReport:
             root = ET.fromstring(zf.read("word/document.xml"))
             rep.omml = len(root.findall(f".//{M}oMath"))
             rep.tables = len(root.findall(f".//{W}tbl"))
-    if rep.mathtype_ole:
-        rep.warnings.append(f"Có {rep.mathtype_ole} công thức MathType (đối tượng OLE) – cần Word + MathType để đổi sang công "
-                            "thức Word trước (tuỳ chọn «Dùng Word»), nếu không các công thức này bị bỏ qua.")
     return rep
 
 
@@ -148,6 +148,16 @@ def _marked(r) -> bool:
         return True
     col = rpr.find(f"{W}color")
     return bool(col is not None and (col.attrib.get(f"{W}val") or "").upper() not in ("", "000000", "AUTO"))
+
+
+_STRUCT = re.compile(r"^\s*(?:\\textbf\{)?\s*(?:Câu|Bài)\s*\d+|^\s*(?:Lời giải|Hướng dẫn|Trả lời|Đáp án|Đáp số|PHẦN|Phần)|^\s*\[\[",
+                     re.I)
+
+
+def _underlined(r) -> bool:
+    rpr = r.find(f"{W}rPr")
+    u = rpr.find(f"{W}u") if rpr is not None else None
+    return u is not None and u.attrib.get(f"{W}val", "single") != "none"
 
 
 def _style(r):
@@ -291,10 +301,36 @@ def _image(ctx: _Ctx, elem) -> str:
     return f"\\includegraphics[width=5cm]{{{os.path.splitext(rel)[0] if ext in ('.png', '.jpg', '.jpeg') else rel}}}"
 
 
+def _mathtype_object(ctx: _Ctx, run) -> str | None:
+    """Công thức MathType (đối tượng OLE trong w:object) → «$…$»; None nếu run không chứa công thức MathType."""
+    ole = None
+    for o in run.iter(f"{O}OLEObject"):
+        ole = o
+        break
+    if ole is None or not (ole.attrib.get("ProgID", "") or "").startswith("Equation"):
+        return None
+    target = ctx.rels.get(ole.attrib.get(f"{R}id", ""), "")
+    name = "word/" + target.lstrip("/").replace("word/", "", 1) if target else ""
+    try:
+        from .mtef import ole_to_latex
+        res = ole_to_latex(ctx.zf.read(name))
+        ctx.rep.mathtype_ok += 1
+        return "$" + res.latex + "$" if res.latex else ""
+    except Exception as e:  # noqa: BLE001 – olefile thiếu, MTEF lạ, file hỏng…
+        ctx.rep.mathtype_fail += 1
+        if ctx.rep.mathtype_fail == 1:
+            ctx.rep.warnings.append(f"Có công thức MathType không đọc được ({type(e).__name__}: {str(e)[:80]}).")
+        return "$\\text{[công thức]}$"
+
+
 def _parts(ctx: _Ctx, elem, out: list[str]):
     for c in elem:
         t = c.tag
         if t == f"{W}r":
+            mt = _mathtype_object(ctx, c)
+            if mt is not None:
+                out.append(mt)
+                continue
             txt = "".join((x.text or "") if x.tag == f"{W}t" else "\t" if x.tag == f"{W}tab" else
                           " " if x.tag in (f"{W}br", f"{W}cr") else "" for x in c.iter()
                           if x.tag in (f"{W}t", f"{W}tab", f"{W}br", f"{W}cr"))
@@ -314,7 +350,10 @@ def _parts(ctx: _Ctx, elem, out: list[str]):
                     txt = "$^{" + txt + "}$"
             if _marked(c) and txt.strip() and not getattr(ctx, "skip_mark", False):
                 m = re.match(r"^(\s*[A-Da-d]\s*[.)])(.*)$", txt, re.S) if not "".join(out).strip() else None
-                txt = (f"\\underline{{{m.group(1).strip()}}}{m.group(2)}" if m else f"\\underline{{{txt}}}")
+                if m:                                        # nhãn phương án gạch chân/tô màu = đáp án đúng
+                    txt = f"\\underline{{{m.group(1).strip()}}}{m.group(2)}"
+                elif _underlined(c) and not _STRUCT.match(txt):
+                    txt = f"\\underline{{{txt}}}"          # gạch chân thật (không phải chỉ tô màu); «Câu N», «Lời giải»… giữ nguyên
             out.append(txt)
         elif t == f"{M}oMath":
             x = omml(c).strip()

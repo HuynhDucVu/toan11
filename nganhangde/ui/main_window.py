@@ -244,6 +244,12 @@ class MainWindow(LayoutMixin, BankActionsMixin, QMainWindow):
         return a
 
     # ---------------------------------------------------------- kho dữ liệu
+    def pool_bank(self):
+        """Nguồn câu cho tab Trộn đề: kho chính, hoặc kho tạm nạp từ các file (chế độ «Từ Files»)."""
+        if getattr(self, "mix_source", "bank") == "files" and getattr(self, "file_pool", None) is not None:
+            return self.file_pool
+        return self.bank
+
     def open_bank(self, path: str, remember: bool = True):
         try:
             os.makedirs(os.path.dirname(os.path.abspath(path)), exist_ok=True)

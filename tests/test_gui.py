@@ -324,8 +324,8 @@ def test_id_grid_and_online_settings(win, app):
     rd = g.rules()
     assert rd and all(r["muc_do"] == "H" and r["count"] == 1 for r in rd)
     assert g.to_matrix(True) and win.gen_panel.t.rowCount() == len(rd)
-    r0 = next(r for r in range(g.t.rowCount()) if g.t.item(r, 4).flags() & Qt.ItemFlag.ItemIsEditable)
-    g.t.item(r0, 4).setText("99")                 # vượt số câu có ⇒ tự hạ xuống
+    r0 = next(r for r in range(g.t.rowCount()) if g.t.item(r, 8).flags() & Qt.ItemFlag.ItemIsEditable)
+    g.t.item(r0, 8).setText("99")                 # vượt số câu có ⇒ tự hạ xuống
     key = g._shown[r0][0]
     assert g.counts[key]["N"] == g._shown[r0][3]["N"]
     from nganhangde.ui.dialogs.online_settings import OnlineSettingsDialog, load
@@ -481,3 +481,57 @@ def test_word2tex_dialog_like_mylt(win, app, monkeypatch):
     assert d2.engine() == "toggle" and d2.replacements() == [("Δ", "\\Delta")]
     d2.g_rep.setChecked(False)
     assert d2.replacements() == []
+
+
+def test_mix_tab_like_mylt(win, app, tmp_path):
+    from nganhangde.ui.tabs.id_grid import COLS
+    mix = win.main_tabs.widget(0)
+    assert [mix.inner_tabs.tabText(i) for i in range(mix.inner_tabs.count())] == [
+        "Tạo đề theo ID", "Tạo đề tự chọn", "Tạo đề theo file", "Tạo đề tương tự", "Tuỳ chọn đề"]
+    bar = win.mix_source_bar
+    assert bar.r_bank.text() == "Từ ngân hàng câu hỏi" and bar.r_files.text().startswith("Từ Files.")
+    assert bar.b_open.text() == "Mở ngân hàng" and bar.b_import.text() == "Nhập câu hỏi"
+    assert COLS[:8] == ["STT", "ID", "Lớp", "Môn", "Chương", "Bài, dạng", "Loại", "Đã có (N/H/V/C)"]
+    g = win.idgrid_panel
+    g.reload()
+    n_all = g.t.rowCount()
+    assert n_all > 0 and g.t.item(0, 0).text() == "1" and "?" in g.t.item(0, 1).text()
+    # Chọn nhanh: lọc theo loại rồi «Lấy» 2 câu mức H
+    g.q["loai"].setCurrentIndex(g.q["loai"].findData("TN"))
+    g.q["muc"].setCurrentIndex(g.q["muc"].findData("H"))
+    g.sp_n.setCurrentIndex(g.sp_n.findData(2))
+    g.apply_filter()
+    assert 0 < g.t.rowCount() <= n_all and all(g.t.item(r, 6).text() == "TN" for r in range(g.t.rowCount()))
+    g.take_quick()
+    assert g.rules() and all(r["qtype"] == "TN" and r["muc_do"] == "H" and r["count"] <= 2 for r in g.rules())
+    # Từ Files: kho tạm nạp từ file, bảng tải các câu trong file
+    f = tmp_path / "nguon.tex"
+    f.write_text("\\begin{ex}%[0D9N1-1]\nCâu A $1$\n\\choice\n{\\True 1}\n{2}\n{3}\n{4}\n\\end{ex}\n"
+                 "\\begin{ex}%[0D9H1-2]\nCâu B $2$\n\\choice\n{1}\n{\\True 2}\n{3}\n{4}\n\\end{ex}\n", encoding="utf-8")
+    bar.load_files([str(f)])
+    bar.r_files.setChecked(True)
+    assert win.mix_source == "files" and win.pool_bank().count() == 2 and win.bank.count() > 2
+    g.clear_counts()
+    for k in ("loai",):
+        g.q[k].setCurrentIndex(0)
+    g.q["muc"].setCurrentIndex(0)
+    g.apply_filter()
+    assert g.t.rowCount() == 2
+    bar.r_bank.setChecked(True)
+    assert win.mix_source == "bank" and win.pool_bank() is win.bank
+
+
+def test_pick_panel_source_table(win, app):
+    p = win.pick_panel
+    p.reload()
+    assert p.src.rowCount() > 3 and "câu" in p.l_src.text()
+    p.cb_type.setCurrentIndex(p.cb_type.findData("TN"))
+    p.reload()
+    assert all(p.src.item(r, 1).text() == "TN" for r in range(p.src.rowCount()))
+    p.src.selectRow(0)
+    p.src.selectionModel().select(p.src.model().index(1, 0), p.src.selectionModel().SelectionFlag.Select |
+                                  p.src.selectionModel().SelectionFlag.Rows)
+    p.add_from_source()
+    assert len(p.basket) == 2 and p.t.rowCount() == 2
+    p.add_from_source()                                      # thêm lại không trùng
+    assert len(p.basket) == 2
