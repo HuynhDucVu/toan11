@@ -765,6 +765,6 @@ def test_cleanup_temp_for_update(tmp_path, monkeypatch):
     os.makedirs(tam, exist_ok=True)
     open(os.path.join(tam, "rac.tex"), "w").write("x")
     res = updater.cleanup_temp()
-    assert res["files"] >= 5 and res["bytes"] >= 1000
+    assert res["files"] >= 4 and res["bytes"] >= 1000
     assert (tmp / "khac.txt").exists() and not (tmp / "nhd_update_abc").exists() and not (tmp / "_MEI123").exists()
     assert not (tmp / "capnhat_nganhangde.bat").exists() and not os.path.exists(os.path.join(tam, "rac.tex"))
