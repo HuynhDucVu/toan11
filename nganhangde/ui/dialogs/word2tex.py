@@ -4,6 +4,7 @@ from __future__ import annotations
 import os
 from typing import TYPE_CHECKING
 
+from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (QCheckBox, QComboBox, QDialog, QDialogButtonBox, QFormLayout, QLabel, QPlainTextEdit,
     QVBoxLayout)
 
@@ -30,6 +31,13 @@ class Word2TexDialog(QDialog):
                              "nhận theo chữ <b>gạch chân hoặc tô màu</b>."))
         f = QFormLayout()
         lay.addLayout(f)
+        self.cb_engine = QComboBox()
+        for t, d in (("Đọc trực tiếp file Word (nhanh, công thức Word thường – công thức MathType bị bỏ)", "direct"),
+                     ("Word → PDF → Mathpix (công thức MathType hiện đúng; cần Word + khoá Mathpix)", "mathpix"),
+                     ("Word → PDF → AI Gemini/Claude (công thức MathType hiện đúng; cần Word + khoá AI)", "ai")):
+            self.cb_engine.addItem(t, d)
+        self.cb_engine.setCurrentIndex(max(0, self.cb_engine.findData(self.st.value("w2t/engine", "direct"))))
+        f.addRow("Cách đọc", self.cb_engine)
         self.boxes = {}
         for k, text, d in KEYS:
             c = QCheckBox(text)
@@ -63,6 +71,7 @@ class Word2TexDialog(QDialog):
         for k, c in self.boxes.items():
             self.st.setValue(f"w2t/{k}", c.isChecked())
         self.st.setValue("w2t/mode", self.cb_mode.currentData())
+        self.st.setValue("w2t/engine", self.cb_engine.currentData())
         self.st.setValue("w2t/rep", self.e_rep.toPlainText())
         self.accept()
 
@@ -123,3 +132,64 @@ def convert_word_file(win: MainWindow, path: str, dlg: Word2TexDialog, tag: str 
         except OSError:
             pass
     return tex, notes
+
+
+def run_word_to_tex(win, paths: list[str], dlg: "Word2TexDialog", tag: str = "") -> list[dict]:
+    """Chuyển các file Word theo cách đã chọn trong hộp thoại. Mỗi file trả về
+    {'src', 'out', 'tex', 'n', 'notes', 'error'}; file .tex được ghi vào DATA\\WORD2EXTEST (hoặc DATA\\PDF2TEX nếu đi qua PDF)."""
+    from ... import wordcom
+    from ...parser import parse_tex
+    engine = dlg.cb_engine.currentData()
+    res = []
+    for p in paths:
+        item = {"src": p, "out": "", "tex": "", "n": 0, "notes": [], "error": ""}
+        res.append(item)
+        if engine in ("mathpix", "ai"):
+            from ...appdirs import folder
+            from .pdf2tex import convert_pdfs
+            pdf = os.path.join(folder("pdf2tex"), os.path.splitext(os.path.basename(p))[0] + ".pdf")
+            from PySide6.QtWidgets import QApplication
+            QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
+            try:
+                ok, msg = wordcom.export_pdf(p, pdf)
+            finally:
+                QApplication.restoreOverrideCursor()
+            if ok:
+                outs, lines = convert_pdfs(win, [pdf], engine, tag)
+                item["notes"] += [__import__("re").sub("<[^>]+>", "", x) for x in lines]
+                if outs:
+                    item["out"] = outs[0]
+                    item["tex"] = open(outs[0], encoding="utf-8").read()
+                    item["n"] = len(parse_tex(item["tex"]))
+                    continue
+            else:
+                item["notes"].append(f"Word không xuất được PDF ({msg}) – chuyển sang đọc trực tiếp file Word.")
+        try:
+            tex, notes = convert_word_file(win, p, dlg, tag)
+        except Exception as e:  # noqa: BLE001 – file hỏng, đang mở, không phải .docx…
+            item["error"] = f"{type(e).__name__}: {e}"
+            continue
+        item["notes"] += notes
+        out = output_paths(p)[0]
+        try:
+            with open(out, "w", encoding="utf-8") as f:
+                f.write(tex)
+        except OSError as e:
+            item["error"] = f"Không ghi được {out}: {e}"
+            continue
+        item.update(out=out, tex=tex, n=len(parse_tex(tex)))
+    return res
+
+
+def summary_html(res: list[dict]) -> str:
+    rows = []
+    for it in res:
+        name = os.path.basename(it["src"])
+        if it["error"]:
+            rows.append(f"<p style='color:#c00000'>✘ <b>{name}</b>: {it['error']}</p>")
+            continue
+        colour = "#2e7d32" if it["n"] else "#c00000"
+        rows.append(f"<p style='color:{colour}'>{'✔' if it['n'] else '✘'} <b>{name}</b> → <b>{it['n']}</b> câu"
+                    + (f"<br>Lưu tại: <code>{it['out']}</code>" if it["out"] else "") + "</p>")
+        rows += [f"<p style='color:#b36b00;margin-left:1em'>• {n}</p>" for n in it["notes"]]
+    return "".join(rows)

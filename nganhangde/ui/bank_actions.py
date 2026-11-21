@@ -133,7 +133,7 @@ class BankActionsMixin:
         dlg.exec()
 
     def import_word(self):
-        from .dialogs.word2tex import Word2TexDialog, convert_word_file, output_paths
+        from .dialogs.word2tex import Word2TexDialog, run_word_to_tex
         paths, _ = QFileDialog.getOpenFileNames(self, "Chọn file Word", self.settings.value("last_dir", "") or __import__("nganhangde.appdirs", fromlist=["folder"]).folder("word2extest"),
                                                 "Word (*.docx)")
         if not paths:
@@ -144,22 +144,19 @@ class BankActionsMixin:
         tag, ok = QInputDialog.getText(self, "Nhập từ Word", "Nhãn nguồn gắn cho các câu (có thể để trống):")
         if not ok:
             return
+        res = run_word_to_tex(self, paths, w2t, tag.strip())
         lines = []
-        for p in paths:
-            try:
-                tex, notes = convert_word_file(self, p, w2t, tag.strip())
-                lines.extend(f"⚠ {os.path.basename(p)}: {n}" for n in notes)
-            except Exception as e:  # noqa: BLE001
-                lines.append(f"✘ {os.path.basename(p)}: {e}")
+        for it in res:
+            name = os.path.basename(it["src"])
+            if it["error"]:
+                lines.append(f"✘ {name}: {it['error']}")
                 continue
-            out = output_paths(p)[0]                              # DATA\\WORD2EXTEST
-            with open(out, "w", encoding="utf-8") as f:
-                f.write(tex)
-            qs = parse_tex(tex)
-            added = sum(1 for q in qs if self.bank.add(q, p))
+            lines.extend(f"⚠ {name}: {n}" for n in it["notes"])
+            qs = parse_tex(it["tex"]) if it["tex"] else []
+            added = sum(1 for q in qs if self.bank.add(q, it["src"]))
             bad = sum(1 for q in qs if rv.worst(rv.review_question(q)) == rv.LOI)
-            lines.append(f"✔ {os.path.basename(p)}: nhận dạng {len(qs)} câu, thêm {added} câu vào kho, "
-                         f"{bad} câu cần xem lại (chưa rõ đáp án…). Bản LaTeX: {os.path.basename(out)}")
+            lines.append(f"{'✔' if qs else '✘'} {name}: nhận dạng {len(qs)} câu, thêm {added} câu vào kho, "
+                         f"{bad} câu cần xem lại (chưa rõ đáp án…)." + (f" Bản LaTeX: {it['out']}" if it["out"] else ""))
         self.build_tree()
         self.refresh()
         QMessageBox.information(self, "Nhập từ Word", "\n".join(lines) + "\n\nNên mở tab «Rà soát» để kiểm tra lại.")

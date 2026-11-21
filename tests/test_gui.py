@@ -436,3 +436,19 @@ def test_update_panel(win, app, monkeypatch):
     # mở lúc khởi động: không bật «tự tải» ⇒ để hộp thông báo cũ xử lý
     win.settings.setValue("update/skip", "")
     assert p.on_startup(new) is False
+
+
+def test_run_word_to_tex_summary(win, app, tmp_path):
+    import sys
+    sys.path.insert(0, os.path.dirname(__file__))
+    from test_v17 import _make_docx, _p
+    from nganhangde.ui.dialogs.word2tex import Word2TexDialog, run_word_to_tex, summary_html
+    good, empty = tmp_path / "tot.docx", tmp_path / "rong.docx"
+    _make_docx(str(good), _p("Câu 1. Tính.") + _p("A. 1") + _p("B. 2", underline=True) + _p("C. 3") + _p("D. 4"))
+    _make_docx(str(empty), _p("Chỉ có một đoạn văn không phải câu hỏi."))
+    d = Word2TexDialog(win)
+    assert d.cb_engine.currentData() == "direct"
+    res = run_word_to_tex(win, [str(good), str(empty), str(tmp_path / "khong_co.docx")], d)
+    assert [r["n"] for r in res[:2]] == [1, 0] and res[2]["error"]
+    html = summary_html(res)
+    assert "tot.docx" in html and "→ <b>1</b> câu" in html and "→ <b>0</b> câu" in html and "chan_doan_rong" in html

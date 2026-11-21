@@ -11,6 +11,11 @@ Với bản một file:
 
 Kho câu hỏi `nganhang.db` nằm cạnh file exe. Cập nhật từ bản cũ: chỉ cần thay file exe, kho giữ nguyên.
 
+## Có gì mới ở bản 0.17.26 – Viết lại luồng chuyển Word → LaTeX
+- **Ba cách đọc** trong hộp «Tuỳ chọn Word → TeX»: (1) đọc trực tiếp file Word (nhanh, công thức Word thường); (2) **Word → PDF → Mathpix**; (3) **Word → PDF → AI Gemini/Claude**. Hai cách sau dùng Word xuất PDF (không gọi lệnh MathType nên không dính lỗi MathType) rồi đọc cả công thức MathType từ hình; cần Word trên máy và khoá Mathpix/AI. Word không xuất được PDF thì tự quay về đọc trực tiếp.
+- **Luôn hiện kết quả rõ ràng** sau khi chuyển: từng file ra bao nhiêu câu, lưu ở đâu, vì sao 0 câu; lỗi từng file không làm dừng cả lô. Ra 0 câu thì ghi `chan_doan_<tên>.txt`.
+- Một hàm dùng chung cho cả «Word → LaTeX» (Tiện ích) và «Nhập file Word» (Tệp).
+
 ## Có gì mới ở bản 0.17.25 – Chuyển Word: tự ghi báo cáo chẩn đoán khi ra 0 câu
 - Khi chuyển Word → LaTeX mà không nhận dạng được câu hỏi nào (hoặc file có công thức MathType dạng đối tượng), phần mềm ghi file **`chan_doan_<tên>.txt`** vào `DATA\WORD2EXTEST`: số công thức Word/MathType, hình, bảng, đoạn đánh số tự động, những dòng chữ app đọc được và nhận dạng được (Câu N, A–D, a–d…). Gửi file này để biết chính xác vì sao.
 

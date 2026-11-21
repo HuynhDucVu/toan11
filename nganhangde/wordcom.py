@@ -133,3 +133,51 @@ def convert_mathtype(docx: str, mode: str = "convert", show_word: bool = False, 
         return True, dst, out_s
     _kill_new_word(before)                              # lệnh lỗi: không để Word treo hộp thoại «cannot close»
     return False, "", (err_s or out_s or "Word không chạy được lệnh MathType") + " " + HELP_MANUAL
+
+
+PS_PDF = r"""param([string]$Src, [string]$Dst)
+$ErrorActionPreference = "Stop"
+$word = $null; $doc = $null
+try {
+    $word = New-Object -ComObject Word.Application
+    $word.Visible = $false
+    $word.DisplayAlerts = 0
+    $doc = $word.Documents.Open($Src, $false, $true)        # chỉ đọc
+    $doc.ExportAsFixedFormat($Dst, 17)                      # 17 = wdExportFormatPDF
+    Write-Output "OK"
+} finally {
+    if ($null -ne $doc) { try { $doc.Close($false) } catch {} }
+    if ($null -ne $word) { try { $word.Quit() } catch {} }
+}
+"""
+
+
+def export_pdf(docx: str, out_pdf: str, timeout: int = 180) -> tuple[bool, str]:
+    """Word xuất file .docx ra PDF (không dùng lệnh MathType nên ít lỗi): công thức MathType hiện đúng như trên màn hình.
+    Cần Word trên máy. Trả về (thành công, thông báo)."""
+    if os.name != "nt":
+        return False, "Xuất PDF bằng Word chỉ chạy trên Windows có Word."
+    d = tempfile.mkdtemp(prefix="nhd_wpdf_")
+    src = os.path.join(d, "goc.docx")
+    shutil.copyfile(docx, src)                          # làm trên bản sao
+    script = os.path.join(d, "pdf.ps1")
+    with open(script, "w", encoding="utf-8-sig") as f:
+        f.write(PS_PDF)
+    os.makedirs(os.path.dirname(os.path.abspath(out_pdf)), exist_ok=True)
+    ps = shutil.which("powershell") or r"C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe"
+    before = _word_pids()
+    try:
+        r = subprocess.run([ps, "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", script, src, os.path.abspath(out_pdf)],
+                           capture_output=True, timeout=timeout, creationflags=0x08000000)
+    except subprocess.TimeoutExpired:
+        _kill_new_word(before)
+        return False, f"Word không xuất được PDF sau {timeout} giây (đã đóng Word)."
+    except (OSError, subprocess.SubprocessError) as e:
+        _kill_new_word(before)
+        return False, str(e)
+    finally:
+        shutil.rmtree(d, ignore_errors=True)
+    if r.returncode == 0 and os.path.exists(out_pdf):
+        return True, "OK"
+    _kill_new_word(before)
+    return False, (r.stderr or r.stdout).decode("utf-8", "replace").strip() or "Word không xuất được PDF"

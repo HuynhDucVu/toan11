@@ -11,7 +11,7 @@ from PySide6.QtWidgets import (QAbstractItemView, QCheckBox, QComboBox, QFileDia
     QGroupBox, QHBoxLayout, QInputDialog, QLineEdit, QListWidget, QMessageBox, QPlainTextEdit, QPushButton,
     QTextBrowser, QVBoxLayout, QWidget)
 from ... import tools
-from ...parser import parse_file, parse_tex, validate
+from ...parser import parse_file, validate
 from ..common import TEN_LOAI, TEN_MUC, scroll_of
 from ..dialogs.assign_id import AssignIdDialog
 from ..dialogs.pdf import prepare_tex_for_pdf
@@ -318,7 +318,7 @@ class ToolsPanel(QWidget):
                          + rows + "</table>")
 
     def word_to_tex(self):
-        from ..dialogs.word2tex import Word2TexDialog, convert_word_file, output_paths
+        from ..dialogs.word2tex import Word2TexDialog, run_word_to_tex, summary_html
         ps, _ = QFileDialog.getOpenFileNames(self, "Chọn file Word", self.win.settings.value("last_dir", "") or __import__("nganhangde.appdirs", fromlist=["folder"]).folder("word2extest"),
                                              "Word (*.docx)")
         if not ps:
@@ -326,23 +326,14 @@ class ToolsPanel(QWidget):
         dlg = Word2TexDialog(self.win)
         if not dlg.exec():
             return
-        html_ = []
-        for p in ps:
-            try:
-                tex, notes = convert_word_file(self.win, p, dlg)
-            except Exception as e:  # noqa: BLE001 – file hỏng/đang mở
-                html_.append(f"<p style='color:#c00000'>✘ {os.path.basename(p)}: {e}</p>")
-                continue
-            html_.extend(f"<p style='color:#b36b00'>{os.path.basename(p)}: {n}</p>" for n in notes)
-            out = output_paths(p)[0]                              # DATA\\WORD2EXTEST
-            with open(out, "w", encoding="utf-8") as f:
-                f.write(tex)
-            qs = parse_tex(tex)
-            self.files.addItem(out)
-            html_.append(f"<p>{os.path.basename(p)} → <b>{len(qs)}</b> câu, đã lưu vào <code>DATA\\WORD2EXTEST</code>: {out}</p>")
-        if html_:
-            self.show_result("Word → LaTeX", "".join(html_) + "<p>File mới đã thêm vào danh sách bên trái – "
-                             "bấm «Soát lỗi soạn thảo» để kiểm tra đáp án nhận dạng được.</p>")
+        res = run_word_to_tex(self.win, ps, dlg)
+        for it in res:
+            if it["out"]:
+                self.files.addItem(it["out"])
+        html_ = summary_html(res)
+        self.show_result("Word → LaTeX", html_ + "<p>File mới đã thêm vào danh sách bên trái – bấm «Soát lỗi soạn thảo» "
+                         "để kiểm tra đáp án nhận dạng được.</p>")
+        QMessageBox.information(self, "Word → LaTeX", html_)     # luôn hiện kết quả rõ ràng (số câu, nơi lưu, vì sao 0 câu)
 
     def tex_to_word(self):
         from ...wordconv import PandocMissing, export_questions_docx
