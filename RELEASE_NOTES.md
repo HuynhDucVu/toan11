@@ -11,6 +11,9 @@ Với bản một file:
 
 Kho câu hỏi `nganhang.db` nằm cạnh file exe. Cập nhật từ bản cũ: chỉ cần thay file exe, kho giữ nguyên.
 
+## Có gì mới ở bản 0.17.14 – Sửa lỗi build, xem PDF và Mathpix không cần thêm thư viện
+- Sửa lỗi làm bản 0.17.11–0.17.13 không đóng gói được: bộ kiểm thử trên Windows dùng thư viện Pillow mà bản đóng gói không có. Xem PDF trong app và gửi trang cho Mathpix nay vẽ bằng Qt, không cần numpy/Pillow. **Các tính năng của 0.17.11–0.17.13 (phiếu TLTN 2025, Excel TNMaker mặc định, PDF → LaTeX) có trong bản này.**
+
 ## Có gì mới ở bản 0.17.13 – PDF → LaTeX (3 cách đọc)
 - **Tệp → Chuyển PDF → LaTeX** (và nút «PDF → LaTeX» ở Tiện ích 1): chọn cách đọc – **chữ trong PDF** (miễn phí, không cần mạng), **Mathpix** (chữ + công thức, cả bản chụp) hoặc **AI** Gemini/Claude. Nhận dạng «PHẦN I/II/III», «Câu N», phương án A–D, ý a–d (Đúng/Sai), trả lời ngắn, tự luận và **bảng đáp án ở cuối đề** (tự điền `\True`). Câu chưa có đáp án được ghi chú `%[CHƯA CÓ ĐÁP ÁN]`. Kết quả vào `DATA\PDF2TEX`, có nút nhập thẳng vào kho (3 bước).
 - Chuyển Word → LaTeX vẫn như bản trước (công thức Word, gạch chân đáp án, Đúng/Sai, trả lời ngắn).

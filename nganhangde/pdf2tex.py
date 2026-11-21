@@ -43,11 +43,10 @@ def extract_text(path: str, *, progress=None) -> str:
 
 def mathpix_text(path: str, app_id: str, app_key: str, *, progress=None, should_stop=None, scale: float = 2.0) -> str:
     """Từng trang → ảnh PNG → Mathpix → chữ có công thức $…$."""
-    import io
-
     import pypdfium2 as pdfium
 
     from .mathpix import image_to_latex
+    from .pdfrender import png_bytes, render_page
     doc = pdfium.PdfDocument(path)
     out = []
     try:
@@ -56,10 +55,7 @@ def mathpix_text(path: str, app_id: str, app_key: str, *, progress=None, should_
                 break
             if progress:
                 progress(i, len(doc))
-            img = doc[i].render(scale=scale).to_pil()
-            buf = io.BytesIO()
-            img.save(buf, "PNG")
-            out.append(image_to_latex(f"trang{i + 1}.png", app_id, app_key, data=buf.getvalue()))
+            out.append(image_to_latex(f"trang{i + 1}.png", app_id, app_key, data=png_bytes(render_page(doc, i, scale))))
     finally:
         doc.close()
     return "\n\n".join(out)

@@ -9,18 +9,8 @@ from PySide6.QtWidgets import (QDialog, QHBoxLayout, QLabel, QPushButton, QScrol
 
 
 def render_page(path: str, index: int, scale: float = 1.4) -> QImage | None:
-    import pypdfium2 as pdfium
-    doc = pdfium.PdfDocument(path)
-    try:
-        if not 0 <= index < len(doc):
-            return None
-        bm = doc[index].render(scale=scale).to_numpy()      # H×W×4 (BGRA)
-        h, w, ch = bm.shape
-        fmt = QImage.Format.Format_BGR888 if ch == 3 else QImage.Format.Format_ARGB32
-        img = QImage(bm.tobytes(), w, h, w * ch, fmt)
-        return img.copy()
-    finally:
-        doc.close()
+    from ...pdfrender import render_file
+    return render_file(path, index, scale)
 
 
 def page_count(path: str) -> int:
