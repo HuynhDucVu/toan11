@@ -314,13 +314,19 @@ public static class NhdDump {
 
 
 def _iter_oledb_ps(path: str, progress=None, should_stop=None):
-    """Windows: đọc bằng Microsoft Jet OLEDB qua PowerShell 32-bit (Jet 4.0 chỉ có bản 32-bit); xuất ra file .jsonl
+    """Windows: đọc bằng Microsoft Jet/ACE OLEDB qua PowerShell (32-bit trước – Jet 4.0 có sẵn; không được thì 64-bit với
+    Microsoft Access Database Engine đã cài); xuất ra file .jsonl
     rồi đọc từng dòng. Kho lớn (hàng trăm nghìn câu) có thể mất vài phút."""
     if os.name != "nt":
         raise MyltError("OLEDB chỉ có trên Windows")
-    ps = os.path.join(os.environ.get("SystemRoot", r"C:\Windows"), "SysWOW64", "WindowsPowerShell", "v1.0", "powershell.exe")
-    if not os.path.isfile(ps):
-        ps = shutil.which("powershell") or "powershell"
+    root = os.environ.get("SystemRoot", r"C:\Windows")
+    cands = []                                   # PowerShell 32-bit (Jet 4.0) trước, rồi 64-bit (bộ máy Access/ACE 64-bit)
+    for sub in ("SysWOW64", "Sysnative", "System32"):
+        c = os.path.join(root, sub, "WindowsPowerShell", "v1.0", "powershell.exe")
+        if os.path.isfile(c) and c not in cands:
+            cands.append(c)
+    if not cands:
+        cands = [shutil.which("powershell") or "powershell"]
     d = tempfile.mkdtemp(prefix="nhd_oledb_")                   # thư mục tạm riêng – không ghi cạnh file kho
     try:
         script, pwf, out = (os.path.join(d, n) for n in ("read.ps1", "pw.txt", "out.jsonl"))
@@ -328,10 +334,15 @@ def _iter_oledb_ps(path: str, progress=None, should_stop=None):
             f.write(PS_SCRIPT)
         with open(pwf, "w", encoding="utf-8") as f:
             f.write(jet4_password(path))
-        err = _run_cancelable([ps, "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", script, path, out, pwf], out,
-                              progress=progress, should_stop=should_stop, creationflags=0x08000000)
-        if err or not os.path.exists(out):
-            raise MyltError(err or "PowerShell không xuất được dữ liệu")
+        errors = []
+        for ps in cands:
+            err = _run_cancelable([ps, "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", script, path, out, pwf], out,
+                                  progress=progress, should_stop=should_stop, creationflags=0x08000000)
+            if not err and os.path.exists(out):
+                break
+            errors.append(f"{os.path.basename(os.path.dirname(os.path.dirname(os.path.dirname(ps))))}: {err or 'không xuất được dữ liệu'}")
+        else:
+            raise MyltError(" | ".join(errors))
     except BaseException:
         shutil.rmtree(d, ignore_errors=True)
         raise

@@ -11,6 +11,9 @@ Với bản một file:
 
 Kho câu hỏi `nganhang.db` nằm cạnh file exe. Cập nhật từ bản cũ: chỉ cần thay file exe, kho giữ nguyên.
 
+## Có gì mới ở bản 0.17.23 – Đọc kho MyLT qua Access Database Engine 64-bit
+- Nạp kho MyLT trên Windows: thử PowerShell 32-bit (Jet 4.0) trước, **không được thì thử PowerShell 64-bit** với «Microsoft Access Database Engine» đã cài (nhà cung cấp ACE.OLEDB.12.0). Lỗi của cả hai cách được ghi lại trong bảng chẩn đoán.
+
 ## Có gì mới ở bản 0.17.22 – Tab «Cập nhật» (tự cập nhật bản mới)
 - Tab mới **⬆ Cập nhật** (cạnh «Thông tin»): bản đang dùng, lần kiểm tra gần nhất, ghi chú bản mới nhất, nút **Kiểm tra bản mới**, **Tải và cập nhật** (thanh tiến trình, kiểm tra SHA-256), **Bỏ qua bản này**, **Mở trang Releases**.
 - Tuỳ chọn **Tự kiểm tra khi mở phần mềm** và **Tự tải bản mới về ngay khi có** (cài khi bạn đồng ý khởi động lại).
