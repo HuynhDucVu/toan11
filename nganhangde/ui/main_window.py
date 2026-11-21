@@ -48,7 +48,8 @@ class MainWindow(LayoutMixin, BankActionsMixin, QMainWindow):
         m.addSeparator()
         self._act(m, "Nhập file .tex…", self.import_files, "Ctrl+I")
         self._act(m, "Nhập file Word (.docx)…", self.import_word)
-        self._act(m, "Nhập ngân hàng MyLT (Bank.mylt)…", self.import_mylt)
+        self._act(m, "Nhập ngân hàng MyLT (Bank.mylt / Bank.rar)…", self.import_mylt)
+        self._act(m, "Tìm kho MyLT trên máy…", self.find_mylt)
         self._act(m, "Xuất câu đang hiển thị/đã chọn…", self.export_selected, "Ctrl+E")
         self._act(m, "Xuất câu ra Word / Moodle / bài làm online…", self.export_other)
         m.addSeparator()
@@ -263,15 +264,24 @@ class MainWindow(LayoutMixin, BankActionsMixin, QMainWindow):
         if notes:
             self.statusBar().showMessage("  ".join(notes), 20000)
 
-    def import_mylt(self):
-        from ..mylt_import import MyltError, import_mylt
-        p, _ = QFileDialog.getOpenFileName(self, "Chọn kho MyLT (thư mục MyLT\\DATA\\BANK)", "",
-                                           "Kho MyLT (*.mylt);;Mọi file (*.*)")
-        if not p:
+    def import_mylt(self, path: str | None = None):
+        """Nhập kho MyLT (Bank.mylt hoặc Bank.rar có mật khẩu) vào kho đang mở."""
+        from PySide6.QtWidgets import QInputDialog, QLineEdit
+        from ..mylt_import import DEFAULT_PASSWORD, MyltError, import_mylt
+        if not path:
+            path, _ = QFileDialog.getOpenFileName(self, "Chọn kho MyLT (thư mục MyLT\\DATA\\BANK)", "",
+                                                  "Kho MyLT (*.mylt *.rar *.zip *.7z);;Mọi file (*.*)")
+        if not path:
             return
+        pw = DEFAULT_PASSWORD
+        if path.lower().endswith((".rar", ".zip", ".7z")):
+            pw, ok = QInputDialog.getText(self, "Mật khẩu file nén", "Mật khẩu (MyLT thường dùng MyLT123):",
+                                          QLineEdit.EchoMode.Normal, DEFAULT_PASSWORD)
+            if not ok:
+                return
         QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
         try:
-            r = import_mylt(self.bank, p)
+            r = import_mylt(self.bank, path, pw)
         except MyltError as e:
             QMessageBox.warning(self, "Nhập ngân hàng MyLT", str(e))
             return
@@ -282,8 +292,32 @@ class MainWindow(LayoutMixin, BankActionsMixin, QMainWindow):
         msg = (f"Kho MyLT có {r['tong']} câu: đã thêm {r['them']} câu, bỏ {r['trung']} câu trùng"
                + (f", {len(r['loi'])} câu lỗi:\n" + "\n".join(r["loi"][:15]) if r["loi"] else "") + ".")
         if r["tong"] == 0:
-            msg += ("\n\nKho này đang trống. Kho thật thường ở thư mục MyLT đang dùng: …\\DATA\\BANK\\Bank.mylt.")
+            msg += ("\n\nKho này đang TRỐNG (kho mẫu đi kèm bản cài MyLT). Kho thật nằm ở máy đang dùng MyLT, thường là "
+                    "…\\DATA\\BANK\\Bank.mylt và nặng vài MB – dùng «Tìm kho MyLT trên máy…» để tìm.")
         QMessageBox.information(self, "Nhập ngân hàng MyLT", msg)
+
+    def find_mylt(self):
+        """Tìm các file Bank.mylt trên máy, cho chọn một để nhập."""
+        from PySide6.QtWidgets import QInputDialog
+        from ..mylt_import import count_questions, find_banks
+        QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
+        try:
+            found = find_banks()
+            items = []
+            for p in found[:30]:
+                n = count_questions(p)
+                items.append((f"{n if n >= 0 else '?'} câu · {os.path.getsize(p) // 1024} KB · {p}", p, n))
+        finally:
+            QApplication.restoreOverrideCursor()
+        if not items:
+            QMessageBox.information(self, "Tìm kho MyLT", "Không thấy file Bank.mylt nào ở Desktop, Tài liệu, Tải xuống "
+                                    "và các ổ C:–H:. Hãy dùng «Nhập ngân hàng MyLT» và chọn file thủ công.")
+            return
+        items.sort(key=lambda x: -x[2])
+        label, ok = QInputDialog.getItem(self, "Tìm kho MyLT", "Chọn kho để nhập (nhiều câu nhất ở đầu):",
+                                         [i[0] for i in items], 0, False)
+        if ok:
+            self.import_mylt(next(i[1] for i in items if i[0] == label))
 
     def open_app_folder(self):
         from ..appdirs import home
@@ -333,8 +367,11 @@ class MainWindow(LayoutMixin, BankActionsMixin, QMainWindow):
         dlg.exec()
 
     def choose_bank(self):
-        p, _ = QFileDialog.getOpenFileName(self, "Mở kho câu hỏi", "", "Kho câu hỏi (*.db);;Tất cả (*.*)")
-        if p:
+        p, _ = QFileDialog.getOpenFileName(self, "Mở kho câu hỏi", "",
+                                           "Kho câu hỏi (*.db *.mylt *.rar);;Tất cả (*.*)")
+        if p and p.lower().endswith((".mylt", ".rar")):
+            self.import_mylt(p)                  # kho MyLT: nhập vào kho đang mở
+        elif p:
             self.open_bank(p)
 
     def new_bank(self):

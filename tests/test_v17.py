@@ -116,3 +116,42 @@ def test_import_mylt_rows(bank):
     tl = bank.search(text="Chứng minh bất đẳng thức mới")[0]
     assert tl.qtype == "TL" and tl.id_code == "0D1V1-2"
     assert import_rows(bank, rows[:1])["trung"] == 1
+
+
+def test_mylt_columns_and_find(tmp_path, bank):
+    from nganhangde import mylt_import as m
+    assert m.pick_columns(["id", "NoiDung", "IDCauHoi", "TuLuan", "SoLan"]) == {
+        "text": "NoiDung", "id": "IDCauHoi", "tuluan": "TuLuan", "solan": "SoLan"}
+    cm = m.pick_columns(["ID", "Nội dung", "ID Câu hỏi", "Tự luận", "Số lần"])
+    assert cm["text"] == "Nội dung" and cm["id"] == "ID Câu hỏi" and m.pick_columns(["a", "b"]) == {}
+    rows = m._normalize([{"Nội dung": b"\xe1\xbb\x91", "ID Câu hỏi": "0d1n1-1", "Số lần": 2.0}], {**cm})
+    assert rows[0]["NoiDung"] == "ố" and rows[0]["SoLan"] == 2.0
+    d = tmp_path / "MyLT" / "DATA" / "BANK"
+    d.mkdir(parents=True)
+    (d / "Bank.mylt").write_bytes(b"x" * 50)
+    assert [p for p in m.find_banks([str(tmp_path)]) if p.endswith("Bank.mylt")]
+    with pytest.raises(m.MyltError):
+        m.read_rows(str(tmp_path / "khong_co.mylt"))
+    with pytest.raises(m.MyltError):                       # file không phải Access
+        m.read_rows(str(d / "Bank.mylt"))
+
+
+def test_mylt_archive(tmp_path, monkeypatch):
+    from nganhangde import mylt_import as m
+    monkeypatch.setattr(m, "_tools", lambda: [])
+    with pytest.raises(m.MyltError) as e:
+        m.extract_archive(str(tmp_path / "Bank.rar"))
+    assert "WinRAR" in str(e.value)
+    exe = shutil.which("7z") or shutil.which("7za")
+    if not exe:
+        pytest.skip("không có 7z")
+    import subprocess
+    src = tmp_path / "Bank.mylt"
+    src.write_bytes(b"du lieu gia")
+    z = tmp_path / "Bank.7z"
+    subprocess.run([exe, "a", "-pMyLT123", str(z), str(src)], check=True, capture_output=True)
+    monkeypatch.setattr(m, "_tools", lambda: [("7z", exe)])
+    out = m.extract_archive(str(z), "MyLT123", str(tmp_path / "o"))
+    assert open(out, "rb").read() == b"du lieu gia"
+    with pytest.raises(m.MyltError):
+        m.extract_archive(str(z), "sai", str(tmp_path / "o2"))

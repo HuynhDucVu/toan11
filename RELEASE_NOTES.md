@@ -11,8 +11,12 @@ Với bản một file:
 
 Kho câu hỏi `nganhang.db` nằm cạnh file exe. Cập nhật từ bản cũ: chỉ cần thay file exe, kho giữ nguyên.
 
-## Có gì mới ở bản 0.17.0 – Bổ sung theo MyLT 2018: nhập kho MyLT, file header, câu đổi số tự động, Tiện ích 2
-- **Nhập ngân hàng MyLT** (Tệp → Nhập ngân hàng MyLT): chọn file `Bank.mylt` trong thư mục `MyLT\DATA\BANK` → toàn bộ câu hỏi chuyển sang kho mới, giữ ID, câu tự luận, **số lần đã lấy ra đề**; câu trùng tự bỏ qua. Không cần cài Microsoft Access.
+## Có gì mới ở bản 0.17.1 (gồm cả 0.17.0) – Bổ sung theo MyLT 2018: nhập kho MyLT, file header, câu đổi số tự động, Tiện ích 2
+- **Dùng ngân hàng MyLT** (menu Tệp):
+  - **Nhập ngân hàng MyLT**: chọn `Bank.mylt` (hoặc `Bank.rar` có mật khẩu – phần mềm hỏi, mặc định MyLT123, cần WinRAR hoặc 7-Zip trên máy) → toàn bộ câu hỏi chuyển sang kho mới, giữ ID, câu tự luận, **số lần đã lấy ra đề**; câu trùng tự bỏ qua. Không cần cài Microsoft Access;
+  - **Tìm kho MyLT trên máy**: tự tìm mọi file `Bank.mylt` (Desktop, Tài liệu, Tải xuống, ổ C:–H:), hiện số câu và dung lượng từng file để chọn;
+  - **Mở kho câu hỏi** chọn thẳng file `.mylt`/`.rar` cũng được nhập luôn;
+  - nhận nhiều kiểu đặt tên bảng/cột của các phiên bản MyLT khác nhau. Lưu ý: kho mẫu đi kèm bản cài MyLT **trống** – kho thật nằm ở máy đang dùng MyLT.
 - **Dùng file header của MyLT** làm mẫu đề: chép `Header.tex`, `Header1.tex`… vào thư mục `mau_de`, chọn ở ô *File mẫu .tex* (nút ▾). Phần mềm tự điền tên trường, kì thi, môn, thời gian, gọi `\tieude`, `\chantrang`, tiêu đề từng phần `\tieudea…\tieuded`, `\hetde` – đề ra đúng bố cục quen thuộc.
 - **Chuyển nhanh Map ID**: chép các file Map ID (Map ID_Goc, _HSG, _3Sach…) vào thư mục `map_id`, chọn ở Giải nghĩa ID → *Map ID trong thư mục map_id ▾*.
 - **Câu đổi số tự động** (tab Soạn thảo, không cần AI): 10 dạng Toán 12 – đơn điệu (công thức, bảng biến thiên, đồ thị), cực trị, số điểm cực trị hàm trùng phương, tìm m để đạt cực đại, GTLN/GTNN trên đoạn, tiệm cận, nhận dạng đồ thị; mỗi câu có ID, 4 phương án, hình và lời giải.
