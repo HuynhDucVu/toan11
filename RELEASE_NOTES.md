@@ -11,6 +11,15 @@ Với bản một file:
 
 Kho câu hỏi `nganhang.db` nằm cạnh file exe. Cập nhật từ bản cũ: chỉ cần thay file exe, kho giữ nguyên.
 
+## Có gì mới ở bản 0.17.9 – Trộn đề đầy đủ hơn (theo MyLT)
+- **Ẩn/hiện đáp án bằng 1 lệnh**: tuỳ chọn «Đưa đáp án vào một môi trường» – bảng đáp án nằm trong `\\ifshowans … \\fi`, đổi `\\showanstrue`/`\\showansfalse` là ẩn/hiện.
+- **Trộn riêng từng vùng** theo lớp, môn, chương, mức độ hoặc bài (theo ID của câu) – tab Trộn trong «Tuỳ chọn trộn đề».
+- **Lọc câu khi tạo đề**: chỉ lấy câu có lời giải, hoặc chỉ câu chưa có lời giải.
+- **Đề tương tự**: mở rộng tìm theo ID5 / ID4 / ID3 khi thiếu câu cùng ID; chọn câu giống nội dung nhất.
+- **Tạo đề theo ID**: lọc theo chương (ẩn bài các chương khác).
+- **Trộn theo file**: nhiều file một lúc, `file.tex:số câu` để lấy ngẫu nhiên từng file.
+- **Kiểu file main**: chọn nhanh các file .tex trong thư mục `mau_de` (chép thêm file vào đó là có thêm lựa chọn).
+
 ## Có gì mới ở bản 0.17.8 – Kho MyLT lớn (hàng trăm nghìn câu), dọn kho
 - **Công cụ → Dọn kho**: ① lọc câu trùng (giống hệt hoặc gần giống), **chỉ giữ lại 1 câu** mỗi nhóm (ưu tiên câu có lời giải, ID đầy đủ); ② lọc câu sai (lỗi LaTeX/đáp án khi rà soát). Xem danh sách trước khi xoá; câu xoá khôi phục được.
 - **Nhập kho MyLT lớn**: đọc từng dòng, ghi theo lô, có thanh tiến trình và nút Dừng; kho trên 60 MB không dùng bộ đọc chậm. Trên Windows bộ OLEDB cho phép chạy tới 3 giờ (chưa thử với kho thật).

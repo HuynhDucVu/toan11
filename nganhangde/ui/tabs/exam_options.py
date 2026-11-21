@@ -49,6 +49,20 @@ class MixOptionsBox(QWidget):
         self.cb_order.setCurrentIndex(max(0, self.cb_order.findData(self.st.value(f"{prefix}/mix_order", ""))))
         row.addWidget(self.cb_order, 1)
         lay.addLayout(row)
+        for attr, label, items, key in (
+                ("cb_region", "Trộn riêng từng vùng theo", (("Không (trộn chung cả phần)", ""), ("Lớp", "lop"), ("Môn", "mon"),
+                 ("Chương", "chuong"), ("Mức độ", "muc_do"), ("Bài", "bai")), "mix_region"),
+                ("cb_sol", "Câu được lấy vào đề", (("Tất cả", ""), ("Chỉ câu CÓ lời giải", "co"),
+                 ("Chỉ câu CHƯA có lời giải", "khong")), "mix_sol")):
+            row = QHBoxLayout()
+            row.addWidget(QLabel(label))
+            cb = QComboBox()
+            for t, d in items:
+                cb.addItem(t, d)
+            cb.setCurrentIndex(max(0, cb.findData(self.st.value(f"{prefix}/{key}", ""))))
+            setattr(self, attr, cb)
+            row.addWidget(cb, 1)
+            lay.addLayout(row)
         row = QHBoxLayout()
         row.addWidget(QLabel("Tỉ lệ đáp án A:B:C:D"))
         self.e_ratio = QLineEdit(str(self.st.value(f"{prefix}/mix_tn_ratio", "")))
@@ -59,7 +73,8 @@ class MixOptionsBox(QWidget):
 
     def options(self) -> MixOptions:
         return MixOptions(max_run=self.sp_run.value(), tn_ratio=self.e_ratio.text().strip(),
-                          order=self.cb_order.currentData(),
+                          order=self.cb_order.currentData(), region_by=self.cb_region.currentData(),
+                          solution_filter=self.cb_sol.currentData(),
                           **{k: c.isChecked() for k, c in self.boxes.items()})
 
     def save(self):
@@ -68,6 +83,8 @@ class MixOptionsBox(QWidget):
         self.st.setValue(f"{self.prefix}/mix_max_run", self.sp_run.value())
         self.st.setValue(f"{self.prefix}/mix_tn_ratio", self.e_ratio.text())
         self.st.setValue(f"{self.prefix}/mix_order", self.cb_order.currentData())
+        self.st.setValue(f"{self.prefix}/mix_region", self.cb_region.currentData())
+        self.st.setValue(f"{self.prefix}/mix_sol", self.cb_sol.currentData())
 
 
 class ExamOptionsBox(QTabWidget):
@@ -130,9 +147,10 @@ class ExamOptionsBox(QTabWidget):
         self.c_ans_end = QCheckBox("In bảng đáp án ở cuối file đề (trang riêng)")
         self.c_even = QCheckBox("Chèn trang trống để mỗi đề có số trang chẵn (in 2 mặt)")
         self.c_folder = QCheckBox("Mỗi mã đề một thư mục riêng")
+        self.c_toggle = QCheckBox("Đưa đáp án vào một môi trường: ẩn/hiện bằng 1 lệnh (\\showansfalse / \\showanstrue)")
         for c, k in ((self.c_renum, "renumber"), (self.c_official, "official"), (self.c_scoring, "scoring"),
                      (self.c_showid, "showid"), (self.c_zip, "zip"), (self.c_ans_end, "ans_end"),
-                     (self.c_even, "even"), (self.c_folder, "per_folder")):
+                     (self.c_even, "even"), (self.c_folder, "per_folder"), (self.c_toggle, "ans_toggle")):
             c.setChecked(val(k, False))
             v.addWidget(c)
         v.addStretch()
@@ -293,7 +311,7 @@ class ExamOptionsBox(QTabWidget):
                              omr_capacity=self.cb_cap.currentData(), gas=self.c_gas.isChecked(),
                              slides=self.c_slides.isChecked(), answers_end=self.c_ans_end.isChecked(),
                              gas_images=self.c_gas_img.isChecked(),
-                             even_pages=self.c_even.isChecked(), per_folder=self.c_folder.isChecked(), answer_sheet=self.c_sheet.isChecked())
+                             even_pages=self.c_even.isChecked(), ans_toggle=self.c_toggle.isChecked(), per_folder=self.c_folder.isChecked(), answer_sheet=self.c_sheet.isChecked())
 
     def apply_thpt2026(self):
         self.cb_codemode.setCurrentIndex(self.cb_codemode.findData("seq"))
@@ -324,5 +342,5 @@ class ExamOptionsBox(QTabWidget):
                      ("online", self.c_online), ("online_sol", self.c_online_sol), ("moodle", self.c_moodle),
                      ("word", self.c_word), ("gas", self.c_gas), ("slides", self.c_slides), ("gas_img", self.c_gas_img),
                      ("ans_end", self.c_ans_end), ("even", self.c_even), ("sheet", self.c_sheet),
-                     ("per_folder", self.c_folder)):
+                     ("per_folder", self.c_folder), ("ans_toggle", self.c_toggle)):
             self.st.setValue(f"{self.prefix}/opt_{k}", c.isChecked())

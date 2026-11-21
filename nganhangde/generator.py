@@ -61,14 +61,15 @@ class NotEnoughQuestions(Exception):
 
 
 def pick_questions(bank: Bank, rules: list[Rule], rng: random.Random,
-                   prefer_unused: bool = False, exclude_ids=None) -> dict[str, list[Question]]:
+                   prefer_unused: bool = False, exclude_ids=None, solution_filter: str = "") -> dict[str, list[Question]]:
     """exclude_ids: câu không được chọn (vd đã dùng trong các đợt ra đề gần đây)."""
     chosen: dict[str, list[Question]] = {s: [] for s in SECTION_ORDER}
     used_ids: set[int] = set(exclude_ids or ())
     errors = []
     for r in rules:
         pool = [q for q in bank.search(qtype=r.qtype, id_like=r.id, muc_do=r.muc_do, text=r.text)
-                if q.db_id not in used_ids]
+                if q.db_id not in used_ids
+                and (not solution_filter or bool(q.solution.strip()) == (solution_filter == "co"))]
         if len(pool) < r.count:
             errors.append(f"{r.qtype} ID '{r.id}' mức '{r.muc_do or '*'}': cần {r.count}, kho chỉ có {len(pool)}")
             continue
@@ -156,8 +157,11 @@ class MixOptions:
     fix_ds_last: bool = False       # câu Đúng/Sai: giữ ý d ở cuối (chỉ trộn a, b, c)
     tn_ratio: str = ""              # tỉ lệ đáp án A:B:C:D mong muốn, vd "3,3,3,3" (trống = chia đều)
     order: str = ""                 # "" (ngẫu nhiên) | "matrix" (theo thứ tự dòng ma trận) | "id" (theo ID)
+    region_by: str = ""             # trộn riêng từng vùng theo: lop | mon | chuong | muc_do | bai (theo ID6 của câu)
+    solution_filter: str = ""       # "" (tất cả) | "co" (chỉ câu có lời giải) | "khong" (chỉ câu chưa có lời giải)
 
 
+REGION_CUT = {"lop": 1, "mon": 2, "chuong": 3, "muc_do": 4, "bai": 5}   # số ký tự đầu của ID làm khoá vùng
 LEVEL_ORDER = {"N": 0, "Y": 0, "H": 1, "B": 1, "V": 2, "K": 2, "C": 3, "G": 3}
 
 
@@ -230,10 +234,14 @@ def _mix_section(qs: list[Question], rng: random.Random, opt: MixOptions, keep_o
     part = qs[0].qtype if qs else ""
     if opt.shuffle_q and not (part == "KQ" and not opt.shuffle_kq):
         regions: dict = {}
-        for b in blocks:
-            regions.setdefault(getattr(b[0], "region", 0), []).append(b)
+        first: dict = {}
+        cut = REGION_CUT.get(opt.region_by, 0)
+        for n_, b in enumerate(blocks):
+            key = (getattr(b[0], "region", 0), (b[0].id_code or "")[:cut] if cut else "")
+            first.setdefault(key, n_)
+            regions.setdefault(key, []).append(b)
         blocks = []
-        for r in sorted(regions):                   # trộn trong từng vùng (%VUNG), giữ thứ tự các vùng
+        for r in sorted(regions, key=lambda k: (k[0], first[k])):   # trộn trong từng vùng (%VUNG / lớp / chương…), giữ thứ tự vùng
             rng.shuffle(regions[r])
             blocks += regions[r]
     if opt.order == "matrix":                       # xếp theo ma trận: giữ thứ tự dòng, trộn trong cùng dòng
@@ -312,12 +320,13 @@ def make_versions(bank: Bank, rules: list[Rule], n_versions: int = 4, *,
     if sections is not None:
         return mix_versions(sections, codes, rng, opt)
     if same_questions:
-        return mix_versions(pick_questions(bank, rules, rng, prefer_unused, exclude_ids), codes, rng, opt)
+        return mix_versions(pick_questions(bank, rules, rng, prefer_unused, exclude_ids, opt.solution_filter),
+                            codes, rng, opt)
     out, chosen_sets = [], []
     for code in codes:
         best, best_ov = None, 2.0
         for _ in range(60 if max_overlap is not None else 1):
-            picked = pick_questions(bank, rules, rng, prefer_unused, exclude_ids)
+            picked = pick_questions(bank, rules, rng, prefer_unused, exclude_ids, opt.solution_filter)
             ids = {q.db_id for qs in picked.values() for q in qs}
             ov = max((len(ids & o) / max(len(ids), 1) for o in chosen_sets), default=0.0)
             if ov < best_ov:
@@ -422,10 +431,22 @@ def matrix_from_questions(qs: list[Question], level: str = "bai") -> list[Rule]:
 
 
 # ---------------------------------------------------------------- đề tương tự đề mẫu
+def _id_prefix_candidates(bank: Bank, q: Question, prefix: int, used: set, fps: set) -> list[Question]:
+    """Câu cùng loại, ID có `prefix` ký tự đầu giống câu mẫu (5 = cùng lớp-môn-chương-mức độ-bài, 4 = bỏ bài, 3 = bỏ mức độ)."""
+    idc = q.id_code
+    if len(idc) < prefix:
+        return []
+    return [c for c in bank.search(qtype=q.qtype, id_like=idc[:prefix] + "*")
+            if c.db_id not in used and c.db_id != q.db_id and c.fingerprint not in fps]
+
+
 def similar_exam(bank: Bank, sample: list[Question], rng: random.Random, *, same_level: bool = True,
-                 keep_missing: bool = True, exclude_ids=None) -> tuple[list[Question], list[str]]:
+                 keep_missing: bool = True, exclude_ids=None, widen: int = 0,
+                 by_content: bool = False) -> tuple[list[Question], list[str]]:
     """Mỗi câu của đề mẫu được thay bằng một câu cùng ID (cùng dạng, cùng mức độ nếu same_level) lấy từ kho.
 
+    widen: khi không có câu cùng ID thì mở rộng tìm theo ID5 (+1), ID4 (+2), ID3 (+3) – tức bỏ dần dạng, bài, mức độ.
+    by_content: chọn câu giống NỘI DUNG nhất (độ giống từ khoá) trong số câu ứng viên thay vì chọn ngẫu nhiên.
     Trả về (bộ câu mới, ghi chú các câu không thay được). Câu không có ID/không có câu thay: giữ nguyên câu mẫu
     (keep_missing) hoặc bỏ đi.
     """
@@ -440,8 +461,24 @@ def similar_exam(bank: Bank, sample: list[Question], rng: random.Random, *, same
                      and c.fingerprint not in fps]
             if cands:
                 notes.append(f"Câu {i} [{q.id_code}]: không có câu cùng mức độ – lấy câu cùng dạng khác mức độ")
+        if not cands and widen and q.id_code:
+            for step, pre in enumerate((5, 4, 3)[:widen], 1):
+                cands = _id_prefix_candidates(bank, q, pre, used, fps)
+                if cands:
+                    notes.append(f"Câu {i} [{q.id_code}]: mở rộng tìm theo ID{pre} ({q.id_code[:pre]}…)")
+                    break
         if cands:
-            c = rng.choice(cands)
+            if by_content:
+                from .idsuggest import question_text, tokens
+                ref = tokens(question_text(q))
+
+                def sim(c):
+                    t = tokens(question_text(c))
+                    num = sum(min(v, ref.get(k, 0)) for k, v in t.items())
+                    return num / ((sum(ref.values()) * sum(t.values())) ** 0.5 or 1)
+                c = max(cands, key=sim)
+            else:
+                c = rng.choice(cands)
             used.add(c.db_id)
             out.append(c)
         else:

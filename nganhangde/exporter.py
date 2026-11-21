@@ -44,6 +44,7 @@ class ExportOptions:
     diem: dict | None = None          # thang điểm tuỳ chỉnh (xem scoring.Scoring.from_dict)
     omr_profile: str = "tnmaker"      # mẫu file đáp án phần mềm chấm: tnmaker | ngang | mau (theo file mẫu)
     omr_template: str = ""            # file .xlsx mẫu đáp án của phần mềm chấm (khi omr_profile = 'mau')
+    ans_toggle: bool = False          # đưa bảng đáp án vào \ifshowans … \fi (tắt/bật bằng \showansfalse / \showanstrue)
     qr_answers: bool = False          # in mã QR chứa đáp án trong file lời giải
     qr_format: str = "gon"            # gon | md | json – kiểu chuỗi trong mã QR
     omr_capacity: str = "bgd2025"     # mẫu phiếu để kiểm tra sức chứa (omr.PROFILES)
@@ -203,6 +204,12 @@ def answer_table_tex(v: ExamVersion) -> str:
     return "\n".join(rows)
 
 
+def toggle_wrap(tex: str) -> str:
+    """Gói phần đáp án vào môi trường bật/tắt bằng một lệnh: đổi \\showanstrue ↔ \\showansfalse ở đầu."""
+    return ("\\newif\\ifshowans\\showanstrue % đổi thành \\showansfalse để ẨN toàn bộ đáp án\n"
+            "\\ifshowans\n" + tex + "\n\\fi")
+
+
 def export_versions(versions: list[ExamVersion], out_dir: str, *, template_path: str | None = None,
                     ten_de: str = "ĐỀ KIỂM TRA", truong: str = "", thoi_gian: int = 90,
                     options: ExportOptions | None = None) -> list[str]:
@@ -218,8 +225,9 @@ def export_versions(versions: list[ExamVersion], out_dir: str, *, template_path:
             if is_header(tpl):
                 text = fill_header(tpl, v, mode, sol, opt, common)
                 if sol:
-                    text = text.replace("\\end{document}", "\\section*{Bảng đáp án}\n" + answer_table_tex(v)
-                                        + ("\n" + scoring_tex(v, opt.scoring_obj()) if opt.scoring else "")
+                    ans = ("\\section*{Bảng đáp án}\n" + answer_table_tex(v)
+                           + ("\n" + scoring_tex(v, opt.scoring_obj()) if opt.scoring else ""))
+                    text = text.replace("\\end{document}", (toggle_wrap(ans) if opt.ans_toggle else ans)
                                         + "\n\\end{document}", 1)
                 path = os.path.join(vdir, f"{prefix}_{v.code}.tex")
                 with open(path, "w", encoding="utf-8") as f:
@@ -228,16 +236,18 @@ def export_versions(versions: list[ExamVersion], out_dir: str, *, template_path:
                 continue
             body = version_body(v, sol, opt)
             if not sol and opt.answers_end:
-                body += "\n\\newpage\n\\section*{Đáp án}\n" + answer_table_tex(v)
+                tail = "\\section*{Đáp án}\n" + answer_table_tex(v)
+                body += "\n\\newpage\n" + (toggle_wrap(tail) if opt.ans_toggle else tail)
             if not sol and opt.even_pages:
                 body += "\n\\clearpage\\ifodd\\value{page}\\else\\hbox{}\\thispagestyle{empty}\\newpage\\fi\n"
             if sol:
-                body += "\n\\section*{Bảng đáp án}\n" + answer_table_tex(v)
+                tail = "\\section*{Bảng đáp án}\n" + answer_table_tex(v)
                 if opt.qr_answers:
                     from .omr import qr_tex
-                    body += "\n" + qr_tex(v, opt.qr_format)
+                    tail += "\n" + qr_tex(v, opt.qr_format)
                 if opt.scoring:
-                    body += "\n" + scoring_tex(v, opt.scoring_obj())
+                    tail += "\n" + scoring_tex(v, opt.scoring_obj())
+                body += "\n" + (toggle_wrap(tail) if opt.ans_toggle else tail)
             path = os.path.join(vdir, f"{prefix}_{v.code}.tex")
             text = fill(tpl, MODE=mode, NOI_DUNG=body, **common)
             if "\\qrcode" in body and "{qrcode}" not in text:

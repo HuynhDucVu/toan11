@@ -11,7 +11,7 @@ import random
 from typing import TYPE_CHECKING
 
 from PySide6.QtCore import Qt
-from PySide6.QtWidgets import (QAbstractItemView, QCheckBox, QFileDialog, QFormLayout, QGroupBox, QHBoxLayout,
+from PySide6.QtWidgets import (QAbstractItemView, QCheckBox, QComboBox, QFileDialog, QFormLayout, QGroupBox, QHBoxLayout,
     QHeaderView, QLabel, QLineEdit, QMessageBox, QPushButton, QSpinBox, QTableWidget, QTableWidgetItem, QTextBrowser,
     QVBoxLayout, QWidget)
 
@@ -39,7 +39,7 @@ def export_with_gen_options(win, versions, title="Kết quả trộn đề", log
         win.bank.mark_used(ids)
         win.bank.log_batch(versions, ten_de=gp.e_ten.text(), matrix=log_rules or [], out_dir=out)
     gp.opts.save()
-    ResultDialog(win, versions, out).exec()
+    ResultDialog(win, versions, out, '', gp.export_options().omr_capacity).exec()
     return True
 
 
@@ -157,6 +157,8 @@ class FileMixPanel(_Base):
         lay = QVBoxLayout(self)
         f = QFormLayout()
         self.e_file = QLineEdit()
+        self.e_file.setPlaceholderText("một file, hoặc nhiều file cách nhau dấu ; – thêm :số câu để chọn ngẫu nhiên từng file, "
+                                       "vd  a.tex:10 ; b.tex:5 ; c.tex")
         b = QPushButton("…")
         b.setFixedWidth(32)
         b.clicked.connect(self._pick)
@@ -178,21 +180,44 @@ class FileMixPanel(_Base):
         self.note(lay)
 
     def _pick(self):
-        p, _ = QFileDialog.getOpenFileName(self, "File đề", "", "LaTeX (*.tex)")
-        if p:
-            self.e_file.setText(p)
-            qs = parse_file(p)
+        ps, _ = QFileDialog.getOpenFileNames(self, "File đề (chọn được nhiều file)", "", "LaTeX (*.tex)")
+        if ps:
+            self.e_file.setText(" ; ".join(ps))
+            try:
+                qs = self.load_questions()
+            except ValueError as e:
+                QMessageBox.warning(self, "Trộn theo file", str(e))
+                return
             n = {s: sum(q.qtype == s for q in qs) for s in ("TN", "DS", "KQ", "TL")}
             regions = len({getattr(q, "region", 0) for q in qs})
             self.info.setHtml(f"<p>{len(qs)} câu: " + ", ".join(f"{k} {v}" for k, v in n.items() if v) +
                               (f" · {regions} vùng" if regions > 1 else "") + "</p>")
 
+    def load_questions(self) -> list:
+        """Đọc các file (cách nhau ;). «đường_dẫn:N» = lấy ngẫu nhiên N câu của file đó (cùng loại phân đều theo thứ tự)."""
+        import re
+        qs = []
+        for part in [x.strip() for x in self.e_file.text().split(";") if x.strip()]:
+            m = re.match(r"^(.*?)(?::(\d+))?$", part)
+            path, n = m.group(1).strip().strip('"'), (int(m.group(2)) if m.group(2) else 0)
+            if not os.path.isfile(path):
+                raise ValueError(f"Không thấy file: {path}")
+            got = parse_file(path)
+            if n and n < len(got):
+                keep = sorted(random.sample(range(len(got)), n))
+                got = [got[i] for i in keep]
+            qs += got
+        return qs
+
     def generate(self):
-        p = self.e_file.text().strip()
-        if not os.path.isfile(p):
+        if not self.e_file.text().strip():
             QMessageBox.information(self, "Trộn theo file", "Chọn file đề .tex.")
             return
-        qs = parse_file(p)
+        try:
+            qs = self.load_questions()
+        except ValueError as e:
+            QMessageBox.warning(self, "Trộn theo file", str(e))
+            return
         if not qs:
             QMessageBox.warning(self, "Trộn theo file", "File không có câu hỏi nào.")
             return
@@ -221,7 +246,14 @@ class SimilarExamPanel(_Base):
         self.c_keep.setChecked(True)
         self.sp_n = _codes_row(self)
         self.c_each = QCheckBox("Mỗi mã đề một bộ câu tương tự khác nhau")
+        self.cb_widen = QComboBox()
+        for t, d in (("Chỉ cùng ID (đủ dạng)", 0), ("Nếu thiếu: mở rộng theo ID5 (bỏ dạng)", 1),
+                     ("Nếu thiếu: mở rộng tới ID4 (bỏ cả bài)", 2), ("Nếu thiếu: mở rộng tới ID3 (bỏ cả mức độ)", 3)):
+            self.cb_widen.addItem(t, d)
+        self.c_content = QCheckBox("Chọn câu giống NỘI DUNG nhất (thay vì ngẫu nhiên) trong các câu ứng viên")
         f.addRow("Đề mẫu", r)
+        f.addRow("Phạm vi tìm câu", self.cb_widen)
+        f.addRow(self.c_content)
         f.addRow(self.c_level)
         f.addRow(self.c_keep)
         f.addRow("Số mã đề", self.sp_n)
@@ -255,13 +287,15 @@ class SimilarExamPanel(_Base):
             vs, used = [], set()
             for c in codes:
                 qs, nt = similar_exam(self.win.bank, sample, rng, same_level=self.c_level.isChecked(),
-                                      keep_missing=self.c_keep.isChecked(), exclude_ids=used)
+                                      keep_missing=self.c_keep.isChecked(), exclude_ids=used,
+                                      widen=self.cb_widen.currentData(), by_content=self.c_content.isChecked())
                 used |= {q.db_id for q in qs if q.db_id is not None}
                 notes += [f"Mã {c}: {x}" for x in nt]
                 vs += mix_versions(sections_from_questions(qs), [c], rng, self.mix_opt())
         else:
             qs, notes = similar_exam(self.win.bank, sample, rng, same_level=self.c_level.isChecked(),
-                                     keep_missing=self.c_keep.isChecked())
+                                     keep_missing=self.c_keep.isChecked(), widen=self.cb_widen.currentData(),
+                                     by_content=self.c_content.isChecked())
             vs = mix_versions(sections_from_questions(qs), codes, rng, self.mix_opt())
         self.info.setHtml("<p><b>Ghi chú:</b></p>" + "<br>".join(notes) if notes else
                           "<p>Mọi câu đều có câu tương tự trong kho.</p>")

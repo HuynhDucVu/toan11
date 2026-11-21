@@ -71,6 +71,11 @@ class GeneratorPanel(QWidget):
         fl.addRow("Danh sách mã đề", self.e_ma)
         fl.addRow("Hạt giống (seed)", self.e_seed)
         fl.addRow("Thư mục xuất", self.e_out[1])
+        self.cb_main = QComboBox()
+        self.cb_main.setToolTip("Các file main (.tex) trong thư mục mau_de của phần mềm: chép thêm file vào đó là có thêm lựa chọn")
+        self.cb_main.activated.connect(self._pick_main)
+        self.reload_mains()
+        fl.addRow("Kiểu file main có sẵn", self.cb_main)
         fl.addRow("File mẫu .tex", self.e_tpl[1])
         self.c_diff = QCheckBox("Mỗi mã đề một bộ câu khác nhau")
         self.sp_overlap = QSpinBox()
@@ -169,6 +174,25 @@ class GeneratorPanel(QWidget):
         for r in rules:
             self.add_row(r)
         self.update_avail()
+
+    def reload_mains(self):
+        """Liệt kê các file main trong mau_de (không kể file .sty, file bắt đầu bằng _)."""
+        import glob
+        from ...appdirs import path as app_path
+        self.cb_main.clear()
+        self.cb_main.addItem("— chọn nhanh —", "")
+        try:
+            files = sorted(glob.glob(os.path.join(app_path("mau_de"), "*.tex")))
+        except OSError:
+            files = []
+        for p in files:
+            if not os.path.basename(p).startswith("_"):
+                self.cb_main.addItem(os.path.basename(p), p)
+
+    def _pick_main(self, _i=0):
+        p = self.cb_main.currentData()
+        if p:
+            self.e_tpl[0].setText(p)
 
     def _path_row(self, value, folder):
         w = QWidget()
@@ -333,7 +357,8 @@ class GeneratorPanel(QWidget):
             if self.c_preview.isChecked() and not self.c_diff.isChecked():
                 import random as _r
                 from ...generator import pick_questions
-                sections = pick_questions(self.win.bank, rules, _r.Random(seed), self.c_unused.isChecked(), excl)
+                sections = pick_questions(self.win.bank, rules, _r.Random(seed), self.c_unused.isChecked(), excl,
+                                          self.opts.mix_options().solution_filter)
                 dlg = SwapDialog(self, sections, rules)
                 if not dlg.exec():
                     return

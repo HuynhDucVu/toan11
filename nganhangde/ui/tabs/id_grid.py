@@ -33,10 +33,13 @@ class IdGridPanel(QWidget):
             self.cb_type.addItem(v, k)
         self.e_find = QLineEdit()
         self.e_find.setPlaceholderText("lọc theo ID hoặc tên bài/dạng (không dấu cũng được)")
+        self.cb_chuong = QComboBox()
+        self.cb_chuong.setToolTip("Chỉ hiện các bài của chương này (ẩn bài các chương khác) để tạo đề theo chương")
+        self.cb_chuong.currentIndexChanged.connect(lambda _=0: self.apply_filter())
         self.cb_taken = QComboBox()
         for t, d in (("Tất cả dạng", ""), ("Dạng đã lấy", "1"), ("Dạng chưa lấy", "0")):
             self.cb_taken.addItem(t, d)
-        for w_, lab in ((self.cb_lop, "Lớp"), (self.cb_type, "Loại"), (self.e_find, "Tìm"), (self.cb_taken, "")):
+        for w_, lab in ((self.cb_lop, "Lớp"), (self.cb_type, "Loại"), (self.cb_chuong, "Chương"), (self.e_find, "Tìm"), (self.cb_taken, "")):
             if lab:
                 f.addWidget(QLabel(lab))
             f.addWidget(w_, 2 if w_ is self.e_find else 0)
@@ -110,6 +113,14 @@ class IdGridPanel(QWidget):
             self.cb_lop.addItem(names.get(x) or f"Lớp {x}", x)
         self.cb_lop.setCurrentIndex(max(0, self.cb_lop.findData(cur)))
         self.cb_lop.blockSignals(False)
+        cur = self.cb_chuong.currentData()
+        self.cb_chuong.blockSignals(True)
+        self.cb_chuong.clear()
+        self.cb_chuong.addItem("Mọi chương", "")
+        for k in sorted({k[0] + k[1] + k[2] for k, _, _ in self.rows}):
+            self.cb_chuong.addItem(f"{k} – {names.get(k, 'Chương ' + k[2:])}", k)
+        self.cb_chuong.setCurrentIndex(max(0, self.cb_chuong.findData(cur)))
+        self.cb_chuong.blockSignals(False)
         self.apply_filter()
 
     def visible_rows(self):
@@ -120,6 +131,8 @@ class IdGridPanel(QWidget):
         for key, name, lv in self.rows:
             idk = key[0] + key[1] + key[2] + key[3] + (f"-{key[4]}" if key[4] else "")
             if lop and key[0] != lop or qt and key[5] != qt:
+                continue
+            if self.cb_chuong.currentData() and key[0] + key[1] + key[2] != self.cb_chuong.currentData():
                 continue
             if find and find not in unaccent(f"{idk} {name}".lower()):
                 continue

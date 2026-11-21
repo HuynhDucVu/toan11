@@ -323,3 +323,61 @@ def test_cleanup_dups_and_wrong(tmp_path):
     assert "Chọn B" in b.get(keep).solution            # giữ câu có lời giải
     ids = r.delete_ids(wrong=False, exact=True, near=True)
     assert cleanup.apply(b, ids) == 1 and b.count() == 2
+
+
+def _ex(idc, stem, sol=True, ans="B"):
+    ch = "".join(("{\\True " if L == ans else "{") + f"p{L}" + "}\n" for L in "ABCD")
+    return (f"\\begin{{ex}}%[{idc}]\n{stem}\n\\choice\n{ch}" + ("\\loigiai{Chọn B.}\n" if sol else "") + "\\end{ex}\n")
+
+
+def test_mix_region_solution_filter_toggle(tmp_path):
+    import random
+    from nganhangde import generator as g
+    from nganhangde.db import Bank
+    from nganhangde.exporter import ExportOptions, export_versions
+    from nganhangde.parser import parse_tex
+    b = Bank(str(tmp_path / "m.db"))
+    for k in range(6):
+        for q in parse_tex(_ex(f"0D1N1-{k % 3 + 1}", f"Câu chương một số {k} $x_{k}$", sol=k % 2 == 0)):
+            b.add(q, "t")
+    for k in range(6):
+        for q in parse_tex(_ex(f"0D2N1-{k % 3 + 1}", f"Câu chương hai số {k} $y_{k}$", sol=True)):
+            b.add(q, "t")
+    rules = [g.Rule("TN", 12, "*")]
+    # lọc lời giải
+    with_sol = g.pick_questions(b, [g.Rule("TN", 9, "*")], random.Random(1), solution_filter="co")
+    assert all(q.solution.strip() for q in with_sol["TN"])
+    no_sol = g.pick_questions(b, [g.Rule("TN", 3, "*")], random.Random(1), solution_filter="khong")
+    assert not any(q.solution.strip() for q in no_sol["TN"])
+    # trộn riêng từng chương: chương 1 luôn đứng trước chương 2
+    sec = g.pick_questions(b, rules, random.Random(2))
+    sec["TN"].sort(key=lambda q: q.id_code)
+    vs = g.mix_versions(sec, ["101", "102", "103"], random.Random(3), g.MixOptions(region_by="chuong"))
+    for v in vs:
+        ch = [q.id_code[2] for q in v.sections["TN"]]
+        assert ch == sorted(ch)
+    # ẩn/hiện đáp án bằng 1 lệnh
+    files = export_versions(vs[:1], str(tmp_path / "out"), options=ExportOptions(ans_toggle=True))
+    lg = open([f for f in files if "loigiai" in f][0], encoding="utf-8").read()
+    assert "\\newif\\ifshowans" in lg and "\\ifshowans" in lg and lg.count("\\fi") >= 1
+
+
+def test_similar_widen_and_content(tmp_path):
+    import random
+    from nganhangde import generator as g
+    from nganhangde.db import Bank
+    from nganhangde.parser import parse_tex
+    b = Bank(str(tmp_path / "s.db"))
+    stems = {"0D1N1-1": "Tính đạo hàm của hàm số $y=x^2$", "0D1N2-1": "Tính đạo hàm hàm số $y=x^3$ tại điểm",
+             "0D1N2-2": "Tìm tập xác định của phân thức", "0D1H3-1": "Giải phương trình lượng giác sinx=1"}
+    for idc, s in stems.items():
+        for q in parse_tex(_ex(idc, s)):
+            b.add(q, "t")
+    sample = parse_tex(_ex("0D1N1-1", "Tính đạo hàm của hàm số $y=x^4$"))
+    out, notes = g.similar_exam(b, sample, random.Random(0), widen=0, keep_missing=False)
+    assert out and "0D1N1" in out[0].id_code
+    far = parse_tex(_ex("0D1N5-1", "Tính đạo hàm hàm số $y=x^5$"))             # không có câu cùng ID/ID5
+    out, notes = g.similar_exam(b, far, random.Random(0), widen=0, keep_missing=False)
+    assert not out
+    out, notes = g.similar_exam(b, far, random.Random(0), widen=2, by_content=True, keep_missing=False)
+    assert out and out[0].id_code.startswith("0D1N") and "đạo hàm" in out[0].stem and any("ID4" in n for n in notes)

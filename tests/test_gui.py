@@ -420,3 +420,20 @@ def test_cleanup_dialog(win, app):
     d = CleanupDialog(win)
     d.scan()
     assert d.res is not None
+
+
+def test_file_mix_counts_and_main_combo(win, app, tmp_path):
+    from nganhangde.ui.tabs.mix_more import FileMixPanel
+    a, b = tmp_path / "a.tex", tmp_path / "b.tex"
+    q = "\\begin{ex}%[0D1N1-1]\nCâu số NN\n\\choice\n{\\True a}\n{b}\n{c}\n{d}\n\\end{ex}\n"
+    a.write_text("".join(q.replace("NN", str(i)) for i in range(6)), encoding="utf-8")
+    b.write_text("".join(q.replace("NN", str(10 + i)) for i in range(4)), encoding="utf-8")
+    p = FileMixPanel(win)
+    p.e_file.setText(f"{a}:3 ; {b}")
+    assert len(p.load_questions()) == 3 + 4
+    gp = win.gen_panel
+    gp.reload_mains()
+    assert gp.cb_main.count() >= 1
+    win.show_panel(win.idgrid_panel)
+    win.idgrid_panel.reload()
+    assert win.idgrid_panel.cb_chuong.count() >= 1
