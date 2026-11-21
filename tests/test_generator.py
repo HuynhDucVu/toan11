@@ -86,7 +86,7 @@ def test_thpt2026_options_and_tnmaker(bank, tmp_path):
     assert check_structure(rules) == [] and check_structure([Rule("TN", 10)])
     assert THPT_2026["so_ma"] == 24
     vs = make_versions(bank, rules, codes=codes[:3], seed=4, options=MixOptions(shuffle_ds=False))
-    opt = ExportOptions(renumber=True, official_titles=True, scoring=True, ds_style="tach", ds_symbols="TF")
+    opt = ExportOptions(renumber=True, official_titles=True, scoring=True, ds_style="tach", ds_symbols="TF", tnmaker_layout="doc")
     files = export_versions(vs, str(tmp_path / "o"), options=opt)
     de = open(files[0], encoding="utf-8").read()
     assert de.count("\\setcounter{ex}{0}") == 3

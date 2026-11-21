@@ -11,6 +11,12 @@ Với bản một file:
 
 Kho câu hỏi `nganhang.db` nằm cạnh file exe. Cập nhật từ bản cũ: chỉ cần thay file exe, kho giữ nguyên.
 
+## Có gì mới ở bản 0.17.10 – Thư mục như MyLT 2026, Excel đáp án đúng mẫu MyLT, nhập kho rất lớn
+- **Bố cục thư mục giống MyLT 2026**: `DATA\\BANK`, `DATA\\DE` (đề trộn), `DATA\\EXAM`, `DATA\\AUTO`, `DATA\\MA TRAN DE`, `DATA\\TUONG TU`, `DATA\\WORD2EXTEST`, `DATA\\EXTEST2WORD`, `DATA\\PDF2TEX`, `DATA\\MOODLE XML`, `DATA\\MFORMS`, `DATA\\PDF QUIZ`, `DATA\\LOC ID`, `DATA\\LOC TIKZ`, `DATA\\IMG`, cùng `TEMPLATE`, `Map ID (DPS)`, `TEMP`, `LOG`. Các hộp thoại mở/lưu tự trỏ vào đúng thư mục. Máy đang dùng thư mục tên cũ (`de_xuat`, `mau_de`…) vẫn chạy, không tự di chuyển dữ liệu.
+- **Excel đáp án kiểu MyLT / TNMaker 2024** (theo file mẫu `11A2-LAN1-HOCKI1_DA_TNMaker2024.xlsx`): sheet «MyLT», số câu liên tục, mã đề ở hàng 1 (là kiểu mặc định).
+- **Nhập kho MyLT rất lớn** (đã thử với kho 206.066 dòng): câu có LaTeX hỏng được bỏ qua và ghi lại thay vì dừng cả lần nhập.
+- Đi kèm file `Phiếu TLTN THPT QG 2025 (1 mặt).pdf` trong `DATA` (phiếu trả lời trắc nghiệm mẫu).
+
 ## Có gì mới ở bản 0.17.9 – Trộn đề đầy đủ hơn (theo MyLT)
 - **Ẩn/hiện đáp án bằng 1 lệnh**: tuỳ chọn «Đưa đáp án vào một môi trường» – bảng đáp án nằm trong `\\ifshowans … \\fi`, đổi `\\showanstrue`/`\\showansfalse` là ẩn/hiện.
 - **Trộn riêng từng vùng** theo lớp, môn, chương, mức độ hoặc bài (theo ID của câu) – tab Trộn trong «Tuỳ chọn trộn đề».

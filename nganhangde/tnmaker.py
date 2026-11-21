@@ -56,7 +56,45 @@ def cell_value(v: ExamVersion, s: str, i: int, k: int | None, opt) -> str:
     return _plain_kq(q.answer_text, opt.kq_decimal)
 
 
+def _num_or_text(s: str):
+    """Số nguyên (không 0 đứng đầu) lưu dạng số; còn lại giữ chữ (vd '0,92', '-4,5') – như file TNMaker 2024 của MyLT."""
+    if s.lstrip("-").isdigit() and (s == "0" or not s.lstrip("-").startswith("0")):
+        return int(s)
+    return s
+
+
+def write_mylt_xlsx(versions: list[ExamVersion], path: str, opt) -> str:
+    """Đáp án Excel đúng bố cục MyLT/TNMaker 2024 (đối chiếu file mẫu 11A2-LAN1-HOCKI1_DA_TNMaker2024.xlsx):
+    một sheet «MyLT»; A1 = «Câu\\Đề», hàng 1 là mã đề; cột A là số câu LIÊN TỤC 1…N qua các phần
+    (trắc nghiệm → Đúng/Sai → trả lời ngắn); ô trắc nghiệm là chữ A–D, trả lời ngắn là số (hoặc chữ có dấu phẩy)."""
+    from openpyxl import Workbook
+    from openpyxl.styles import Alignment, Font
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "MyLT"
+    ws.append(["Câu\\Đề"] + [_num_or_text(v.code) for v in versions])
+    cols = answer_columns(versions, opt)
+    for n, (label, s, i, k) in enumerate(cols, 1):
+        row = []
+        for v in versions:
+            val = cell_value(v, s, i, k, opt)
+            row.append(_num_or_text(val) if s == "KQ" else val)
+        ws.append([n] + row)
+    center = Alignment(horizontal="center", vertical="center")
+    for r in ws.iter_rows():
+        for c in r:
+            c.alignment = center
+    for c in ws[1]:
+        c.font = Font(bold=True)
+    for j in range(1, ws.max_column + 1):
+        ws.column_dimensions[ws.cell(1, j).column_letter].width = 8.29
+    wb.save(path)
+    return path
+
+
 def write_answer_xlsx(versions: list[ExamVersion], path: str, opt) -> str:
+    if opt.tnmaker_layout == "mylt":
+        return write_mylt_xlsx(versions, path, opt)
     from openpyxl import Workbook
     from openpyxl.styles import Alignment, Font, PatternFill
     from openpyxl.utils import get_column_letter

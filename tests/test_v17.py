@@ -381,3 +381,39 @@ def test_similar_widen_and_content(tmp_path):
     assert not out
     out, notes = g.similar_exam(b, far, random.Random(0), widen=2, by_content=True, keep_missing=False)
     assert out and out[0].id_code.startswith("0D1N") and "đạo hàm" in out[0].stem and any("ID4" in n for n in notes)
+
+
+def test_mylt_xlsx_layout(tmp_path):
+    import openpyxl
+    from nganhangde.exporter import ExportOptions
+    from nganhangde.generator import ExamVersion
+    from nganhangde.parser import Question
+    from nganhangde.tnmaker import write_answer_xlsx
+    vs = []
+    for code, ans in (("813", [True, False, False, False]), ("784", [False, True, False, False])):
+        v = ExamVersion(code)
+        v.sections = {"TN": [Question("TN", "x", list("abcd"), ans)],
+                      "DS": [Question("DS", "y", list("abcd"), [True, False, True, False])],
+                      "KQ": [Question("KQ", "z", short_answer="$0{,}11$"), Question("KQ", "z", short_answer="$38$")], "TL": []}
+        vs.append(v)
+    p = write_answer_xlsx(vs, str(tmp_path / "a.xlsx"), ExportOptions())
+    ws = openpyxl.load_workbook(p).active
+    assert ws.title == "MyLT" and ws["A1"].value == "Câu\\Đề" and ws["B1"].value == 813
+    assert [ws.cell(r, 1).value for r in range(2, 6)] == [1, 2, 3, 4]       # số câu liên tục
+    assert ws["B2"].value == "A" and ws["C2"].value == "B" and ws["B4"].value == "0,11" and ws["B5"].value == 38
+
+
+def test_layout_like_mylt(tmp_path, monkeypatch):
+    from nganhangde import appdirs
+    root = str(tmp_path / "app")
+    appdirs.ensure_layout(root)
+    for sub in ("DATA/BANK", "DATA/DE", "DATA/AUTO", "DATA/MA TRAN DE", "DATA/WORD2EXTEST", "DATA/EXTEST2WORD", "DATA/PDF2TEX",
+                "DATA/MOODLE XML", "DATA/MFORMS", "DATA/TUONG TU", "DATA/LOC ID", "DATA/LOC TIKZ", "DATA/IMG",
+                "TEMPLATE", "Map ID (DPS)", "TEMP", "LOG"):
+        assert (tmp_path / "app").joinpath(*sub.split("/")).is_dir(), sub
+    assert (tmp_path / "app" / "TEMPLATE" / "de_thi.tex").exists()
+    assert appdirs.folder("de_xuat", root).endswith("DE")
+    # bản cũ: thư mục cũ còn thì dùng tiếp
+    old = tmp_path / "cu"
+    (old / "de_xuat").mkdir(parents=True)
+    assert appdirs.folder("de_xuat", str(old)).endswith("de_xuat")

@@ -460,10 +460,14 @@ def import_rows(bank, rows, source: str = "Bank.mylt", progress=None, should_sto
         if not text:
             err(f"Dòng {i}: nội dung trống")
             continue
-        qs = parse_tex(text)
-        if not qs:
-            env = "bt" if str(r.get("TuLuan") or "0") not in ("0", "", "False", "false", "0.0") else "ex"
-            qs = parse_tex(f"\\begin{{{env}}}\n{text}\n\\end{{{env}}}")
+        try:
+            qs = parse_tex(text)
+            if not qs:
+                env = "bt" if str(r.get("TuLuan") or "0") not in ("0", "", "False", "false", "0.0") else "ex"
+                qs = parse_tex(f"\\begin{{{env}}}\n{text}\n\\end{{{env}}}")
+        except (ValueError, IndexError, RecursionError) as e:        # LaTeX hỏng (thiếu ngoặc…): bỏ câu này, đi tiếp
+            err(f"Dòng {i}: LaTeX hỏng ({str(e)[:60]})")
+            continue
         if not qs:
             err(f"Dòng {i}: không nhận ra câu hỏi")
             continue

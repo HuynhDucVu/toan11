@@ -318,7 +318,7 @@ class ToolsPanel(QWidget):
 
     def word_to_tex(self):
         from ..dialogs.word2tex import Word2TexDialog, convert_word_file
-        ps, _ = QFileDialog.getOpenFileNames(self, "Chọn file Word", self.win.settings.value("last_dir", ""),
+        ps, _ = QFileDialog.getOpenFileNames(self, "Chọn file Word", self.win.settings.value("last_dir", "") or __import__("nganhangde.appdirs", fromlist=["folder"]).folder("word2extest"),
                                              "Word (*.docx)")
         if not ps:
             return

@@ -145,7 +145,7 @@ class ConvertPanel(QWidget):
         lay.addWidget(self.out, 1)
 
     def _pick(self):
-        ps, _ = QFileDialog.getOpenFileNames(self, "Chọn file", "", "LaTeX (*.tex);;Word/PDF (*.docx *.pdf)")
+        ps, _ = QFileDialog.getOpenFileNames(self, "Chọn file", __import__("nganhangde.appdirs", fromlist=["folder"]).folder("pdf2tex"), "LaTeX (*.tex);;Word/PDF (*.docx *.pdf)")
         if ps:
             self.e_files.setText("; ".join(ps))
 
@@ -165,8 +165,9 @@ class ConvertPanel(QWidget):
             QMessageBox.information(self, "Tiện ích", "Chọn file .tex hoặc chọn câu ở tab Câu hỏi.")
         return qs
 
-    def _save(self, title, name, filt):
-        base = os.path.dirname(self.paths()[0]) if self.paths() else ""
+    def _save(self, title, name, filt, key=""):
+        from ...appdirs import folder
+        base = folder(key) if key else (os.path.dirname(self.paths()[0]) if self.paths() else "")
         p, _ = QFileDialog.getSaveFileName(self, title, os.path.join(base, name), filt)
         return p
 
@@ -189,7 +190,7 @@ class ConvertPanel(QWidget):
     def moodle(self):
         from ...online import export_moodle
         qs = self._need()
-        p = qs and self._save("Moodle XML", "moodle.xml", "XML (*.xml)")
+        p = qs and self._save("Moodle XML", "moodle.xml", "XML (*.xml)", "moodle")
         if p:
             base = os.path.dirname(self.paths()[0]) if self.paths() else None
             self._done(f"Moodle: {len(qs)} câu → {export_moodle(qs, p, base_dir=base)}")
@@ -197,7 +198,7 @@ class ConvertPanel(QWidget):
     def aiken(self):
         from ...exportx import aiken
         qs = self._need()
-        p = qs and self._save("Aiken", "aiken.txt", "Văn bản (*.txt)")
+        p = qs and self._save("Aiken", "aiken.txt", "Văn bản (*.txt)", "moodle")
         if p:
             text, skip = aiken(qs)
             with open(p, "w", encoding="utf-8") as fh:
@@ -207,7 +208,7 @@ class ConvertPanel(QWidget):
     def quizizz(self):
         from ...exportx import quizizz_xlsx
         qs = self._need()
-        p = qs and self._save("Quizizz", "quizizz.xlsx", "Excel (*.xlsx)")
+        p = qs and self._save("Quizizz", "quizizz.xlsx", "Excel (*.xlsx)", "mforms")
         if p:
             quizizz_xlsx(qs, p)
             self._done(f"Quizizz: {p} – vào Quizizz → Tạo → Nhập từ bảng tính (Spreadsheet).")
@@ -215,7 +216,7 @@ class ConvertPanel(QWidget):
     def msforms(self):
         from ...exportx import msforms_docx
         qs = self._need()
-        p = qs and self._save("Microsoft Forms", "msforms.docx", "Word (*.docx)")
+        p = qs and self._save("Microsoft Forms", "msforms.docx", "Word (*.docx)", "mforms")
         if p:
             try:
                 msforms_docx(qs, p)
@@ -227,7 +228,7 @@ class ConvertPanel(QWidget):
     def gforms(self):
         from ...gas import apps_script
         qs = self._need()
-        p = qs and self._save("Google Forms", "google_form.gs", "Apps Script (*.gs)")
+        p = qs and self._save("Google Forms", "google_form.gs", "Apps Script (*.gs)", "mforms")
         if p:
             with open(p, "w", encoding="utf-8") as fh:
                 fh.write(apps_script(self._version(qs), ten_de=self.win.gen_panel.e_ten.text()))
@@ -237,7 +238,7 @@ class ConvertPanel(QWidget):
         from PySide6.QtWidgets import QApplication
         from ...gas import export_gas_images
         qs = self._need()
-        d = qs and QFileDialog.getExistingDirectory(self, "Thư mục lưu ảnh và file .gs")
+        d = qs and QFileDialog.getExistingDirectory(self, "Thư mục lưu ảnh và file .gs", __import__("nganhangde.appdirs", fromlist=["folder"]).folder("mforms"))
         if not d:
             return
         QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
@@ -254,7 +255,7 @@ class ConvertPanel(QWidget):
     def blogger(self):
         from ...exportx import blogger_html
         qs = self._need()
-        p = qs and self._save("Blogger", "blogger.html", "HTML (*.html)")
+        p = qs and self._save("Blogger", "blogger.html", "HTML (*.html)", "mforms")
         if p:
             with open(p, "w", encoding="utf-8") as fh:
                 o = self.win.gen_panel.export_options()
@@ -266,7 +267,7 @@ class ConvertPanel(QWidget):
         from ...online import export_html
         qs = self._need()
         if qs:
-            d = QFileDialog.getExistingDirectory(self, "Thư mục lưu bài online")
+            d = QFileDialog.getExistingDirectory(self, "Thư mục lưu bài online", __import__("nganhangde.appdirs", fromlist=["folder"]).folder("exam"))
             if d:
                 o = self.win.gen_panel.export_options()
                 fs = export_html([self._version(qs)], d, ten_de=self.win.gen_panel.e_ten.text(),
@@ -323,7 +324,7 @@ class ConvertPanel(QWidget):
         if not qs:
             return
         gp = self.win.gen_panel
-        p = self._save("Quyển chuyên đề", "chuyen_de.tex", "LaTeX (*.tex)")
+        p = self._save("Quyển chuyên đề", "chuyen_de.tex", "LaTeX (*.tex)", "de_xuat")
         if not p:
             return
         export_topic_book(qs, self.win.bank.idmap(), p, title=gp.e_ten.text().upper() or "CHUYÊN ĐỀ TOÁN THPT",
@@ -391,7 +392,7 @@ class ConvertPanel(QWidget):
     def slides(self):
         from ...slides import export_slides
         qs = self._need()
-        p = qs and self._save("Trình chiếu", "trinh_chieu.html", "HTML (*.html)")
+        p = qs and self._save("Trình chiếu", "trinh_chieu.html", "HTML (*.html)", "exam")
         if p:
             self._done(f"Trình chiếu: {export_slides(qs, p)}", p)
 
@@ -597,7 +598,7 @@ theo cực trị), bảng biến thiên, bảng xét dấu, trục số, miền 
 <tr><td><b>Soạn thảo</b></td><td>soạn câu ex_test có mẫu chèn nhanh, rà soát, biên dịch PDF</td></tr>
 </table>
 <p>Thư mục phần mềm: <code>{__import__('nganhangde.appdirs', fromlist=['home']).home()}</code>
-(config.ini, du_lieu, mau_de, map_id, de_xuat, sao_luu, anh, online, tam – xem DOC_TOI.txt)<br>
+(config.ini, DATA\\BANK, DATA\\DE, TEMPLATE, Map ID (DPS), TEMP, LOG… – xem DOC_TOI.txt)<br>
 Kho câu hỏi: <code>{getattr(win.bank, 'path', '')}</code></p>
 <p>Mã nguồn và bản cập nhật: <a href="https://github.com/HuynhDucVu/toan11/releases">github.com/HuynhDucVu/toan11</a></p>""")
         lay.addWidget(tb, 1)

@@ -134,7 +134,7 @@ class BankActionsMixin:
 
     def import_word(self):
         from .dialogs.word2tex import Word2TexDialog, convert_word_file
-        paths, _ = QFileDialog.getOpenFileNames(self, "Chọn file Word", self.settings.value("last_dir", ""),
+        paths, _ = QFileDialog.getOpenFileNames(self, "Chọn file Word", self.settings.value("last_dir", "") or __import__("nganhangde.appdirs", fromlist=["folder"]).folder("word2extest"),
                                                 "Word (*.docx)")
         if not paths:
             return

@@ -1,5 +1,6 @@
 """Bản 0.16: câu đổi số / lời giải AI (xem test_v13_ai), bảng chọn theo ID, sắp xếp câu, Google Form nhận kết quả,
 Google Forms dạng ảnh."""
+import os
 import json
 import random
 import shutil
@@ -59,13 +60,13 @@ def test_app_folder_layout(tmp_path, monkeypatch):
     from nganhangde.exporter import load_template
     monkeypatch.setenv("NHD_HOME", str(tmp_path))
     root = appdirs.ensure_layout()
-    for d in appdirs.SUBDIRS:
-        assert (tmp_path / d).is_dir()
-    assert (tmp_path / "mau_de" / "de_thi.tex").exists() and (tmp_path / "DOC_TOI.txt").exists()
-    assert appdirs.default_db() == str(tmp_path / "du_lieu" / "nganhang.db")
-    (tmp_path / "mau_de" / "de_thi.tex").write_text("MAU RIENG <<NOI_DUNG>>", encoding="utf-8")
+    for k in appdirs.SUBDIRS:
+        assert os.path.isdir(appdirs.folder(k))
+    assert (tmp_path / "TEMPLATE" / "de_thi.tex").exists() and (tmp_path / "DOC_TOI.txt").exists()
+    assert appdirs.default_db() == str(tmp_path / "DATA" / "BANK" / "nganhang.db")
+    (tmp_path / "TEMPLATE" / "de_thi.tex").write_text("MAU RIENG <<NOI_DUNG>>", encoding="utf-8")
     assert load_template().startswith("MAU RIENG")              # giáo viên sửa mẫu trong mau_de là có hiệu lực
     (tmp_path / "nganhang.db").write_text("")
-    (tmp_path / "du_lieu" / "nganhang.db").unlink(missing_ok=True)
+    (tmp_path / "DATA" / "BANK" / "nganhang.db").unlink(missing_ok=True)
     assert appdirs.default_db() == str(tmp_path / "nganhang.db")  # máy dùng bố cục cũ: giữ kho cũ
     assert appdirs.settings_file() == str(tmp_path / "config.ini") and root == str(tmp_path)

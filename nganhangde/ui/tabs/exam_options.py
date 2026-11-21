@@ -206,8 +206,9 @@ class ExamOptionsBox(QTabWidget):
         f.addRow("Kiểu mã QR", self.cb_qrfmt)
         f.addRow("Mẫu phiếu (kiểm tra số câu)", self.cb_cap)
         self.c_qr.setChecked(val("qr", False))
-        self.cb_layout = combo([("Mỗi dòng 1 câu, mỗi cột 1 mã đề", "doc"), ("Mỗi dòng 1 mã đề, mỗi cột 1 câu", "ngang")],
-                               "layout", "doc")
+        self.cb_layout = combo([("Kiểu MyLT / TNMaker 2024 (sheet «MyLT», số câu liên tục)", "mylt"),
+                                ("Mỗi dòng 1 câu, mỗi cột 1 mã đề (nhãn I.1, II.1…)", "doc"),
+                                ("Mỗi dòng 1 mã đề, mỗi cột 1 câu", "ngang")], "layout", "mylt")
         self.cb_ds = combo([("Gộp 1 ô / câu (ĐSĐS)", "gop"), ("Tách 4 ô a, b, c, d", "tach")], "ds", "gop")
         self.cb_sym = combo([("Đ / S", "ĐS"), ("T / F", "TF"), ("1 / 0", "10")], "sym", "ĐS")
         self.cb_dec = combo([("Dấu phẩy (0,5)", ","), ("Dấu chấm (0.5)", ".")], "dec", ",")

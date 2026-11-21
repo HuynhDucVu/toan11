@@ -14,7 +14,8 @@ from PySide6.QtWidgets import (QCheckBox, QComboBox, QFileDialog, QFormLayout, Q
 from ...exporter import export_versions
 from ...generator import NotEnoughQuestions, Rule, THPT_2026, check_structure, make_versions, matrix_from_questions
 from ...parser import parse_file
-from ..common import TEN_LOAI, TEN_MUC, resource_dir, scroll_of
+from ...appdirs import path as app_path
+from ..common import TEN_LOAI, TEN_MUC, scroll_of
 from ..dialogs.result import ResultDialog
 from ..dialogs.swap import SwapDialog
 from ..tabs.exam_options import ExamOptionsBox
@@ -53,7 +54,7 @@ class GeneratorPanel(QWidget):
         self.e_ma.setPlaceholderText("để trống = sinh theo «Tuỳ chọn trộn đề → Mã đề»; hoặc nhập 132, 209, …")
         self.e_seed = QLineEdit()
         self.e_seed.setPlaceholderText("để trống = ngẫu nhiên; nhập số để tạo lại đúng bộ đề cũ")
-        self.e_out = self._path_row(self.st.value("gen/out", os.path.join(resource_dir(), "de_xuat")), folder=True)
+        self.e_out = self._path_row(self.st.value("gen/out", app_path("de_xuat")), folder=True)
         self.e_tpl = self._path_row(self.st.value("gen/tpl", ""), folder=False)
         self.e_tpl[0].setPlaceholderText("để trống = mau_de\\de_thi.tex trong thư mục phần mềm")
         fl.addRow("Tên đề", self.e_ten)
@@ -294,7 +295,7 @@ class GeneratorPanel(QWidget):
                              " – <span style='color:#c00000'>có dòng thiếu câu</span>"))
 
     def load_matrix(self):
-        p, _ = QFileDialog.getOpenFileName(self, "Mở ma trận", "", "Ma trận (*.json *.xlsx)")
+        p, _ = QFileDialog.getOpenFileName(self, "Mở ma trận", app_path("ma_tran"), "Ma trận (*.json *.xlsx)")
         if not p:
             return
         if p.lower().endswith(".xlsx"):
@@ -324,7 +325,7 @@ class GeneratorPanel(QWidget):
         self.update_avail()
 
     def save_matrix(self):
-        p, _ = QFileDialog.getSaveFileName(self, "Lưu ma trận", "ma_tran.json", "Ma trận (*.json)")
+        p, _ = QFileDialog.getSaveFileName(self, "Lưu ma trận", os.path.join(app_path("ma_tran"), "ma_tran.json"), "Ma trận (*.json)")
         if not p:
             return
         cfg = {"ten_de": self.e_ten.text(), "truong": self.e_truong.text(), "thoi_gian": self.e_tg.value(),

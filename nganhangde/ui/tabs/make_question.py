@@ -1,6 +1,8 @@
 """Tab «Sinh câu»: sinh biến thể từ câu mẫu có tham số."""
 from __future__ import annotations
 
+import os
+
 from typing import TYPE_CHECKING
 
 from PySide6.QtWidgets import (QAbstractItemView, QFileDialog, QFormLayout, QGroupBox, QHBoxLayout, QHeaderView,
@@ -135,6 +137,6 @@ class MakeQuestionPanel(QWidget):
     def save_tex(self):
         if not self.qs:
             return
-        p, _ = QFileDialog.getSaveFileName(self, "Lưu các câu đã sinh", "cau_sinh.tex", "LaTeX (*.tex)")
+        p, _ = QFileDialog.getSaveFileName(self, "Lưu các câu đã sinh", os.path.join(__import__("nganhangde.appdirs", fromlist=["folder"]).folder("auto"), "cau_sinh.tex"), "LaTeX (*.tex)")
         if p:
             export_questions(self.qs, p)

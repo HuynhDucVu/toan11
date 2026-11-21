@@ -30,7 +30,7 @@ class ExportOptions:
     official_titles: bool = False     # tiêu đề + lời dẫn theo mẫu đề thi tốt nghiệp
     scoring: bool = False             # in thang điểm trong file lời giải
     answers_xlsx: bool = True         # đáp án Excel (dùng cho TNMaker / phần mềm chấm)
-    tnmaker_layout: str = "doc"       # 'doc': mỗi dòng một câu, mỗi cột một mã đề; 'ngang': mỗi dòng một mã đề
+    tnmaker_layout: str = "mylt"       # 'doc': mỗi dòng một câu, mỗi cột một mã đề; 'ngang': mỗi dòng một mã đề
     ds_style: str = "gop"             # 'gop': 1 ô «ĐSĐS» / câu; 'tach': 4 ô a,b,c,d
     ds_symbols: str = "ĐS"            # 'ĐS' | 'TF' | '10'
     kq_decimal: str = ","             # dấu thập phân phần trả lời ngắn
