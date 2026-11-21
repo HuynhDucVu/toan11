@@ -46,7 +46,11 @@ class Utils2Panel(QWidget):
         items = [("Xoá dòng trống, căn mã", self.clean), ("Đặt đáp án theo chuỗi", self.set_key),
                  ("Đưa đáp án đúng về A", self.to_a), ("Chuyển mức độ ID (Y,B,K,G,T → N,H,V,C)", self.levels),
                  ("Tách file theo ID", self.split), ("Nối các file thành một", self.join),
-                 ("Tạo mã \\input các file", self.inputs), ("Xuất cả kho ra các file theo ID", self.export_bank)]
+                 ("Tạo mã \\input các file", self.inputs), ("Xuất cả kho ra các file theo ID", self.export_bank),
+                 ("Thêm \\dapso{đáp án}", self.dapso), ("Trộn thứ tự câu trong file", self.shuf_q),
+                 ("Trộn phương án trong file", self.shuf_c), ("Sắp xếp câu theo ID", self.sort_id),
+                 ("Gán một ID cho cả file", self.group_id), ("Xoá ID", lambda: self.ids("remove")),
+                 ("In ID sau câu", lambda: self.ids("show")), ("Bỏ ID đã in", lambda: self.ids("hide"))]
         for k, (text, fn) in enumerate(items):
             bb = QPushButton(text)
             bb.clicked.connect(fn)
@@ -81,6 +85,27 @@ class Utils2Panel(QWidget):
 
     def clean(self):
         self._each(tools2.clean_code, "bỏ dòng trống")
+
+    def dapso(self):
+        self._each(tools2.add_dapso, "câu thêm \\dapso")
+
+    def shuf_q(self):
+        self._each(tools2.shuffle_questions, "câu đã trộn")
+
+    def shuf_c(self):
+        self._each(tools2.shuffle_choices_in_file, "câu đã trộn phương án")
+
+    def sort_id(self):
+        self._each(tools2.sort_by_id_text, "câu đã sắp xếp")
+
+    def group_id(self):
+        from PySide6.QtWidgets import QInputDialog
+        v, ok = QInputDialog.getText(self, "Gán ID cho cả file", "ID (vd 0D2N1-2):")
+        if ok and v.strip():
+            self._each(lambda t: tools2.assign_group_id(t, v), "câu đã gán ID")
+
+    def ids(self, action):
+        self._each(lambda t: tools2.hide_show_ids(t, action), "ID đã xử lý")
 
     def set_key(self):
         if not self.e_key.text().strip():

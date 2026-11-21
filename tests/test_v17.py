@@ -239,3 +239,32 @@ def test_docx_mathtype_warning_and_table(tmp_path):
     _make_docx(str(f), _p("Bảng:") + tbl, {"word/embeddings/oleObject1.bin": b"MathType"})
     tex, rep = docx_to_latex(str(f))
     assert "\\begin{tabular}{|c|c|}" in tex and rep.mathtype_ole == 1 and rep.warnings
+
+
+def test_tools2_extras():
+    from nganhangde import tools2
+    t = open(SAMPLE, encoding="utf-8").read()
+    a, n = tools2.add_dapso(t)
+    assert n == 12 and a.count("\\dapso{") == 12 and tools2.add_dapso(a)[1] == 0
+    b, n = tools2.shuffle_questions(t, 1)
+    assert n == 22 and sorted(q.fingerprint for q in parse_tex(b)) == sorted(q.fingerprint for q in parse_tex(t))
+    c, _ = tools2.sort_by_id_text(t)
+    ids = [q.id_code for q in parse_tex(c)]
+    assert ids == sorted(ids)
+    d, n = tools2.shuffle_choices_in_file(t, 2)
+    assert n > 0 and len(parse_tex(d)) == 22
+    e, n = tools2.assign_group_id(t, "0D2N1-2")
+    assert n == 22 and {q.id_code for q in parse_tex(e)} == {"0D2N1-2"}
+    f, n = tools2.hide_show_ids(t, "show")
+    assert n == 22 and tools2.hide_show_ids(f, "hide")[0] == t
+    assert {q.id_code for q in parse_tex(tools2.hide_show_ids(t, "remove")[0])} == {""}
+
+
+def test_topic_book(bank, tmp_path):
+    from nganhangde.topicbook import export_topic_book
+    p = export_topic_book(bank.search(), bank.idmap(), str(tmp_path / "cd.tex"), title="CHUYÊN ĐỀ", school="THPT A")
+    tex = open(p, encoding="utf-8").read()
+    assert tex.count("\\begin{ex}") == 22 and "\\section{" in tex and "\\subsection{" in tex and "\\tableofcontents" in tex
+    if shutil.which("pdflatex"):
+        from nganhangde.pdfbuild import compile_tex
+        assert compile_tex(p).ok

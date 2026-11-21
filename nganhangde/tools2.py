@@ -162,3 +162,83 @@ def export_bank_by_id(bank, out_dir: str, level: str = "bai") -> list[str]:
             f.write("\n\n".join(blocks) + "\n")
         out.append(fp)
     return out
+
+
+# ---------------------------------------------------------------- bổ sung (theo MyLT 1.0.2.58+)
+def add_dapso(text: str) -> tuple[str, int]:
+    """Chèn \\dapso{A/B/C/D} cuối mỗi câu trắc nghiệm một đáp án (chưa có)."""
+    pairs = []
+    for q in parse_tex(text):
+        if q.qtype == "TN" and sum(q.correct) == 1 and "\\dapso" not in q.raw:
+            raw = q.raw
+            pairs.append((raw, raw.replace("\\end{ex}", f"\\dapso{{{'ABCD'[q.correct.index(True)]}}}\n\\end{{ex}}", 1)))
+    return replace_questions_text(text, pairs)
+
+
+def shuffle_questions(text: str, seed=None) -> tuple[str, int]:
+    """Xáo thứ tự các câu hỏi trong file (giữ phần còn lại của file)."""
+    import random
+    qs = parse_tex(text)
+    order = list(range(len(qs)))
+    random.Random(seed).shuffle(order)
+    pairs = [(qs[i].raw, f"\x00{k}\x00") for k, i in enumerate(order)]
+    marker, _ = replace_questions_text(text, pairs)
+    for k, i in enumerate(order):
+        marker = marker.replace(f"\x00{k}\x00", qs[i].raw, 1)
+    return marker, len(qs)
+
+
+def shuffle_choices_in_file(text: str, seed=None) -> tuple[str, int]:
+    """Trộn phương án A–D từng câu trắc nghiệm (đổi cả «Chọn X» trong lời giải)."""
+    import random
+    from .generator import shuffle_choices
+    rng = random.Random(seed)
+    pairs = []
+    for q in parse_tex(text):
+        if q.qtype == "TN":
+            nq = shuffle_choices(q, rng)
+            if nq.choices != q.choices:
+                pairs.append((q.raw, nq.to_latex(True)))
+    return replace_questions_text(text, pairs)
+
+
+def sort_by_id_text(text: str) -> tuple[str, int]:
+    """Sắp xếp các câu hỏi trong file theo ID (câu chưa có ID đứng cuối)."""
+    qs = parse_tex(text)
+    order = sorted(range(len(qs)), key=lambda i: (qs[i].id_code or "~", i))
+    marker, _ = replace_questions_text(text, [(qs[k].raw, f"\x00{k}\x00") for k in range(len(qs))])
+    for k, i in enumerate(order):
+        marker = marker.replace(f"\x00{k}\x00", qs[i].raw, 1)
+    return marker, len(qs)
+
+
+def assign_group_id(text: str, new_id: str, only_missing: bool = False) -> tuple[str, int]:
+    """Gán cùng một ID cho mọi câu trong file (hoặc chỉ câu chưa có ID)."""
+    new_id = new_id.strip().strip("%[]").upper()
+    pairs = []
+    for q in parse_tex(text):
+        if only_missing and q.id_code:
+            continue
+        nq = copy.deepcopy(q)
+        nq.set_id(new_id)
+        pairs.append((q.raw, nq.raw))
+    return replace_questions_text(text, pairs)
+
+
+def hide_show_ids(text: str, action: str) -> tuple[str, int]:
+    """'remove' xoá ID; 'show' in ID nhỏ sau câu; 'hide' bỏ phần in ID (giữ %[ID])."""
+    n = 0
+
+    def rm(m):
+        nonlocal n
+        n += 1
+        return ""
+    if action == "remove":
+        return ID_RE.sub(rm, text), n
+    if action == "show":
+        def sh(m):
+            nonlocal n
+            n += 1
+            return f"{m.group(0)}\\textbf{{[{m.group(1)}{m.group(2)}{m.group(3)}{m.group(4)}]}}"
+        return ID_RE.sub(sh, text), n
+    return re.sub(r"\\textbf\{\[[0-9A-Z]{3}[A-Z][0-9A-Z](?:-[0-9A-Z]+)?\]\}", rm, text), n

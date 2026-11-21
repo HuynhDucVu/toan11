@@ -11,7 +11,11 @@ Với bản một file:
 
 Kho câu hỏi `nganhang.db` nằm cạnh file exe. Cập nhật từ bản cũ: chỉ cần thay file exe, kho giữ nguyên.
 
-## Có gì mới ở bản 0.17.4 – Đọc kho MyLT bền hơn, nhập Word không cần pandoc
+## Có gì mới ở bản 0.17.5 – Quyển chuyên đề, Tiện ích 2 đầy đủ hơn (theo bản Gemini và MyLT)
+- **Xuất quyển chuyên đề** (Tiện ích → Xuất & chuyển đổi): gom câu hỏi theo chương – bài – dạng (tên lấy từ Map ID), có trang bìa, mục lục, đề + lời giải; xuất .tex hoặc biên dịch PDF luôn.
+- **Tiện ích 2** thêm: chèn `\dapso{đáp án}`, trộn thứ tự câu trong file, trộn phương án trong file, sắp xếp câu theo ID, gán một ID cho cả file, xoá ID / in ID sau câu / bỏ ID đã in.
+
+## Bản 0.17.4 – Đọc kho MyLT bền hơn, nhập Word không cần pandoc
 - **Kho MyLT**: khi nhập `Bank.mylt` bị lỗi hoặc ra 0 câu, bấm *Chi tiết* trong thông báo để xem **báo cáo chẩn đoán** (đọc bằng cách nào, bảng/cột/số dòng) – gửi báo cáo này cho người hỗ trợ là sửa được ngay.
 - **Tự đồng bộ kho MyLT**: sau lần nhập đầu, mỗi lần mở phần mềm, nếu file `Bank.mylt` có thay đổi thì tự thêm các câu mới (chỉ thêm, không xoá/sửa câu đã có).
 - **Nhập file Word (.docx) không cần cài pandoc**: phần mềm tự đọc Word bằng Python – công thức Word (OMML) sang LaTeX, bảng, hình, đáp án **gạch chân hoặc tô màu** (cách MyLT), báo số công thức MathType (đối tượng OLE) nếu có. Máy có pandoc thì vẫn dùng pandoc như cũ.

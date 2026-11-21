@@ -113,6 +113,7 @@ class ConvertPanel(QWidget):
             ("Phiếu trả lời", [("Phiếu trắng (in)", self.sheet_blank), ("Phiếu tô sẵn theo đề .tex", self.sheet_from_file),
                                ("Phiếu tô theo chuỗi đáp án", self.sheet_from_string)]),
             ("Hình vẽ", [("Hoá ảnh hình TikZ (PNG)", self.tikz_png), ("Trích hình TikZ ra file", self.tikz_files)]),
+            ("Quyển chuyên đề", [("Xuất quyển chuyên đề (.tex)", self.topic_book), ("Xuất và biên dịch PDF", self.topic_book_pdf)]),
             ("Chuyển đổi", [("Đề LaTeX thường → ex_test", self.plain_ex), ("Word → LaTeX", self.word_tex),
                             ("LaTeX → Word", self.tex_word), ("Trình chiếu HTML", self.slides)]),
         ]
@@ -314,6 +315,25 @@ class ConvertPanel(QWidget):
         self._sheet("\\documentclass{article}\n\\usepackage[utf8]{vietnam}\n\\usepackage{tikz}\n"
                     "\\usepackage[a4paper,margin=1cm]{geometry}\n\\pagestyle{empty}\n\\begin{document}\n"
                     "\\noindent\\centering\n" + body + "\n\\end{document}\n", "phieu_theo_chuoi.tex")
+
+    # --- quyển chuyên đề
+    def topic_book(self, compile_pdf=False):
+        from ...topicbook import export_topic_book
+        qs = self._need()
+        if not qs:
+            return
+        gp = self.win.gen_panel
+        p = self._save("Quyển chuyên đề", "chuyen_de.tex", "LaTeX (*.tex)")
+        if not p:
+            return
+        export_topic_book(qs, self.win.bank.idmap(), p, title=gp.e_ten.text().upper() or "CHUYÊN ĐỀ TOÁN THPT",
+                          school=gp.e_truong.text() or "TRƯỜNG THPT", author=gp.hdr["GIAO_VIEN"].text() or "Tổ Toán")
+        self._done(f"Quyển chuyên đề: {len(qs)} câu → {p}")
+        if compile_pdf:
+            self.win.build_pdfs([p], "Biên dịch quyển chuyên đề", open_single=True)
+
+    def topic_book_pdf(self):
+        self.topic_book(True)
 
     # --- hình
     def tikz_png(self):
