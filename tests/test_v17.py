@@ -474,3 +474,22 @@ def test_pdf_to_tex_text_layer(tmp_path):
     assert len(qs) == 2 and all(q.qtype == "TN" and q.answer_text == "B" for q in qs)
     out, n2 = pdf2tex.pdf_to_tex(str(tmp_path / "de.pdf"), "text")
     assert isinstance(out, str)
+
+
+def test_run_cancelable(tmp_path):
+    import sys
+    import threading
+    import time
+    import pytest
+    from nganhangde import mylt_import as m
+    out = str(tmp_path / "o.txt")
+    assert m._run_cancelable([sys.executable, "-c", "print('xin chao')"], out, stdout_to_out=True) == ""
+    assert "xin chao" in open(out).read()
+    err = m._run_cancelable([sys.executable, "-c", "import sys;sys.stderr.write('hỏng');sys.exit(3)"], out)
+    assert "hỏng" in err
+    stop = {"v": False}
+    threading.Timer(0.8, lambda: stop.__setitem__("v", True)).start()
+    t = time.time()
+    with pytest.raises(m.MyltError):
+        m._run_cancelable([sys.executable, "-c", "import time;time.sleep(30)"], out, should_stop=lambda: stop["v"])
+    assert time.time() - t < 10

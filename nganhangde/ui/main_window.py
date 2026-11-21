@@ -305,7 +305,9 @@ class MainWindow(LayoutMixin, BankActionsMixin, QMainWindow):
         dlg = QProgressDialog("Đang đọc và nhập kho MyLT (kho lớn có thể mất vài phút)…", "Dừng", 0, 0, self)
         dlg.setWindowModality(Qt.WindowModality.WindowModal)
         dlg.setMinimumDuration(0)
-        w.progress.connect(lambda i, n: dlg.setLabelText(f"Đang nhập kho MyLT… đã xử lý {i:,} câu"))
+        w.progress.connect(lambda i, n: dlg.setLabelText(
+            f"Bước 1/2 – đang đọc kho bằng bộ máy Access… đã xuất {i:,} MB (kho lớn mất vài phút, nút Dừng vẫn dùng được)"
+            if n < 0 else f"Bước 2/2 – đang nhập vào kho… đã xử lý {i:,} câu"))
         dlg.canceled.connect(w.requestInterruption)
         w.finished.connect(dlg.close)
         w.start()

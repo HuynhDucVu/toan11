@@ -98,11 +98,43 @@ def _read_access_parser(path):
     raise MyltError("Không thấy bảng câu hỏi (cột NoiDung) trong file này")
 
 
+def _run_cancelable(cmd: list, out_path: str, *, stdout_to_out: bool = False, progress=None, should_stop=None,
+                    timeout: float = 3 * 3600, creationflags: int = 0) -> str:
+    """Chạy lệnh ngoài (đọc kho lớn mất vài phút): kiểm tra nút Dừng mỗi 0,5 giây và báo dung lượng file xuất ra
+    (progress(MB, -1)). Trả về nội dung lỗi (stderr) nếu lệnh thất bại ('' nếu ổn)."""
+    import time
+    err_path = out_path + ".err"
+    with open(err_path, "wb") as ferr, (open(out_path, "wb") if stdout_to_out else open(os.devnull, "wb")) as fout:
+        proc = subprocess.Popen(cmd, stdout=fout, stderr=ferr, creationflags=creationflags)
+        t0 = time.time()
+        while proc.poll() is None:
+            time.sleep(0.5)
+            if progress:
+                try:
+                    progress(int(os.path.getsize(out_path) / 1048576), -1)
+                except OSError:
+                    pass
+            if should_stop and should_stop():
+                proc.kill()
+                proc.wait()
+                raise MyltError("Đã dừng theo yêu cầu.")
+            if time.time() - t0 > timeout:
+                proc.kill()
+                proc.wait()
+                raise MyltError("Đọc kho quá lâu (quá 3 giờ) – đã dừng.")
+    err = ""
+    if proc.returncode != 0:
+        with open(err_path, "rb") as f:
+            err = f.read().decode("utf-8", "replace").strip()
+        return err or f"lệnh trả về mã lỗi {proc.returncode}"
+    return ""
+
+
 def _norm_one(r: dict, cm: dict) -> dict:
     return _normalize([r], cm)[0]
 
 
-def _iter_mdbtools(path):
+def _iter_mdbtools(path, progress=None, should_stop=None):
     """mdbtools: xuất bảng ra file CSV tạm rồi đọc từng dòng (kho thật hàng trăm MB, không nạp hết vào bộ nhớ)."""
     exe, tables = shutil.which("mdb-export"), shutil.which("mdb-tables")
     if not exe or not tables:
@@ -111,8 +143,9 @@ def _iter_mdbtools(path):
     d = tempfile.mkdtemp(prefix="nhd_mdb_")
     for t in sorted(names, key=lambda x: (x.upper() != "QUEST", x)):
         out = os.path.join(d, "t.csv")
-        with open(out, "wb") as f:
-            subprocess.run([exe, path, t], stdout=f, stderr=subprocess.DEVNULL, check=True)
+        err = _run_cancelable([exe, path, t], out, stdout_to_out=True, progress=progress, should_stop=should_stop)
+        if err:
+            continue
         with open(out, encoding="utf-8", errors="replace", newline="") as f:
             head = f.readline()
         cm = pick_columns(next(csv.reader([head]), []))
@@ -220,6 +253,49 @@ try {
         } catch { continue }
         $cols = @(); for ($i = 0; $i -lt $rd.FieldCount; $i++) { $cols += $rd.GetName($i) }
         if (-not ($cols | Where-Object { $_ -match "(?i)noidung|n.i dung|content" })) { $rd.Close(); continue }
+        $done = $false
+        try {                                         # đường nhanh: vòng lặp C# (hàng trăm nghìn dòng trong vài phút)
+            Add-Type -ReferencedAssemblies "System.Data" -TypeDefinition @'
+using System; using System.Data.OleDb; using System.Globalization; using System.IO; using System.Text;
+public static class NhdDump {
+  static void Esc(StreamWriter w, string s) {
+    w.Write('"');
+    foreach (char c in s) {
+      switch (c) {
+        case '"': w.Write("\\\""); break;
+        case '\\': w.Write("\\\\"); break;
+        case '\n': w.Write("\\n"); break;
+        case '\r': w.Write("\\r"); break;
+        case '\t': w.Write("\\t"); break;
+        default: if (c < 0x20) w.Write("\\u" + ((int)c).ToString("x4")); else w.Write(c); break;
+      }
+    }
+    w.Write('"');
+  }
+  public static long Run(OleDbDataReader rd, string outFile) {
+    long n = 0;
+    using (var sw = new StreamWriter(outFile, false, new UTF8Encoding(false), 1 << 20)) {
+      int fc = rd.FieldCount; string[] names = new string[fc];
+      for (int i = 0; i < fc; i++) names[i] = rd.GetName(i);
+      while (rd.Read()) {
+        sw.Write('{');
+        for (int i = 0; i < fc; i++) {
+          if (i > 0) sw.Write(',');
+          Esc(sw, names[i]); sw.Write(':');
+          if (rd.IsDBNull(i)) sw.Write("null");
+          else Esc(sw, Convert.ToString(rd.GetValue(i), CultureInfo.InvariantCulture));
+        }
+        sw.Write("}\n"); n++;
+      }
+    }
+    return n;
+  }
+}
+'@
+            [void][NhdDump]::Run($rd, $OutFile)
+            $done = $true
+        } catch { $done = $false; try { $rd.Close() } catch {}; $rd = $cmd.ExecuteReader() }
+        if ($done) { $rd.Close(); return }
         $sw = New-Object System.IO.StreamWriter($OutFile, $false, $utf8)
         try {
             while ($rd.Read()) {
@@ -237,7 +313,7 @@ try {
 """
 
 
-def _iter_oledb_ps(path: str):
+def _iter_oledb_ps(path: str, progress=None, should_stop=None):
     """Windows: đọc bằng Microsoft Jet OLEDB qua PowerShell 32-bit (Jet 4.0 chỉ có bản 32-bit); xuất ra file .jsonl
     rồi đọc từng dòng. Kho lớn (hàng trăm nghìn câu) có thể mất vài phút."""
     if os.name != "nt":
@@ -252,11 +328,10 @@ def _iter_oledb_ps(path: str):
             f.write(PS_SCRIPT)
         with open(pwf, "w", encoding="utf-8") as f:
             f.write(jet4_password(path))
-        r = subprocess.run([ps, "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", script, path, out, pwf],
-                           capture_output=True, timeout=3 * 3600, creationflags=0x08000000)
-        if r.returncode != 0 or not os.path.exists(out):
-            msg = (r.stderr or r.stdout).decode("utf-8", "replace").strip()
-            raise MyltError(msg or "PowerShell không xuất được dữ liệu")
+        err = _run_cancelable([ps, "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", script, path, out, pwf], out,
+                              progress=progress, should_stop=should_stop, creationflags=0x08000000)
+        if err or not os.path.exists(out):
+            raise MyltError(err or "PowerShell không xuất được dữ liệu")
     except BaseException:
         shutil.rmtree(d, ignore_errors=True)
         raise
@@ -288,7 +363,7 @@ def _read_oledb_ps(path: str) -> list[dict]:
 BIG_FILE = 60 * 1024 * 1024         # file lớn hơn mức này: bỏ access-parser (Python thuần, quá chậm/tốn RAM)
 
 
-def iter_rows(path: str):
+def iter_rows(path: str, progress=None, should_stop=None):
     """Như read_rows nhưng trả về bộ lặp (đọc dần, hợp với kho hàng trăm MB). Thử lần lượt các bộ đọc."""
     if not os.path.isfile(path):
         raise MyltError(f"Không thấy file {path}")
@@ -300,7 +375,11 @@ def iter_rows(path: str):
         readers.insert(0, ("OLEDB", _iter_oledb_ps))
     for name, fn in readers:
         try:
-            return iter(fn(path))
+            return iter(fn(path, progress, should_stop) if fn in (_iter_mdbtools, _iter_oledb_ps) else fn(path))
+        except MyltError as e:
+            if "Đã dừng" in str(e):
+                raise
+            errors.append(f"{name}: {e}")
         except ImportError:
             errors.append(f"{name}: chưa cài")
         except Exception as e:  # noqa: BLE001 – file hỏng / không phải kho MyLT / thiếu driver
@@ -495,4 +574,4 @@ def import_mylt(bank, path: str, password: str = DEFAULT_PASSWORD, progress=None
     """Nhập từ Bank.mylt hoặc từ file nén (.rar/.zip/.7z) chứa Bank.mylt."""
     if path.lower().endswith((".rar", ".zip", ".7z")):
         path = extract_archive(path, password)
-    return import_rows(bank, iter_rows(path), source=path, progress=progress, should_stop=should_stop)
+    return import_rows(bank, iter_rows(path, progress, should_stop), source=path, progress=progress, should_stop=should_stop)

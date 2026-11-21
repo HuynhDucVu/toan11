@@ -11,6 +11,10 @@ Với bản một file:
 
 Kho câu hỏi `nganhang.db` nằm cạnh file exe. Cập nhật từ bản cũ: chỉ cần thay file exe, kho giữ nguyên.
 
+## Có gì mới ở bản 0.17.15 – Nạp kho MyLT lớn nhanh hơn, không còn «treo»
+- Bước đọc kho bằng bộ máy Access (Windows) dùng vòng lặp C# thay cho PowerShell từng dòng – nhanh hơn nhiều lần với kho hàng trăm nghìn câu (nếu máy không biên dịch được thì tự quay về cách cũ).
+- Hộp thoại hiện rõ **Bước 1/2 – đang đọc kho (đã xuất … MB)** và **Bước 2/2 – đang nhập (đã xử lý … câu)**; nút **Dừng** dùng được ở cả hai bước.
+
 ## Có gì mới ở bản 0.17.14 – Sửa lỗi build, xem PDF và Mathpix không cần thêm thư viện
 - Sửa lỗi làm bản 0.17.11–0.17.13 không đóng gói được: bộ kiểm thử trên Windows dùng thư viện Pillow mà bản đóng gói không có. Xem PDF trong app và gửi trang cho Mathpix nay vẽ bằng Qt, không cần numpy/Pillow. **Các tính năng của 0.17.11–0.17.13 (phiếu TLTN 2025, Excel TNMaker mặc định, PDF → LaTeX) có trong bản này.**
 
