@@ -118,7 +118,7 @@ class IdGridPanel(QWidget):
         for lv, name in zip(LEVELS, LEVEL_NAMES):
             self.cb_quick.addItem(name, lv)
         q.addWidget(self.cb_quick)
-        for text, fn in (("Điền", self.quick_fill), ("Xoá số đã nhập", self.clear_counts), ("🔄 Nạp lại", self.reload)):
+        for text, fn in (("Điền", self.quick_fill), ("Xoá số đã nhập", self.clear_counts), ("🔄 Nạp lại (Map ID)", self.reload_map)):
             b = QPushButton(text)
             b.clicked.connect(fn)
             q.addWidget(b)
@@ -298,17 +298,37 @@ class IdGridPanel(QWidget):
         return f"Dạng {v.split('-')[-1]}: {n.get(v, '')}".strip().rstrip(":")
 
     # ---------------------------------------------------------------- dữ liệu
+    def reload_map(self):
+        """Đọc lại các file Map ID (thư mục «Map ID (DPS)», file mới đè file cũ) vào ngân hàng rồi dựng lại bảng ID."""
+        from ...idmap import load_folder_maps
+        m, used = load_folder_maps()
+        if m and self.win.bank:
+            self.win.bank.set_idmap(m)
+        self.reload()
+        self.win.statusBar().showMessage(
+            (f"Đã nạp Map ID: {len(m)} mục từ {', '.join(used)}" if m else
+             "Không thấy file Map ID trong thư mục «Map ID (DPS)» – dùng Map ID đi kèm phần mềm") +
+            f" · bảng có {len(self.rows)} dòng ID", 9000)
+
     def reload(self):
-        self._names = self.win.bank.idmap() if self.win.bank else {}
+        from ...idmap import bundled_map
+        self._names = {**bundled_map(), **(self.win.bank.idmap() if self.win.bank else {})}
         pool = self.win.pool_bank()
         agg: dict[tuple, dict] = {}
         for r in (pool.id_level_stats() if pool else []):
             key = (r["lop"] or "", r["mon"] or "", r["chuong"] or "", r["bai"] or "", r["dang"] or "", r["qtype"])
-            agg.setdefault(key, {})[r["muc_do"] or "?"] = r["n"]
+            if not key[0]:                  # chưa có ID / ID không đọc được → dòng «?» (lấy ngẫu nhiên, ghi ở cột Nhận biết)
+                key = ("", "", "", "", "", r["qtype"])
+                agg.setdefault(key, {})["N"] = agg.get(key, {}).get("N", 0) + r["n"]
+            else:
+                agg.setdefault(key, {})[r["muc_do"] or "?"] = r["n"]
         self.rows = []
         names = self._names
         for (lop, mon, ch, bai, dang, qt), lv in sorted(agg.items()):
             kb = lop + mon + ch + bai
+            if not lop:
+                self.rows.append(((lop, mon, ch, bai, dang, qt), "Câu chưa có ID / ID không đọc được (lấy ngẫu nhiên)", lv))
+                continue
             name = " › ".join(x for x in (names.get(kb, f"Bài {bai}"), names.get(f"{kb}-{dang}", f"Dạng {dang}" if dang
                                                                                   else "")) if x)
             self.rows.append(((lop, mon, ch, bai, dang, qt), name, lv))
@@ -455,7 +475,9 @@ class IdGridPanel(QWidget):
         for (lop, mon, ch, bai, dang, qt), d in sorted(self.counts.items()):
             for x in LEVELS:
                 n = d.get(x, 0)
-                if n:
+                if n and not lop:
+                    out.append({"qtype": qt, "id": "?", "muc_do": "", "count": n})
+                elif n:
                     out.append({"qtype": qt, "id": f"{lop}{mon}{ch}{x}{bai}" + (f"-{dang}" if dang else ""),
                                 "muc_do": x, "count": n})
         order = {"TN": 0, "DS": 1, "KQ": 2, "TL": 3}

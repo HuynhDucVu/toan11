@@ -38,10 +38,15 @@ class MixSourceBar(QWidget):
         row.addStretch()
         lay.addLayout(row)
         self.r_bank.toggled.connect(self._mode)
-        self.b_open.clicked.connect(win.choose_bank)
+        self.b_open.clicked.connect(self.open_bank)
         self.b_import.clicked.connect(win.import_files)
         self.b_files.clicked.connect(self.choose_files)
         self._mode()
+
+    def open_bank(self):
+        """«Mở ngân hàng»: chọn kho rồi nạp câu hỏi vào các trang con ngay (không cần bấm gì thêm)."""
+        self.win.choose_bank()
+        self.refresh()
 
     def info_text(self) -> str:
         w = self.win
@@ -100,8 +105,8 @@ class MixSourceBar(QWidget):
         if paths:
             self.win.settings.setValue("last_dir", os.path.dirname(paths[0]))
             fm = getattr(self.win, "filemix_panel", None)
-            if fm is not None and not fm.e_file.text().strip():
-                fm.e_file.setText(" ; ".join(paths))               # «Tạo đề theo file» dùng luôn các file vừa chọn
+            if fm is not None and not fm.paths:
+                fm.set_files(list(paths))                          # «Tạo đề theo file» dùng luôn các file vừa chọn
         if errs:
             QMessageBox.warning(self.win, "Nạp file", "Một số file lỗi:\n" + "\n".join(errs))
         self.refresh()

@@ -196,3 +196,34 @@ const r=D.filter(x=>t.every(w=>x[3].includes(w))).slice(0,400);
 document.getElementById('n').textContent=r.length+' kết quả'+(r.length==400?' (hiện 400 dòng đầu)':'');
 document.getElementById('list').innerHTML=r.map(x=>`<div class="r l${{x[2]}}" style="padding-left:${{8+x[2]*16}}px" onclick="navigator.clipboard&&navigator.clipboard.writeText('${{x[0]}}')"><span class="k">${{x[0]}}</span> ${{x[1].replace(/</g,'&lt;')}}</div>`).join('')}}
 document.getElementById('q').addEventListener('input',show);show();</script></body></html>"""
+
+
+def map_files() -> list[str]:
+    """Các file Map ID dạng .tex: trong thư mục «Map ID (DPS)» (cũ → mới theo ngày sửa, file mới đè file cũ)."""
+    import glob
+    from .appdirs import folder
+    fs = glob.glob(os.path.join(folder("map_id"), "*.tex"))
+    return sorted(fs, key=lambda p: os.path.getmtime(p))
+
+
+def bundled_map() -> dict[str, str]:
+    """Map ID đi kèm phần mềm (Map_ID_Moi.tex) – dùng khi chưa nạp Map ID nào."""
+    p = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "Map_ID_Moi.tex")
+    try:
+        return load_map(p)
+    except OSError:
+        return {}
+
+
+def load_folder_maps() -> tuple[dict[str, str], list[str]]:
+    """Gộp mọi file Map ID trong thư mục (file mới đè file cũ). Trả về (bảng, danh sách file đã đọc)."""
+    out, used = {}, []
+    for p in map_files():
+        try:
+            m = load_map(p)
+        except (OSError, UnicodeError):
+            continue
+        if m:
+            out.update(m)
+            used.append(os.path.basename(p))
+    return out, used

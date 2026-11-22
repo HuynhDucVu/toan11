@@ -1,3 +1,12 @@
+## 0.17.36 – Trộn đề theo cấu trúc MyLT 2026
+
+- **Tạo đề tự chọn**: hàng lọc Lọc/Lớp/Môn/Chương/Bài/Dạng/Mức độ/Loại/Kiểu ID/Đã lấy; bảng STT | Nội dung câu hỏi (mã LaTeX) | Loại | ID | Chọn; thanh dưới HDSD, Sửa câu hỏi, Xoá, Chọn [N], Chọn hết, Xoá chọn, PDF, «Đã chọn: N câu», phân trang Đầu/Trước/[1]/Sau/Cuối (phân trang ngay trong SQL nên kho 150 000 câu vẫn nhanh).
+- **Tạo đề theo file**: bảng STT | Tập tin | Đã có | Lấy, «Đã chọn», «Xoá chọn».
+- **Tạo đề tương tự**: File đề gốc, Đề tương tự thứ N, Lưu/Đổi/Sửa, Xem PDF, Tìm theo, Tỉ lệ tương tự, Số đề tối đa, Tìm, HDSD; bảng đề gốc ↔ đề tương tự.
+- **Tuỳ chọn đề**: một màn hình như MyLT (Tuỳ chọn chung, phiếu, tiêu đề, tên file đề tạo ra, lưu ma trận). Phần cũ chuyển sang tab «Nâng cao (ma trận…)». Các ô tick của «Tuỳ chọn phiếu» mới chỉ lưu cấu hình, chưa dùng khi vẽ phiếu.
+- **Bảng ID**: file/ngân hàng chưa có ID (hoặc ID không đọc được) nay hiện dòng «?» và lấy ngẫu nhiên được; «Nạp lại (Map ID)» đọc lại các file trong «Map ID (DPS)»; có sẵn Map ID đi kèm khi chưa nạp.
+- «Mở ngân hàng» nạp câu ngay vào các trang con.
+
 ## Tải về và chạy
 Có 3 cách (chọn một):
 - **NganHangDe.exe** – một file, chạy ngay, **tự cập nhật** được (khuyên dùng);

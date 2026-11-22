@@ -319,16 +319,16 @@ class Bank:
                 n += 1
         return n
 
-    def search(self, qtype=None, lop=None, mon=None, chuong=None, muc_do=None,
-               bai=None, dang=None, id_like=None, text=None, limit=None, tag=None):
-        """Lọc câu hỏi. id_like hỗ trợ kí tự đại diện * và ? (vd 0D2?1-*)."""
-        sql, args = "SELECT * FROM questions WHERE 1=1", []
+    def _search_sql(self, qtype, lop, mon, chuong, muc_do, bai, dang, id_like, text, tag, kieu, used):
+        sql, args = " FROM questions WHERE 1=1", []
         for col, val in (("qtype", qtype), ("lop", lop), ("mon", mon), ("chuong", chuong),
                          ("muc_do", muc_do), ("bai", bai), ("dang", dang)):
             if val:
                 sql += f" AND {col}=?"
                 args.append(val)
-        if id_like:
+        if id_like == "?":              # câu chưa có ID / ID không đọc được (dòng «?» trong bảng chọn theo ID)
+            sql += " AND (id_code = '' OR lop = '')"
+        elif id_like:
             sql += " AND id_code GLOB ?"
             args.append(id_like.upper())
         if text:
@@ -343,10 +343,50 @@ class Bank:
         if tag:
             sql += " AND tags LIKE ?"
             args.append(f"%{tag}%")
-        sql += " ORDER BY id_code, id"
+        if kieu == "6":                  # ID6 (có dạng)
+            sql += " AND dang != ''"
+        elif kieu == "5":                # ID5 (không dạng)
+            sql += " AND id_code != '' AND dang = ''"
+        if used == "1":                  # đã lấy ra đề
+            sql += " AND used_count > 0"
+        elif used == "0":
+            sql += " AND used_count = 0"
+        return sql, args
+
+    def search(self, qtype=None, lop=None, mon=None, chuong=None, muc_do=None,
+               bai=None, dang=None, id_like=None, text=None, limit=None, tag=None, offset=0, kieu=None, used=None):
+        """Lọc câu hỏi. id_like hỗ trợ kí tự đại diện * và ? (vd 0D2?1-*). kieu: '6' có dạng / '5' không dạng;
+        used: '1' đã lấy ra đề / '0' chưa. offset + limit để phân trang."""
+        sql, args = self._search_sql(qtype, lop, mon, chuong, muc_do, bai, dang, id_like, text, tag, kieu, used)
+        sql = "SELECT *" + sql + " ORDER BY id_code, id"
         if limit:
             sql += f" LIMIT {int(limit)}"
+            if offset:
+                sql += f" OFFSET {int(offset)}"
         return [self.row_to_question(r) for r in self.con.execute(sql, args)]
+
+    def search_count(self, qtype=None, lop=None, mon=None, chuong=None, muc_do=None, bai=None, dang=None,
+                     id_like=None, text=None, tag=None, kieu=None, used=None) -> int:
+        sql, args = self._search_sql(qtype, lop, mon, chuong, muc_do, bai, dang, id_like, text, tag, kieu, used)
+        return self.con.execute("SELECT COUNT(*)" + sql, args).fetchone()[0]
+
+    def search_ids(self, limit=None, **kw) -> list[int]:
+        """Chỉ lấy id (nhanh, dùng khi «Chọn hết»/«Chọn N câu» trên kho lớn); tham số lọc như search()."""
+        names = ("qtype", "lop", "mon", "chuong", "muc_do", "bai", "dang", "id_like", "text", "tag", "kieu", "used")
+        sql, args = self._search_sql(*[kw.get(n) for n in names])
+        sql = "SELECT id" + sql + " ORDER BY id_code, id" + (f" LIMIT {int(limit)}" if limit else "")
+        return [r[0] for r in self.con.execute(sql, args)]
+
+    def distinct(self, col: str, **where) -> list[str]:
+        """Các giá trị khác nhau của cột (lop, mon, chuong, bai, dang, muc_do) – nạp ô chọn lọc; where = ràng buộc cột cha."""
+        if col not in ("lop", "mon", "chuong", "bai", "dang", "muc_do", "qtype"):
+            return []
+        sql, args = f"SELECT DISTINCT {col} FROM questions WHERE {col} != ''", []
+        for k, v in where.items():
+            if v and k in ("lop", "mon", "chuong", "bai", "dang", "muc_do", "qtype"):
+                sql += f" AND {k}=?"
+                args.append(v)
+        return sorted(r[0] for r in self.con.execute(sql + f" ORDER BY {col}", args))
 
     def stats(self):
         """Thống kê số câu theo (lớp, chương, loại, mức độ)."""
@@ -358,7 +398,7 @@ class Bank:
     def id_level_stats(self):
         """Số câu theo (lớp, môn, chương, bài, dạng, loại, mức độ) – cho bảng «Chọn theo ID»."""
         return self.con.execute(
-            "SELECT lop, mon, chuong, bai, dang, qtype, muc_do, COUNT(*) AS n FROM questions WHERE id_code != '' "
+            "SELECT lop, mon, chuong, bai, dang, qtype, muc_do, COUNT(*) AS n FROM questions "
             "GROUP BY lop, mon, chuong, bai, dang, qtype, muc_do ORDER BY lop, mon, chuong, bai, dang, qtype").fetchall()
 
     def tree_stats(self):

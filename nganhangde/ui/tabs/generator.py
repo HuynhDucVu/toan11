@@ -409,6 +409,9 @@ class GeneratorPanel(QWidget):
         o = self.opts.export_options()
         o.header = {k: e.text() for k, e in self.hdr.items()}
         o.online_style, o.gform = load(self.win.settings)
+        op = getattr(self.win, "opt_panel", None)
+        if op is not None:
+            o.file_name = op.e_file_name.text()
         return o
 
     def print_matrix(self):

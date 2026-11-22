@@ -52,6 +52,7 @@ class ExportOptions:
     gas_images: bool = False          # Google Form dạng ảnh: mỗi câu thành ảnh PNG (cần LaTeX) + file .gs
     online_style: dict | None = None  # màu bài online / Blogger (online.version_html)
     gform: dict | None = None         # Google Form nhận kết quả bài online
+    file_name: str = ""               # «Tên file đề tạo ra»: <tên>_<mã>.tex và <tên>_loigiai_<mã>.tex (trống = de_<mã>.tex)
     per_folder: bool = False          # mỗi mã đề một thư mục con (de_101.tex, loigiai_101.tex… trong thư mục 101)
     answers_end: bool = False         # in bảng đáp án ở cuối chính file đề
     even_pages: bool = False          # chèn trang trống để mỗi đề có số trang chẵn (in 2 mặt không dính đề sau)
@@ -211,6 +212,14 @@ def toggle_wrap(tex: str) -> str:
             "\\ifshowans\n" + tex + "\n\\fi")
 
 
+def _tex_name(opt, prefix: str, code: str) -> str:
+    import re as _re
+    base = _re.sub(r'[\\/:*?"<>|]+', "_", (opt.file_name or "").strip()).strip(" .")
+    if not base:
+        return f"{prefix}_{code}.tex"
+    return f"{base}_{code}.tex" if prefix == "de" else f"{base}_{prefix}_{code}.tex"
+
+
 def export_versions(versions: list[ExamVersion], out_dir: str, *, template_path: str | None = None,
                     ten_de: str = "ĐỀ KIỂM TRA", truong: str = "", thoi_gian: int = 90,
                     options: ExportOptions | None = None) -> list[str]:
@@ -230,7 +239,7 @@ def export_versions(versions: list[ExamVersion], out_dir: str, *, template_path:
                            + ("\n" + scoring_tex(v, opt.scoring_obj()) if opt.scoring else ""))
                     text = text.replace("\\end{document}", (toggle_wrap(ans) if opt.ans_toggle else ans)
                                         + "\n\\end{document}", 1)
-                path = os.path.join(vdir, f"{prefix}_{v.code}.tex")
+                path = os.path.join(vdir, _tex_name(opt, prefix, v.code))
                 with open(path, "w", encoding="utf-8") as f:
                     f.write(text)
                 files.append(path)
@@ -249,7 +258,7 @@ def export_versions(versions: list[ExamVersion], out_dir: str, *, template_path:
                 if opt.scoring:
                     tail += "\n" + scoring_tex(v, opt.scoring_obj())
                 body += "\n" + (toggle_wrap(tail) if opt.ans_toggle else tail)
-            path = os.path.join(vdir, f"{prefix}_{v.code}.tex")
+            path = os.path.join(vdir, _tex_name(opt, prefix, v.code))
             text = fill(tpl, MODE=mode, NOI_DUNG=body, **common)
             if "\\qrcode" in body and "{qrcode}" not in text:
                 text = text.replace("\\begin{document}", "\\usepackage{qrcode}\n\\begin{document}", 1)

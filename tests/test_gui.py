@@ -1,3 +1,5 @@
+from nganhangde.parser import parse_file
+from PySide6.QtCore import Qt
 """Kiểm thử khói giao diện: mở mọi tab và hộp thoại chính, chạy các thao tác tiêu biểu (không cần màn hình).
 
 Mục đích: bảo vệ khi tái cấu trúc mã giao diện – lỗi import/thiếu tên/sai chữ kí sẽ lộ ra ngay.
@@ -9,7 +11,6 @@ import pytest
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 QtWidgets = pytest.importorskip("PySide6.QtWidgets")
 
-from PySide6.QtCore import QSettings, Qt  # noqa: E402
 
 ROOT = os.path.dirname(os.path.dirname(__file__))
 SAMPLE = os.path.join(ROOT, "0-1-De-chuan-hoa-1.tex")
@@ -258,12 +259,13 @@ def test_new_tabs(win, app, monkeypatch, tmp_path):
     win.table.selectAll()
     win.pick_panel.add_selected()
     assert len(win.pick_panel.basket) == 22
-    win.pick_panel.sp_n.setValue(2)
+    win.opt_panel.cb_n.setCurrentIndex(win.opt_panel.cb_n.findData(2))
     win.pick_panel.generate()
     assert (tmp_path / "out" / "de_101.tex").exists() or any((tmp_path / "out").glob("de_*.tex"))
-    win.filemix_panel.e_file.setText(SAMPLE)
+    win.filemix_panel.set_files([SAMPLE])
     win.filemix_panel.generate()
     win.similar_panel.e_file.setText(SAMPLE)
+    win.similar_panel.sample = parse_file(SAMPLE)
     win.similar_panel.generate()
     win.matrix_panel.reload()
     assert win.matrix_panel.t.rowCount() >= 1
@@ -487,7 +489,7 @@ def test_mix_tab_like_mylt(win, app, tmp_path):
     from nganhangde.ui.tabs.id_grid import COLS
     mix = win.main_tabs.widget(0)
     assert [mix.inner_tabs.tabText(i) for i in range(mix.inner_tabs.count())] == [
-        "Tạo đề theo ID", "Tạo đề tự chọn", "Tạo đề theo file", "Tạo đề tương tự", "Tuỳ chọn đề"]
+        "Tạo đề theo ID", "Tạo đề tự chọn", "Tạo đề theo file", "Tạo đề tương tự", "Tuỳ chọn đề", "Nâng cao (ma trận…)"]
     bar = win.mix_source_bar
     assert bar.r_bank.text() == "Từ ngân hàng câu hỏi" and bar.r_files.text().startswith("Từ Files.")
     assert bar.b_open.text() == "Mở ngân hàng" and bar.b_import.text() == "Nhập câu hỏi"
@@ -524,17 +526,63 @@ def test_mix_tab_like_mylt(win, app, tmp_path):
 def test_pick_panel_source_table(win, app):
     p = win.pick_panel
     p.reload()
-    assert p.src.rowCount() > 3 and "câu" in p.l_src.text()
-    p.cb_type.setCurrentIndex(p.cb_type.findData("TN"))
+    assert p.t.rowCount() > 3 and "câu" in p.l_count.text() and p.total >= p.t.rowCount()
+    assert [p.t.horizontalHeaderItem(c).text() for c in range(5)] == ["STT", "Nội dung câu hỏi", "Loại", "ID", "Chọn"]
+    p.f["qtype"].setCurrentIndex(p.f["qtype"].findData("TN"))
     p.reload()
-    assert all(p.src.item(r, 1).text() == "TN" for r in range(p.src.rowCount()))
-    p.src.selectRow(0)
-    p.src.selectionModel().select(p.src.model().index(1, 0), p.src.selectionModel().SelectionFlag.Select |
-                                  p.src.selectionModel().SelectionFlag.Rows)
-    p.add_from_source()
-    assert len(p.basket) == 2 and p.t.rowCount() == 2
-    p.add_from_source()                                      # thêm lại không trùng
-    assert len(p.basket) == 2
+    assert all(p.t.item(r, 2).text() == "TN" for r in range(p.t.rowCount()))
+    for r in (0, 1):
+        p.t.item(r, 4).setCheckState(Qt.CheckState.Checked)
+    assert len(p.basket) == 2 and p.l_count.text() == "Đã chọn: 2 câu"
+    p.reload(keep_page=True)                                 # đổi trang/lọc lại vẫn nhớ câu đã chọn
+    assert len(p.basket) == 2 and p.t.item(0, 4).checkState() == Qt.CheckState.Checked
+    p.clear_chosen()
+    assert not p.basket
+    p.cb_n.setCurrentIndex(p.cb_n.findData(5))
+    p.pick_random()
+    assert len(p.basket) == 5
+
+
+def test_pick_panel_paging(win, app):
+    p = win.pick_panel
+    p.PAGE = 5
+    p.reload()
+    n = p.total
+    assert n > 5 and p.pages() == -(-n // 5)
+    first = p.t.item(0, 1).text()
+    p.go_page(1)
+    assert p.page == 1 and p.t.item(0, 0).text() == "6" and p.t.item(0, 1).text() != first
+    p.go_page(99)
+    assert p.page == p.pages() - 1
+
+
+def test_filemix_table_and_similar_panel(win, app):
+    fm = win.filemix_panel
+    fm.set_files([SAMPLE])
+    assert [fm.t.horizontalHeaderItem(c).text() for c in range(4)] == ["STT", "Tập tin", "Đã có", "Lấy"]
+    have = int(fm.t.item(0, 2).text())
+    assert fm.l_count.text() == f"Đã chọn: {have} câu"
+    fm.t.item(0, 3).setText("3")
+    assert fm.l_count.text() == "Đã chọn: 3 câu" and len(fm.load_questions()) == 3
+    fm.clear_take()
+    assert fm.l_count.text() == f"Đã chọn: {have} câu"
+    sp = win.similar_panel
+    assert [sp.t.horizontalHeaderItem(c).text() for c in range(4)] == ["STT", "Câu hỏi đề gốc", "Câu hỏi đề tương tự", "Chọn"]
+    sp.sample = parse_file(SAMPLE)
+    sp.search()
+    assert sp.t.rowCount() == len(sp.sample)
+
+
+def test_options_panel_syncs_generator(win, app):
+    op, gp = win.opt_panel, win.gen_panel
+    op.cb_n.setCurrentIndex(op.cb_n.findData(6))
+    op.e_truong.setText("THPT Thử")
+    op.ck["giu_nguyen"].setChecked(True)
+    op.cb_xlsx.setCurrentIndex(op.cb_xlsx.findText("Bảng ngang"))
+    op.e_file_name.setText("KT15p")
+    assert gp.e_n.value() == 6 and gp.e_truong.text() == "THPT Thử"
+    assert not gp.opts.mix.boxes["shuffle_q"].isChecked() and gp.opts.cb_layout.currentData() == "ngang"
+    assert gp.export_options().file_name == "KT15p"
 
 
 def test_idgrid_pager_buttons_and_bottom_bar(win, app, monkeypatch):
@@ -571,3 +619,21 @@ def test_idgrid_pager_buttons_and_bottom_bar(win, app, monkeypatch):
     assert called == ["id"]
     texts = [b.text() for b in win.mix_tab.findChildren(type(g.b_first))]
     assert "Tạo đề" in texts and "Thoát" in texts
+
+
+def test_idgrid_rows_for_files_without_id(win, app, tmp_path):
+    import re
+    t = re.sub(r"%\[[^\]]*\]", "", open(SAMPLE, encoding="utf-8").read())
+    p = tmp_path / "khong_id.tex"
+    p.write_text(t, encoding="utf-8")
+    win.mix_source_bar.load_files([str(p)])
+    win.mix_source = "files"
+    g = win.idgrid_panel
+    g.reload()
+    assert g.rows and all(k[0] == "" for k, _, _ in g.rows)            # dòng «?» cho câu chưa có ID
+    g.counts[g.rows[0][0]] = {"N": 2}
+    rd = g.rules()
+    assert rd and rd[0]["id"] == "?" and len(win.pool_bank().search(qtype=rd[0]["qtype"], id_like="?")) >= 1
+    win.mix_source = "bank"
+    g.reload_map()
+    assert g.rows

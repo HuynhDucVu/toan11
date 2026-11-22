@@ -38,6 +38,8 @@ class LayoutMixin:
         self.pick_panel = PickPanel(self)
         self.filemix_panel = FileMixPanel(self)
         self.similar_panel = SimilarExamPanel(self)
+        from .tabs.mylt_options import MyltOptionsPanel
+        self.opt_panel = MyltOptionsPanel(self)
         self.review_panel = ReviewPanel(self)
         self.gen_q_panel = MakeQuestionPanel(self)
         self.tools_panel = ToolsPanel(self)
@@ -65,7 +67,7 @@ class LayoutMixin:
         mv.addWidget(self.mix_source_bar)
         mix.inner_tabs = sub((self.idgrid_panel, "Tạo đề theo ID"), (self.pick_panel, "Tạo đề tự chọn"),
                              (self.filemix_panel, "Tạo đề theo file"), (self.similar_panel, "Tạo đề tương tự"),
-                             (self.gen_panel, "Tuỳ chọn đề"))
+                             (self.opt_panel, "Tuỳ chọn đề"), (self.gen_panel, "Nâng cao (ma trận…)"))
         mv.addWidget(mix.inner_tabs, 1)
         bottom = QHBoxLayout()                        # góc dưới phải như MyLT: «Tạo đề» và «Thoát»
         bottom.addStretch()
@@ -101,6 +103,8 @@ class LayoutMixin:
     def mix_generate(self):
         """Nút «Tạo đề»: tạo đề theo trang con đang mở (theo ID / tự chọn / theo file / tương tự / tuỳ chọn đề)."""
         w = self.mix_tab.inner_tabs.currentWidget()
+        if w in (self.idgrid_panel, self.pick_panel, self.filemix_panel, self.similar_panel):
+            self._last_mix_page = w
         fn = getattr(w, "generate", None)
         if fn is not None:
             fn()
