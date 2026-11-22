@@ -1,3 +1,7 @@
+## 0.17.41 – Sửa lỗi build trên máy không có LaTeX
+
+- Sửa lỗi làm bản build Windows không qua kiểm thử (các bản 0.17.39 và 0.17.40 không có release): khi máy chưa cài LaTeX, tạo mã hình (Trục số, Miền nghiệm, Đường tròn LG) không còn báo lỗi; bấm «Xem trước PDF» thì hiện thông báo cần cài LaTeX.
+
 ## 0.17.40 – Cỡ hình xem trước
 
 - Khung xem trước hình (Trục số, Miền nghiệm, Đường tròn LG, Đồ thị, Biểu đồ, Bảng xét dấu, Hình khối) có ô **Cỡ hình**: Vừa khung, 50%, 100%, 150%, 200%. Chỉ đổi cách hiển thị, không đổi mã TikZ.

@@ -130,7 +130,7 @@ class DrawStudioMixin:
 
     # ---------------------------------------------------------------- xem trước
     def preview_pdf(self, _checked=False, auto=False):
-        from ...pdfbuild import compile_tex, find_engine
+        from ...pdfbuild import EngineMissing, compile_tex, find_engine
         code = self.code.toPlainText().strip()
         if not code:
             return
@@ -140,7 +140,10 @@ class DrawStudioMixin:
             fh.write(STANDALONE % code)
         QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
         try:
-            eng = find_engine(self.win.settings.value("pdf/engine", "auto"))
+            try:
+                eng = find_engine(self.win.settings.value("pdf/engine", "auto"))
+            except EngineMissing:                               # máy không có LaTeX: find_engine ném lỗi thay vì trả None
+                eng = None
             if not eng:
                 if auto:
                     return

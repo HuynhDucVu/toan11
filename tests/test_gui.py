@@ -716,3 +716,16 @@ def test_draw_preview_zoom(win, app):
     assert lab.pixmap().width() < w0
     lab.zoom_box.setCurrentIndex(lab.zoom_box.findData(2.0))
     assert lab.pixmap().width() > w0
+
+
+def test_draw_preview_without_latex(win, app, monkeypatch):
+    """Máy không có LaTeX (CI Windows): tạo mã vẫn chạy, không ném lỗi EngineMissing ra ngoài."""
+    import nganhangde.pdfbuild as pb
+    def no_engine(*a, **k):
+        raise pb.EngineMissing("thiếu LaTeX")
+    monkeypatch.setattr(pb, "find_engine", no_engine)
+    sp = win.sol_panel
+    sp.sub.setCurrentIndex(0)
+    sp.numline()                                              # auto=True: im lặng
+    sp.preview_pdf()                                          # bấm tay: báo cho người dùng
+    assert "Chưa tìm thấy LaTeX" in sp.l_pkg.text()
