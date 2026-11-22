@@ -412,6 +412,9 @@ class GeneratorPanel(QWidget):
         op = getattr(self.win, "opt_panel", None)
         if op is not None:
             o.file_name = op.e_file_name.text()
+            o.sheet_key_only = op.sheet["chi_dap_an"].isChecked()
+            o.sheet_color = op.cb_color.currentText()
+            o.sheet_size = op.cb_line.currentText()
         return o
 
     def print_matrix(self):

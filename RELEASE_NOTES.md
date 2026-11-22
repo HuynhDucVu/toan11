@@ -1,3 +1,9 @@
+## 0.17.38 – Nút nạp câu hỏi, tách Kiểm tra / Xoá lỗi, tuỳ chọn phiếu có tác dụng
+
+- Thanh nguồn của Trộn đề có nút **🔄 Nạp câu hỏi**: nạp lại ngân hàng, hoặc đọc lại các file đã chọn (khi sửa file ngoài) vào mọi trang.
+- Hộp thoại «Nhập câu hỏi»: **Kiểm tra** chỉ quét và báo (số câu sai, trùng giống hệt, lỗi hay gặp) – không xoá gì; **Xoá lỗi** xoá các câu sai sau khi xác nhận (có lịch sử, khôi phục được).
+- Tuỳ chọn phiếu: **Chỉ đáp án** (không kèm phiếu trắng), **Màu vẽ** và **Nét vẽ** (cỡ ô tô) nay áp dụng cho phiếu khoá TLTN 2025. Các ô tick còn lại vẫn chỉ lưu cấu hình.
+
 ## 0.17.37 – Hộp thoại «Nhập câu hỏi vào ngân hàng» và nạp file ngay trong «Tạo đề theo file»
 
 - «Nhập câu hỏi» mở hộp thoại như MyLT: Files (Chọn/Thêm), Không nhập câu ID5, Bỏ qua câu trùng, Kiểm tra câu trùng, Kiểm tra câu trùng sâu + Tỉ lệ (ngưỡng giống nhau dùng thật khi kiểm tra trùng sâu), các nút Hướng dẫn, Khởi tạo, Sao lưu, Kiểm tra, Ghép, Chuyển sang macOS/linux, Khôi phục, Xoá lỗi, Xuất, Nhập, Đóng. «Nhập» đi qua màn rà soát 3 bước có sẵn. «Kiểm tra» và «Xoá lỗi» cùng mở công cụ dọn kho.

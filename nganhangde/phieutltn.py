@@ -104,7 +104,12 @@ def _circle_ops(x: float, y_top: float, r: float) -> str:
             f"{x + c:.2f} {y - r:.2f} {x + r:.2f} {y - c:.2f} {x + r:.2f} {y:.2f} c f\n")
 
 
-def fill_pdf(points: list[tuple[float, float]], out_path: str, template: str | None = None) -> str:
+COLORS = {"": "0 g", "Đen": "0 g", "Xanh": "0 0.2 0.8 rg", "Đỏ": "0.8 0 0 rg"}
+SIZES = {"": 1.0, "Mảnh": 0.85, "Vừa": 1.0, "Đậm": 1.12}
+
+
+def fill_pdf(points: list[tuple[float, float]], out_path: str, template: str | None = None, color: str = "",
+             size: str = "") -> str:
     """Vẽ các ô tròn đen lên phiếu gốc và ghi ra out_path (PDF)."""
     from pypdf import PdfReader, PdfWriter
     from pypdf.generic import ArrayObject, DecodedStreamObject, NameObject
@@ -112,7 +117,8 @@ def fill_pdf(points: list[tuple[float, float]], out_path: str, template: str | N
     w.append(PdfReader(template or template_path()))
     page = w.pages[0]
     st = DecodedStreamObject()
-    st.set_data(("q\n0 g\n" + "".join(_circle_ops(x, y, RADIUS) for x, y in points) + "Q\n").encode("ascii"))
+    rad = RADIUS * SIZES.get(size, 1.0)
+    st.set_data((f"q\n{COLORS.get(color, '0 g')}\n" + "".join(_circle_ops(x, y, rad) for x, y in points) + "Q\n").encode("ascii"))
     ref = w._add_object(st)
     contents = page.get("/Contents")
     old = contents.get_object() if contents is not None else None
@@ -128,16 +134,17 @@ def fill_pdf(points: list[tuple[float, float]], out_path: str, template: str | N
     return out_path
 
 
-def export_sheets(versions, out_dir: str) -> tuple[list[str], list[str]]:
+def export_sheets(versions, out_dir: str, *, key_only: bool = False, color: str = "", size: str = "") -> tuple[list[str], list[str]]:
     """Mỗi mã đề một phiếu khoá phieu_khoa_<mã>.pdf (+ phieu_trang.pdf = bản gốc để in). Trả về (file, cảnh báo)."""
     os.makedirs(out_dir, exist_ok=True)
     files, warns = [], []
     import shutil
-    blank = os.path.join(out_dir, "phieu_trang_TLTN2025.pdf")
-    shutil.copyfile(template_path(), blank)
-    files.append(blank)
+    if not key_only:                                     # «Chỉ đáp án»: chỉ xuất phiếu khoá, không kèm phiếu trắng
+        blank = os.path.join(out_dir, "phieu_trang_TLTN2025.pdf")
+        shutil.copyfile(template_path(), blank)
+        files.append(blank)
     for v in versions:
         pts, w = marks_for(v)
         warns += [f"Mã {v.code}: {x}" for x in w]
-        files.append(fill_pdf(pts, os.path.join(out_dir, f"phieu_khoa_{v.code}.pdf")))
+        files.append(fill_pdf(pts, os.path.join(out_dir, f"phieu_khoa_{v.code}.pdf"), color=color, size=size))
     return files, warns

@@ -162,7 +162,8 @@ class MyltOptionsPanel(QWidget):
         self.sheet: dict[str, QCheckBox] = {}
         for i, (k, t) in enumerate(SHEET_CHECKS):
             cb = QCheckBox(t)
-            cb.setToolTip("Lưu cấu hình phiếu – bản này chưa áp dụng vào phiếu PDF")
+            cb.setToolTip("Chỉ đáp án: chỉ xuất phiếu khoá (không kèm phiếu trắng)." if k == "chi_dap_an" else
+                          "Lưu cấu hình theo MyLT – chưa áp dụng vào phiếu (phiếu TLTN 2025 là mẫu cố định của Bộ)")
             cb.setChecked(str(self.st.value(f"mo/sheet_{k}", k in SHEET_DEFAULT_ON)).lower() == "true")
             self.sheet[k] = cb
             pl.addWidget(cb, i % 2, i // 2)
@@ -170,6 +171,9 @@ class MyltOptionsPanel(QWidget):
         self.cb_line = QComboBox()
         for cb_, items in ((self.cb_color, ("", "Đen", "Xanh", "Đỏ")), (self.cb_line, ("", "Mảnh", "Vừa", "Đậm"))):
             cb_.addItems(items)
+            cb_.currentIndexChanged.connect(self.apply)
+        self.cb_color.setToolTip("Màu ô tô đáp án trên phiếu khoá TLTN 2025")
+        self.cb_line.setToolTip("Cỡ ô tô đáp án trên phiếu khoá TLTN 2025")
         pl.addWidget(QLabel("Màu vẽ"), 0, 7)
         pl.addWidget(self.cb_color, 0, 8)
         pl.addWidget(QLabel("Nét vẽ"), 1, 7)
@@ -177,7 +181,7 @@ class MyltOptionsPanel(QWidget):
         b = QPushButton("Hướng dẫn")
         b.clicked.connect(lambda: QMessageBox.information(
             self, "Tuỳ chọn phiếu", "Phiếu trả lời (TLTN THPT QG 2025: 40·8·6 câu) do ô «Phiếu làm bài» điều khiển. "
-                                    "Các ô tick ở đây lưu cấu hình theo MyLT; bản này chưa dùng chúng khi vẽ phiếu."))
+                                    "«Chỉ đáp án», «Màu vẽ», «Nét vẽ» đã áp dụng cho phiếu khoá TLTN 2025; các ô tick còn lại chỉ lưu cấu hình theo MyLT."))
         pl.addWidget(b, 1, 9)
         lay.addWidget(g)
         # ---------------------------------------------------------------- tiêu đề

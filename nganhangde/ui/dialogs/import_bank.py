@@ -106,11 +106,61 @@ class ImportBankDialog(QDialog):
         self.win.new_bank()
         self.win.mix_source_bar.refresh()
 
+    def _scan(self, title: str, **kw):
+        from PySide6.QtCore import Qt
+        from PySide6.QtWidgets import QProgressDialog
+        from ... import cleanup
+        from ..workers import TaskWorker
+        bank = self.win.bank
+        w = TaskWorker(lambda progress, should_stop: cleanup.scan(bank, progress=progress, should_stop=should_stop, **kw),
+                       with_progress=True)
+        dlg = QProgressDialog("Đang quét kho…", "Dừng", 0, 0, self)
+        dlg.setWindowTitle(title)
+        dlg.setWindowModality(Qt.WindowModality.WindowModal)
+        dlg.setMinimumDuration(0)
+        w.progress.connect(lambda i, n: (dlg.setMaximum(n), dlg.setValue(i)))
+        dlg.canceled.connect(w.requestInterruption)
+        w.finished.connect(dlg.close)
+        w.start()
+        dlg.exec()
+        w.wait()
+        if w.error:
+            QMessageBox.warning(self, title, w.error)
+            return None
+        return w.result
+
     def check(self):
-        self.win.cleanup_bank()
+        """Kiểm tra (chỉ xem, không xoá gì): đếm câu sai và câu trùng giống hệt, nêu các lỗi hay gặp."""
+        res = self._scan("Kiểm tra kho", find_wrong=True, find_exact=True, find_near=False)
+        if res is None:
+            return
+        from collections import Counter
+        top = Counter(r for rs in res.wrong.values() for r in rs).most_common(5)
+        msg = (f"Kho có {res.total:,} câu.\n• Câu sai (lỗi khi rà soát): {len(res.wrong):,}\n"
+               f"• Câu trùng giống hệt (thừa): {len(res.dup_exact):,}\n")
+        if top:
+            msg += "\nLỗi hay gặp:\n" + "\n".join(f"  – {r} ({n:,})" for r, n in top)
+        msg += "\n\nKhông có câu nào bị xoá. Mở công cụ dọn kho để xem danh sách và xoá?"
+        if QMessageBox.question(self, "Kiểm tra kho", msg) == QMessageBox.StandardButton.Yes:
+            self.win.cleanup_bank()
 
     def clean(self):
-        self.win.cleanup_bank()
+        """Xoá lỗi: xoá ngay các câu sai (có ghi lịch sử, khôi phục được); không đụng tới câu trùng."""
+        res = self._scan("Xoá lỗi", find_wrong=True, find_exact=False, find_near=False)
+        if res is None:
+            return
+        ids = res.delete_ids(wrong=True, exact=False, near=False)
+        if not ids:
+            QMessageBox.information(self, "Xoá lỗi", "Không có câu sai nào.")
+            return
+        if QMessageBox.question(self, "Xoá lỗi", f"Xoá {len(ids):,} câu sai khỏi kho?\n(Khôi phục được ở Câu hỏi → "
+                                                  "Khôi phục câu đã xoá.)") != QMessageBox.StandardButton.Yes:
+            return
+        from ... import cleanup
+        cleanup.apply(self.win.bank, ids)
+        self.win.build_tree()
+        self.win.refresh()
+        QMessageBox.information(self, "Xoá lỗi", f"Đã xoá {len(ids):,} câu.")
 
     def restore(self):
         d = folder("sao_luu")

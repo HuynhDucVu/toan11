@@ -32,8 +32,10 @@ class MixSourceBar(QWidget):
         self.b_open = QPushButton("Mở ngân hàng")
         self.b_import = QPushButton("Nhập câu hỏi")
         self.b_files = QPushButton("Chọn files…")
+        self.b_load = QPushButton("🔄 Nạp câu hỏi")
+        self.b_load.setToolTip("Nạp lại câu hỏi từ nguồn đang chọn (ngân hàng, hoặc đọc lại các file) vào mọi trang trộn đề")
         self.l_info = QLabel("")
-        for w in (self.b_open, self.b_import, self.b_files, self.l_info):
+        for w in (self.b_open, self.b_import, self.b_files, self.b_load, self.l_info):
             row.addWidget(w)
         row.addStretch()
         lay.addLayout(row)
@@ -41,6 +43,7 @@ class MixSourceBar(QWidget):
         self.b_open.clicked.connect(self.open_bank)
         self.b_import.clicked.connect(self.import_dialog)
         self.b_files.clicked.connect(self.choose_files)
+        self.b_load.clicked.connect(self.reload_source)
         self._mode()
 
     def import_dialog(self):
@@ -49,6 +52,22 @@ class MixSourceBar(QWidget):
         self.win.build_tree()
         self.win.refresh()
         self.refresh()
+
+    def reload_source(self):
+        """Nút «Nạp câu hỏi»: đọc lại nguồn đang chọn rồi dựng lại bảng ở mọi trang con."""
+        w = self.win
+        if w.mix_source == "files":
+            paths = list(getattr(w, "mix_files", []) or [])
+            if not paths:
+                self.choose_files()
+                return
+            n = self.load_files(paths)
+            w.statusBar().showMessage(f"Đã nạp lại {n:,} câu từ {len(paths)} file.", 8000)
+        else:
+            w.build_tree()
+            w.refresh()
+            self.refresh()
+            w.statusBar().showMessage(f"Đã nạp lại ngân hàng: {w.bank.count():,} câu.", 8000)
 
     def open_bank(self):
         """«Mở ngân hàng»: chọn kho rồi nạp câu hỏi vào các trang con ngay (không cần bấm gì thêm)."""

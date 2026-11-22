@@ -656,3 +656,35 @@ def test_import_bank_dialog_and_file_load(win, app, monkeypatch):
     assert win.mix_source == "files" and win.pool_bank() is win.file_pool and win.file_pool.count() > 0
     win.mix_source_bar.r_bank.setChecked(True)
     assert win.pool_bank() is win.bank
+
+
+def test_check_vs_clean_and_load_button_and_sheet_options(win, app, tmp_path, monkeypatch):
+    from PySide6.QtWidgets import QMessageBox
+    from nganhangde.ui.dialogs.import_bank import ImportBankDialog
+    d = ImportBankDialog(win)
+    seen = {}
+    monkeypatch.setattr(QMessageBox, "question", staticmethod(lambda *a, **k: seen.setdefault("q", a[2]) and QMessageBox.StandardButton.No))
+    monkeypatch.setattr(QMessageBox, "information", staticmethod(lambda *a, **k: seen.setdefault("i", a[2])))
+    n = win.bank.count()
+    d.check()
+    assert "Kho có" in seen["q"] and "không có câu nào bị xoá" in seen["q"].lower() and win.bank.count() == n
+    d.clean()                                             # câu sai xoá được, câu hỏi hợp lệ không bị đụng
+    assert win.bank.count() <= n
+    bar = win.mix_source_bar
+    bar.b_load.click()
+    assert "Đã nạp lại" in win.statusBar().currentMessage()
+    # tuỳ chọn phiếu: Chỉ đáp án + màu
+    op = win.opt_panel
+    op.sheet["chi_dap_an"].setChecked(True)
+    op.cb_color.setCurrentText("Xanh")
+    o = win.gen_panel.export_options()
+    assert o.sheet_key_only and o.sheet_color == "Xanh"
+
+
+def test_phieu_key_only(tmp_path):
+    import random
+    from nganhangde.generator import MixOptions, mix_versions, sections_from_questions
+    from nganhangde.phieutltn import export_sheets
+    vs = mix_versions(sections_from_questions(parse_file(SAMPLE)), ["0101"], random.Random(1), MixOptions())
+    fs, _ = export_sheets(vs, str(tmp_path / "p"), key_only=True, color="Xanh", size="Đậm")
+    assert all("trang" not in os.path.basename(f) for f in fs) and any("phieu_khoa_0101" in f for f in fs)
