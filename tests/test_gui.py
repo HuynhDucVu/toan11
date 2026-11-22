@@ -688,3 +688,18 @@ def test_phieu_key_only(tmp_path):
     vs = mix_versions(sections_from_questions(parse_file(SAMPLE)), ["0101"], random.Random(1), MixOptions())
     fs, _ = export_sheets(vs, str(tmp_path / "p"), key_only=True, color="Xanh", size="Đậm")
     assert all("trang" not in os.path.basename(f) for f in fs) and any("phieu_khoa_0101" in f for f in fs)
+
+
+def test_draw_preview_inside_page(win, app):
+    from nganhangde.appdirs import PHIEU_PDF
+    sp = win.sol_panel
+    for i in range(sp.sub.count()):                                   # trục số, đường tròn LG, miền nghiệm đều có khung xem trước
+        assert getattr(sp.sub.widget(i), "preview", None) is not None
+    sp.sub.setCurrentIndex(0)
+    sp.numline()                                                      # không có LaTeX cũng không lỗi
+    pdf = os.path.join(ROOT, "nganhangde", "data", PHIEU_PDF)
+    assert sp.show_preview(pdf)
+    pm = sp.sub.currentWidget().preview.pixmap()
+    assert pm is not None and not pm.isNull()
+    win.bbt_panel.sub.setCurrentIndex(0)
+    assert win.bbt_panel.show_preview(pdf)                           # bảng biến thiên: vẽ vào khung HTML có sẵn

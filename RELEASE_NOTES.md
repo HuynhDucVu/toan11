@@ -1,3 +1,7 @@
+## 0.17.39 – Xem trước hình ngay trong trang tạo mã
+
+- Biểu diễn nghiệm (Trục số, Miền nghiệm, Đường tròn lượng giác), Đồ thị, Biểu đồ, Bảng xét dấu, Hình khối: mỗi trang có khung **xem trước bên phải** như Bảng biến thiên. «Xem trước PDF» biên dịch rồi vẽ ngay vào khung đó (không mở cửa sổ ngoài); sau «Tạo mã» ở Trục số/Miền nghiệm/Đường tròn LG tự xem trước nếu máy có LaTeX. Bảng biến thiên cũng hiện PDF ở khung có sẵn.
+
 ## 0.17.38 – Nút nạp câu hỏi, tách Kiểm tra / Xoá lỗi, tuỳ chọn phiếu có tác dụng
 
 - Thanh nguồn của Trộn đề có nút **🔄 Nạp câu hỏi**: nạp lại ngân hàng, hoặc đọc lại các file đã chọn (khi sửa file ngoài) vào mọi trang.

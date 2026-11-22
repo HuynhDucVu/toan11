@@ -43,6 +43,7 @@ class DrawStudioMixin:
             self._msg(str(e), False)
             return
         self._msg("Đã tạo mã trục số – bấm «Xem trước PDF» để xem.")
+        self.preview_pdf(auto=True)
 
     # ---------------------------------------------------------------- miền nghiệm
     def _region_tab(self):
@@ -95,6 +96,7 @@ class DrawStudioMixin:
         else:
             self.region_info.setHtml("<i>Miền nghiệm không có đỉnh nào (rỗng hoặc không bị chặn).</i>")
         self._msg("Đã tạo mã miền nghiệm (phần tô xám là phần bị gạch bỏ).")
+        self.preview_pdf(auto=True)
 
     # ---------------------------------------------------------------- hình khối
     def _solid_tab(self):
@@ -127,7 +129,7 @@ class DrawStudioMixin:
         self._msg("Đã tạo mã hình khối.")
 
     # ---------------------------------------------------------------- xem trước
-    def preview_pdf(self):
+    def preview_pdf(self, _checked=False, auto=False):
         from ...pdfbuild import compile_tex, find_engine
         code = self.code.toPlainText().strip()
         if not code:
@@ -140,14 +142,19 @@ class DrawStudioMixin:
         try:
             eng = find_engine(self.win.settings.value("pdf/engine", "auto"))
             if not eng:
+                if auto:
+                    return
                 self._msg("Chưa tìm thấy LaTeX (TeX Live/MiKTeX) – chỉ đường dẫn trong Cài đặt biên dịch PDF.", False)
                 return
             r = compile_tex(p, eng, runs=1)
         finally:
             QApplication.restoreOverrideCursor()
         if r.ok and r.pdf:
-            QDesktopServices.openUrl(QUrl.fromLocalFile(r.pdf))
-            self._msg("Đã biên dịch hình.")
+            if self.show_preview(r.pdf):
+                self._msg("Đã biên dịch hình – xem ở khung bên phải.")
+            elif not auto:
+                QDesktopServices.openUrl(QUrl.fromLocalFile(r.pdf))
+                self._msg("Đã biên dịch hình.")
         else:
             self._msg(r.summary(), False)
 
@@ -227,6 +234,7 @@ class DrawMoreMixin:
             return
         self.l_trig.setText(f"{len(pts)} điểm: " + ", ".join(f"${dm.angle_latex(t)}$" for t in pts))
         self._msg("Đã tạo mã đường tròn lượng giác.")
+        self.preview_pdf(auto=True)
 
     # ---------------------------------------------------------------- đồ thị: phần bổ sung
     def _graph_extras(self, f):

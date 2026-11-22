@@ -4,6 +4,7 @@ from __future__ import annotations
 import re
 from typing import TYPE_CHECKING
 
+from PySide6.QtCore import Qt, QUrl
 from PySide6.QtGui import QBrush, QColor, QFont, QPainter, QPainterPath, QPen
 from PySide6.QtWidgets import (QApplication, QCheckBox, QComboBox, QFileDialog, QFormLayout, QGroupBox,
     QHBoxLayout, QLabel, QLineEdit, QPlainTextEdit, QPushButton, QSpinBox, QTabWidget, QTextBrowser, QVBoxLayout,
@@ -125,7 +126,7 @@ class DrawPanel(DrawMoreMixin, DrawStudioMixin, QWidget):
                  "numline": self._numline_tab, "trig": self._trig_tab, "region": self._region_tab,
                  "solid": self._solid_tab}
         for k in self.kinds:
-            self.sub.addTab(build[k](), self.NAMES[k])
+            self.sub.addTab(self._with_preview(build[k]()), self.NAMES[k])
         g = QGroupBox("Mã TikZ (dán vào đề bài hoặc lời giải)")
         gl = QVBoxLayout(g)
         self.code = latex_editor()
@@ -142,6 +143,46 @@ class DrawPanel(DrawMoreMixin, DrawStudioMixin, QWidget):
         row.addStretch()
         gl.addLayout(row)
         lay.addWidget(g)
+
+    def _with_preview(self, page):
+        """Trang nhập liệu + khung xem trước ngay bên phải (như bảng biến thiên): xem hình mà không rời trang tạo mã."""
+        if hasattr(self, "bbt_view") and page.findChild(QTextBrowser) is self.bbt_view:
+            page.preview = self.bbt_view                       # trang đã có khung xem trước riêng
+            return page
+        from PySide6.QtWidgets import QScrollArea
+        w = QWidget()
+        h = QHBoxLayout(w)
+        h.setContentsMargins(0, 0, 0, 0)
+        h.addWidget(page, 3)
+        sc = QScrollArea()
+        sc.setWidgetResizable(True)
+        lab = QLabel("<i>Xem trước hình sẽ hiện ở đây sau khi tạo mã (cần LaTeX trên máy).</i>")
+        lab.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignHCenter)
+        lab.setWordWrap(True)
+        sc.setWidget(lab)
+        h.addWidget(sc, 3)
+        w.preview = lab
+        return w
+
+    def show_preview(self, pdf_path: str) -> bool:
+        """Vẽ trang 1 của PDF vào khung xem trước của trang đang mở. False nếu không vẽ được (thiếu pypdfium2…)."""
+        from PySide6.QtGui import QPixmap
+        pv = getattr(self.sub.currentWidget(), "preview", None)
+        if pv is None:
+            return False
+        try:
+            from ...pdfrender import render_file
+            img = render_file(pdf_path, 0, 1.8)
+        except Exception:  # noqa: BLE001
+            return False
+        if img is None:
+            return False
+        if isinstance(pv, QTextBrowser):
+            pv.document().addResource(2, QUrl("preview.png"), img)      # 2 = QTextDocument.ImageResource
+            pv.setHtml('<p><b>Xem trước</b></p><img src="preview.png">')
+        else:
+            pv.setPixmap(QPixmap.fromImage(img))
+        return True
 
     def _msg(self, text, ok=True):
         self.l_pkg.setText(f"<span style='color:{'#0b7a0b' if ok else '#c00000'}'>{text}</span>")
