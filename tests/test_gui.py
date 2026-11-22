@@ -1,5 +1,3 @@
-from nganhangde.parser import parse_file
-from PySide6.QtCore import Qt
 """Kiểm thử khói giao diện: mở mọi tab và hộp thoại chính, chạy các thao tác tiêu biểu (không cần màn hình).
 
 Mục đích: bảo vệ khi tái cấu trúc mã giao diện – lỗi import/thiếu tên/sai chữ kí sẽ lộ ra ngay.
@@ -11,6 +9,9 @@ import pytest
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 QtWidgets = pytest.importorskip("PySide6.QtWidgets")
 
+
+from PySide6.QtCore import QSettings, Qt  # noqa: E402
+from nganhangde.parser import parse_file  # noqa: E402
 
 ROOT = os.path.dirname(os.path.dirname(__file__))
 SAMPLE = os.path.join(ROOT, "0-1-De-chuan-hoa-1.tex")
