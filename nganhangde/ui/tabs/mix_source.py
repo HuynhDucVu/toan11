@@ -39,9 +39,16 @@ class MixSourceBar(QWidget):
         lay.addLayout(row)
         self.r_bank.toggled.connect(self._mode)
         self.b_open.clicked.connect(self.open_bank)
-        self.b_import.clicked.connect(win.import_files)
+        self.b_import.clicked.connect(self.import_dialog)
         self.b_files.clicked.connect(self.choose_files)
         self._mode()
+
+    def import_dialog(self):
+        from ..dialogs.import_bank import ImportBankDialog
+        ImportBankDialog(self.win).exec()
+        self.win.build_tree()
+        self.win.refresh()
+        self.refresh()
 
     def open_bank(self):
         """«Mở ngân hàng»: chọn kho rồi nạp câu hỏi vào các trang con ngay (không cần bấm gì thêm)."""

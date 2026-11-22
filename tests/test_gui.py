@@ -638,3 +638,21 @@ def test_idgrid_rows_for_files_without_id(win, app, tmp_path):
     win.mix_source = "bank"
     g.reload_map()
     assert g.rows
+
+
+def test_import_bank_dialog_and_file_load(win, app, monkeypatch):
+    from nganhangde.ui.dialogs.import_bank import ImportBankDialog
+    d = ImportBankDialog(win)
+    assert {"Nhập", "Đóng", "Khởi tạo", "Sao lưu", "Kiểm tra", "Ghép", "Khôi phục", "Xoá lỗi", "Xuất",
+            "Chuyển sang macOS, linux", "Hướng dẫn"} <= set(d.btn)
+    d.paths = [SAMPLE]
+    d.ck["deep_dups"].setChecked(True)
+    d.cb_ratio.setCurrentIndex(d.cb_ratio.findData(0.7))
+    d._save_opts()
+    assert float(win.settings.value("iw/ratio")) == 0.7
+    fm = win.filemix_panel
+    fm.set_files([SAMPLE])
+    fm.load_source()                                       # «Nạp vào nguồn»: chuyển sang chế độ Từ Files
+    assert win.mix_source == "files" and win.pool_bank() is win.file_pool and win.file_pool.count() > 0
+    win.mix_source_bar.r_bank.setChecked(True)
+    assert win.pool_bank() is win.bank

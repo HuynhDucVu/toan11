@@ -375,7 +375,7 @@ class FileMixPanel(_Base):
         self._busy = False
         lay = QVBoxLayout(self)
         row = QHBoxLayout()
-        for text, fn in (("Chọn files…", self.pick), ("Bỏ file chọn", self.remove)):
+        for text, fn in (("Chọn files…", self.pick), ("Bỏ file chọn", self.remove), ("Nạp vào nguồn", self.load_source)):
             b = QPushButton(text)
             b.clicked.connect(fn)
             row.addWidget(b)
@@ -408,6 +408,25 @@ class FileMixPanel(_Base):
                                              "LaTeX (*.tex)")
         if ps:
             self.set_files(self.paths + [p for p in ps if p not in self.paths])
+
+    def load_source(self):
+        """Nạp các file này làm nguồn câu hỏi của cả tab Trộn đề (chế độ «Từ Files»): bảng ID, tự chọn… dùng luôn."""
+        if not self.paths:
+            self.pick()
+        if not self.paths:
+            return
+        bar = self.win.mix_source_bar
+        bar.load_files(self.paths)
+        if not bar.r_files.isChecked():
+            bar.r_files.blockSignals(True)
+            bar.r_files.setChecked(True)
+            bar.r_files.blockSignals(False)
+            self.win.mix_source = "files"
+            bar.b_files.setEnabled(True)
+            bar.b_open.setEnabled(False)
+            bar.b_import.setEnabled(False)
+        bar.refresh()
+        self.win.statusBar().showMessage(f"Đã nạp {self.win.file_pool.count():,} câu từ {len(self.paths)} file làm nguồn trộn đề.", 8000)
 
     def remove(self):
         rows = {i.row() for i in self.t.selectedIndexes()}

@@ -15,6 +15,7 @@ class ImportOptions:
     deep_dups: bool = False          # kiểm tra trùng sâu (gần giống ≥ 85%) với kho và trong lô
     no_id5: bool = False             # không nhập câu có ID 5 ký tự (chưa phân dạng)
     skip_errors: bool = False        # bỏ qua câu có lỗi nặng khi rà soát
+    ratio: float = 0.85              # ngưỡng «gần giống» khi kiểm tra trùng sâu
 
 
 @dataclass
@@ -53,7 +54,7 @@ def review(entries: list[Entry], bank, opt: ImportOptions) -> None:
     if opt.deep_dups:
         from .tools import near_duplicates
         live = [e for e in entries if not e.skip]
-        for i, j, _ in near_duplicates([e.q for e in live], 0.85):
+        for i, j, _ in near_duplicates([e.q for e in live], opt.ratio):
             if not live[j].skip:
                 live[j].skip = f"gần giống câu #{entries.index(live[i]) + 1}"
         stored = bank.search()
@@ -61,7 +62,7 @@ def review(entries: list[Entry], bank, opt: ImportOptions) -> None:
             allq = stored + [e.q for e in live if not e.skip]
             n0 = len(stored)
             todo = [e for e in live if not e.skip]
-            for i, j, _ in near_duplicates(allq, 0.85):
+            for i, j, _ in near_duplicates(allq, opt.ratio):
                 if i < n0 <= j and not todo[j - n0].skip:
                     todo[j - n0].skip = "gần giống câu trong kho"
 

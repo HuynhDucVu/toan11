@@ -59,7 +59,7 @@ class ImportWizard(QDialog):
     def options(self) -> iw.ImportOptions:
         for k, c in self.cks.items():
             self.st.setValue("iw/" + k, c.isChecked())
-        return iw.ImportOptions(**{k: c.isChecked() for k, c in self.cks.items()})
+        return iw.ImportOptions(ratio=float(self.st.value("iw/ratio", 0.85)), **{k: c.isChecked() for k, c in self.cks.items()})
 
     def fill(self):
         self.t.setRowCount(len(self.entries))

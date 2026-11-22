@@ -1,3 +1,8 @@
+## 0.17.37 – Hộp thoại «Nhập câu hỏi vào ngân hàng» và nạp file ngay trong «Tạo đề theo file»
+
+- «Nhập câu hỏi» mở hộp thoại như MyLT: Files (Chọn/Thêm), Không nhập câu ID5, Bỏ qua câu trùng, Kiểm tra câu trùng, Kiểm tra câu trùng sâu + Tỉ lệ (ngưỡng giống nhau dùng thật khi kiểm tra trùng sâu), các nút Hướng dẫn, Khởi tạo, Sao lưu, Kiểm tra, Ghép, Chuyển sang macOS/linux, Khôi phục, Xoá lỗi, Xuất, Nhập, Đóng. «Nhập» đi qua màn rà soát 3 bước có sẵn. «Kiểm tra» và «Xoá lỗi» cùng mở công cụ dọn kho.
+- «Tạo đề theo file» có nút «Nạp vào nguồn»: nạp các file làm nguồn câu hỏi của cả tab Trộn đề (chuyển sang «Từ Files», bảng ID/tự chọn dùng luôn).
+
 ## 0.17.36 – Trộn đề theo cấu trúc MyLT 2026
 
 - **Tạo đề tự chọn**: hàng lọc Lọc/Lớp/Môn/Chương/Bài/Dạng/Mức độ/Loại/Kiểu ID/Đã lấy; bảng STT | Nội dung câu hỏi (mã LaTeX) | Loại | ID | Chọn; thanh dưới HDSD, Sửa câu hỏi, Xoá, Chọn [N], Chọn hết, Xoá chọn, PDF, «Đã chọn: N câu», phân trang Đầu/Trước/[1]/Sau/Cuối (phân trang ngay trong SQL nên kho 150 000 câu vẫn nhanh).
