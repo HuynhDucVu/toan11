@@ -278,12 +278,7 @@ class PickPanel(_Base):
 
     # ---------------------------------------------------------------- nút dưới bảng
     def help(self):
-        QMessageBox.information(self, "Tạo đề tự chọn",
-                                "1. Lọc câu hỏi bằng các ô phía trên (Lớp → Môn → Chương → Bài → Dạng, Mức độ, Loại…).\n"
-                                "2. Tick cột «Chọn» ở các câu muốn lấy (giữ nguyên khi sang trang khác), hoặc dùng "
-                                "«Chọn [số]» để lấy ngẫu nhiên, «Chọn hết».\n"
-                                "3. Đặt thông tin đề, số mã đề ở tab «Tuỳ chọn đề» rồi bấm «Tạo đề».\n\n"
-                                "«Sửa câu hỏi»/«Xoá» tác động lên dòng đang chọn trong kho.")
+        self.win.show_hdsd("Tạo đề tự chọn")
 
     def _current_ids(self) -> list[int]:
         rows = sorted({i.row() for i in self.t.selectedIndexes()})
@@ -722,11 +717,7 @@ class SimilarExamPanel(_Base):
             export_questions(qs, p)
 
     def help(self):
-        QMessageBox.information(self, "Tạo đề tương tự",
-                                "1. «Chọn» file đề gốc (.tex).\n2. Đặt «Tìm theo» (ID / Nội dung), «Tỉ lệ tương tự» (chỉ dùng "
-                                "khi tìm theo nội dung) và «Số đề tối đa» rồi bấm «Tìm».\n3. Chọn «Đề tương tự thứ» N để xem; "
-                                "bỏ tick «Chọn» ở câu nào thì giữ câu gốc; «Đổi» đổi câu tương tự khác; «Sửa» sửa câu.\n"
-                                "4. «Lưu» lưu đề đang xem ra .tex, hoặc «Tạo đề» để trộn thành các mã đề.")
+        self.win.show_hdsd("Tạo đề tương tự")
 
     def generate(self):
         if not self._cur():

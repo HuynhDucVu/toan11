@@ -729,3 +729,22 @@ def test_draw_preview_without_latex(win, app, monkeypatch):
     sp.numline()                                              # auto=True: im lặng
     sp.preview_pdf()                                          # bấm tay: báo cho người dùng
     assert "Chưa tìm thấy LaTeX" in sp.l_pkg.text()
+
+
+def test_hdsd_window(win, app, monkeypatch):
+    """HDSD: mở từ menu Trợ giúp (F1), đủ mục chính, nút HDSD ở tab Tạo đề tự chọn mở đúng mục."""
+    from nganhangde import hdsd_text
+    from nganhangde.ui.dialogs.hdsd import HdsdDialog
+    titles = [t for _g, t, _h in hdsd_text.TOPICS]
+    for need in ("Nhập câu hỏi vào ngân hàng", "Tạo đề theo ID", "Tạo đề tự chọn", "Tạo đề theo file",
+                 "Tạo đề tương tự", "Tuỳ chọn đề", "Dọn kho", "Trục số, miền nghiệm, đường tròn lượng giác"):
+        assert need in titles, need
+    assert all(len(h) > 80 for _g, _t, h in hdsd_text.TOPICS)
+    monkeypatch.setattr(HdsdDialog, "exec", lambda self: 0)
+    dlg = HdsdDialog(win, "Tạo đề tự chọn")
+    assert dlg.nav.currentItem().text() == "Tạo đề tự chọn"
+    assert "Tạo đề tự chọn" in dlg.body.toPlainText()
+    assert dlg.open_topic("Tạo đề tương tự") and dlg.nav.currentItem().text() == "Tạo đề tương tự"
+    assert win.pick_panel.help.__self__ is win.pick_panel            # nút HDSD tồn tại và được nối
+    monkeypatch.setattr(HdsdDialog, "exec", lambda self: 0)
+    win.show_hdsd()

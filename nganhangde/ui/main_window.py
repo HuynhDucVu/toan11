@@ -100,6 +100,7 @@ class MainWindow(LayoutMixin, BankActionsMixin, QMainWindow):
         self._act(m, "Ảnh → LaTeX bằng Mathpix…", self.mathpix_image)
         self._act(m, "Thống kê ngân hàng", self.show_stats)
         m = mb.addMenu("Trợ &giúp")
+        self._act(m, "HDSD – hướng dẫn sử dụng từng chức năng", self.show_hdsd, "F1")
         self._act(m, "Cập nhật phần mềm…", self.check_update)
         self._act(m, "Giới thiệu", self.about)
 
@@ -1013,6 +1014,10 @@ class MainWindow(LayoutMixin, BankActionsMixin, QMainWindow):
 
     def open_generator(self):
         self.show_panel(self.gen_panel)
+
+    def show_hdsd(self, topic=None):
+        from .dialogs.hdsd import show_hdsd
+        show_hdsd(self, topic)
 
     def about(self):
         QMessageBox.about(self, "Giới thiệu",

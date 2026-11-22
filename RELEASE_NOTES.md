@@ -1,3 +1,8 @@
+## 0.17.42 – Cửa sổ HDSD (hướng dẫn sử dụng)
+
+- Thêm cửa sổ **HDSD** (Trợ giúp → HDSD, phím F1): danh mục bên trái theo nhóm chức năng, nội dung ngắn gọn bên phải, tên nút và tên tab khớp giao diện.
+- Nút **HDSD** ở tab Tạo đề tự chọn và Tạo đề tương tự mở đúng mục của tab đó.
+
 ## 0.17.41 – Sửa lỗi build trên máy không có LaTeX
 
 - Sửa lỗi làm bản build Windows không qua kiểm thử (các bản 0.17.39 và 0.17.40 không có release): khi máy chưa cài LaTeX, tạo mã hình (Trục số, Miền nghiệm, Đường tròn LG) không còn báo lỗi; bấm «Xem trước PDF» thì hiện thông báo cần cài LaTeX.
