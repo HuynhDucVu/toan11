@@ -1,3 +1,7 @@
+## 0.17.40 – Cỡ hình xem trước
+
+- Khung xem trước hình (Trục số, Miền nghiệm, Đường tròn LG, Đồ thị, Biểu đồ, Bảng xét dấu, Hình khối) có ô **Cỡ hình**: Vừa khung, 50%, 100%, 150%, 200%. Chỉ đổi cách hiển thị, không đổi mã TikZ.
+
 ## 0.17.39 – Xem trước hình ngay trong trang tạo mã
 
 - Biểu diễn nghiệm (Trục số, Miền nghiệm, Đường tròn lượng giác), Đồ thị, Biểu đồ, Bảng xét dấu, Hình khối: mỗi trang có khung **xem trước bên phải** như Bảng biến thiên. «Xem trước PDF» biên dịch rồi vẽ ngay vào khung đó (không mở cửa sổ ngoài); sau «Tạo mã» ở Trục số/Miền nghiệm/Đường tròn LG tự xem trước nếu máy có LaTeX. Bảng biến thiên cũng hiện PDF ở khung có sẵn.

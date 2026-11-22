@@ -703,3 +703,16 @@ def test_draw_preview_inside_page(win, app):
     assert pm is not None and not pm.isNull()
     win.bbt_panel.sub.setCurrentIndex(0)
     assert win.bbt_panel.show_preview(pdf)                           # bảng biến thiên: vẽ vào khung HTML có sẵn
+
+
+def test_draw_preview_zoom(win, app):
+    sp = win.sol_panel
+    sp.sub.setCurrentIndex(0)
+    pdf = os.path.join(ROOT, "nganhangde", "data", "Phieu_TLTN_THPT_QG_2025_1_mat.pdf")
+    assert sp.show_preview(pdf)
+    lab = sp.sub.currentWidget().preview
+    w0 = lab.pixmap().width()
+    lab.zoom_box.setCurrentIndex(lab.zoom_box.findData(0.5))
+    assert lab.pixmap().width() < w0
+    lab.zoom_box.setCurrentIndex(lab.zoom_box.findData(2.0))
+    assert lab.pixmap().width() > w0
