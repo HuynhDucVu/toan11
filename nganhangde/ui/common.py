@@ -44,6 +44,12 @@ QTabWidget#mainTabs::pane { border-top: 3px solid #1f4e79; background: #f5f7fa; 
 QTabWidget#mainTabs > QTabBar::tab { background: #dce6f1; color: #1f4e79; padding: 9px 13px; margin-right: 3px;
     border-top-left-radius: 7px; border-top-right-radius: 7px; font-weight: 700; font-size: 11pt; min-width: 70px; }
 QTabWidget#mainTabs > QTabBar::tab:selected { background: #1f4e79; color: white; }
+QTabBar#rowBar { background: transparent; }
+QTabBar#rowBar::tab { background: #dce6f1; color: #1f4e79; padding: 7px 12px; margin: 2px 3px 0 0;
+    border-top-left-radius: 5px; border-top-right-radius: 5px; }
+QTabBar#rowBar::tab:selected { background: #1f4e79; color: white; }
+QTabBar#rowBar[active="false"]::tab:selected { background: #dce6f1; color: #1f4e79; }
+QTabBar#rowBar::tab:hover:!selected { background: #b9cde4; }
 QTabWidget#mainTabs > QTabBar::tab:hover:!selected { background: #b9cde4; }
 QTabWidget#subTabs::pane { border: 1px solid #c9d6e3; border-top: 2px solid #e07b00; background: #fbfcfe; }
 QTabWidget#subTabs > QTabBar::tab { background: #f1f4f8; color: #33475b; padding: 7px 16px; margin-right: 2px;

@@ -225,11 +225,16 @@ class MainWindow(LayoutMixin, BankActionsMixin, QMainWindow):
         split.setSizes([280, 1020])
 
         # --- cửa sổ chính chia tab
-        self.main_tabs = QTabWidget()
+        from .rowtabs import RowTabWidget, find_page
+        self.main_tabs = RowTabWidget()
         self.main_tabs.setObjectName("mainTabs")
         self._build_tabs(split)
         self.main_tabs.currentChanged.connect(self.on_tab_changed)
-        self.setCentralWidget(self.main_tabs)
+        # Hàng 1: tab phụ trợ; hàng 2: các tab làm việc chính (tránh tràn ngang khi cửa sổ hẹp)
+        row1 = ["Trộn đề", "Biểu diễn nghiệm", "Soạn thảo", "Thông tin", "Cập nhật"]
+        row2 = ["Câu hỏi", "Ma trận", "Tiện ích", "Vẽ hình", "Đồ thị", "BBT"]
+        rows = [[find_page(self.main_tabs, t) for t in row1], [find_page(self.main_tabs, t) for t in row2]]
+        self.setCentralWidget(self.main_tabs.install_rows(rows))
         self.statusBar().showMessage("Sẵn sàng")
 
     def on_tab_changed(self, _idx):

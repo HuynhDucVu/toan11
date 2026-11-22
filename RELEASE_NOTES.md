@@ -1,3 +1,7 @@
+## 0.17.44 – Thanh tab chính chia 2 hàng
+
+- Các tab chính không còn tràn ngang: hàng trên gồm Trộn đề, Biểu diễn nghiệm, Soạn thảo, Thông tin, Cập nhật; hàng dưới gồm Câu hỏi, Ma trận, Tiện ích, Vẽ hình, Đồ thị, BBT & Xét dấu. Chọn tab ở hàng nào cũng chuyển trang; hàng không chứa trang đang mở được làm nhạt.
+
 ## 0.17.43 – HDSD: nhóm «Chuyển đổi»
 
 - Thêm 11 mục hướng dẫn cho các chức năng chuyển đổi: tổng quan (chức năng nằm ở menu nào), Word/PDF → LaTeX, nhập Word vào kho, đề gõ thường → ex_test, Word ↔ LaTeX, nhập kho MyLT, xuất câu ra Word/Moodle/HTML, đề online (Moodle, Aiken, Quizizz, Forms, Blogger, bài làm online), phiếu trả lời, hình TikZ ra PNG/tách file, quyển chuyên đề và trình chiếu.

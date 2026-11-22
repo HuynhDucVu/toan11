@@ -752,3 +752,21 @@ def test_hdsd_window(win, app, monkeypatch):
     assert win.pick_panel.help.__self__ is win.pick_panel            # nút HDSD tồn tại và được nối
     monkeypatch.setattr(HdsdDialog, "exec", lambda self: 0)
     win.show_hdsd()
+
+
+def test_main_tabs_two_rows(win, app):
+    """Thanh tab chính chia 2 hàng: chọn ở hàng nào cũng chuyển trang và làm sáng đúng tab."""
+    from PySide6.QtWidgets import QTabBar
+    mt = win.main_tabs
+    bars = [b for b in win.centralWidget().findChildren(QTabBar) if b.objectName() == "rowBar"]
+    assert len(bars) == 2
+    assert bars[0].count() + bars[1].count() == mt.count() == 11
+    row2 = bars[1]
+    k = next(i for i in range(row2.count()) if "Câu hỏi" in row2.tabText(i))
+    row2.setCurrentIndex(k)
+    assert "Câu hỏi" in mt.tabText(mt.currentIndex())
+    assert bars[1].property("active") is True and bars[0].property("active") is False   # hàng 1 bị làm nhạt
+    mt.setCurrentIndex(0)
+    assert bars[0].property("active") is True and bars[1].property("active") is False
+    assert bars[0].currentIndex() == 0
+    assert "Trộn đề" in mt.tabText(0)
