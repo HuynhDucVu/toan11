@@ -130,7 +130,12 @@ def ensure_layout(root: str | None = None) -> str:
               (os.path.join(PKG, "templates", "nhd_extest.sty"), os.path.join(folder("mau_de", root), "ex_test_rut_gon.sty")),
               (os.path.join(PKG, "templates", "Header_MyLT.tex"), os.path.join(folder("mau_de", root), "Header_MyLT.tex")),
               (os.path.join(PKG, "data", "map_id_toan_6_12.tex"), os.path.join(folder("map_id", root), "Map_ID_Toan_6_12.tex")),
+              (os.path.join(PKG, "data", "Map_ID_Moi.tex"), os.path.join(folder("map_id", root), "Map_ID_Moi.tex")),
               (os.path.join(PKG, "data", PHIEU_PDF), os.path.join(root, "DATA", PHIEU_PDF.replace("_", " ")))]
+    if not os.environ.get("NHD_NO_BUNDLED_PKG"):
+        # gói ex_test mới nhất (v3.1, 21/10/2024 – Trần Anh Tuấn, Dương Phước Sang) vào thư mục gói lệnh: biên dịch dùng bản này,
+        # file xuất ra được chép kèm. (Thư mục gói lệnh đã có ex_test.sty của người dùng thì giữ nguyên.)
+        copies.append((os.path.join(PKG, "data", "ex_test.sty"), os.path.join(folder("goi_lenh", root), "ex_test.sty")))
     for src, dst in copies:
         if os.path.exists(src) and not os.path.exists(dst):
             try:

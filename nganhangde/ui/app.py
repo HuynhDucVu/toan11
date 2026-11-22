@@ -52,6 +52,7 @@ def run(db_path: str | None = None):
     w.show()
     from PySide6.QtCore import QTimer as _T
     _T.singleShot(400, w.welcome_if_empty)
+    _T.singleShot(1500, w.maybe_reclassify)
     auto = str(w.settings.value("update/auto", True)).lower() == "true"
     if auto and (getattr(sys, "frozen", False) or os.environ.get("NHD_UPDATE_CHECK")):
         from PySide6.QtCore import QTimer

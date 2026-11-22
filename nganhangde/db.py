@@ -226,6 +226,43 @@ class Bank:
         self.con.execute(f"UPDATE questions SET {sets} WHERE id=?", [*v.values(), db_id])
         self.con.commit()
 
+    def reclassify(self, progress=None, should_stop=None) -> dict:
+        """Đọc lại khối LaTeX gốc (raw) của mọi câu bằng bộ nhận dạng mới nhất; câu nào đổi LOẠI (vd tự luận/trắc nghiệm → Đúng/Sai
+        do viết «\\TF\\choice») thì cập nhật loại, đề bài, phương án, đáp án. Trả về {'xet', 'doi', 'theo_loai': {«TN→DS»: n}}."""
+        from .parser import parse_tex
+        rows = self.con.execute("SELECT id, qtype, raw FROM questions").fetchall()
+        res = {"xet": len(rows), "doi": 0, "theo_loai": {}}
+        for k, r in enumerate(rows):
+            if k % 2000 == 0:
+                self.con.commit()
+                if progress:
+                    progress(k, len(rows))
+                if should_stop and should_stop():
+                    break
+            try:
+                qs = parse_tex(r["raw"])
+            except Exception:  # noqa: BLE001 – khối LaTeX hỏng: giữ nguyên
+                continue
+            if len(qs) != 1 or qs[0].qtype == r["qtype"]:
+                continue
+            q = qs[0]
+            v = self._row_values(q)
+            v["raw"] = r["raw"]                           # giữ nguyên khối gốc
+            for col in ("id_code", "lop", "mon", "chuong", "muc_do", "bai", "dang", "tags", "group_id"):
+                v.pop(col, None)                          # không đụng ID/nguồn đã gán
+            sets = ",".join(f"{c}=?" for c in v)
+            try:
+                self.con.execute(f"UPDATE questions SET {sets} WHERE id=?", [*v.values(), r["id"]])
+            except sqlite3.IntegrityError:                # trùng nội dung với câu khác sau khi đổi: để nguyên
+                continue
+            res["doi"] += 1
+            key = f"{r['qtype']}→{q.qtype}"
+            res["theo_loai"][key] = res["theo_loai"].get(key, 0) + 1
+        self.con.commit()
+        if progress:
+            progress(len(rows), len(rows))
+        return res
+
     def delete(self, ids):
         for i in ids:
             self._log(i, "xoá")

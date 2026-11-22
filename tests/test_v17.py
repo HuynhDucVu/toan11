@@ -768,3 +768,27 @@ def test_cleanup_temp_for_update(tmp_path, monkeypatch):
     assert res["files"] >= 4 and res["bytes"] >= 1000
     assert (tmp / "khac.txt").exists() and not (tmp / "nhd_update_abc").exists() and not (tmp / "_MEI123").exists()
     assert not (tmp / "capnhat_nganhangde.bat").exists() and not os.path.exists(os.path.join(tam, "rac.tex"))
+
+
+def test_legacy_tf_choice_and_reclassify(tmp_path):
+    from nganhangde.db import Bank
+    from nganhangde.parser import Question
+    base = ("\\begin{ex}%[0H9V1-6]\n\tXét tính đúng sai\n\tPRE\\choice\n\t{\\True $a$}\n\t{$b$}\n\t{$c$}\n\t{\\True $d$}\n"
+            "\t\\loigiai{x}\n\\end{ex}")
+    for pre, cmd in (("\\TF", ""), ("\\MYLT[t]\\TF", "choiceTFt"), ("\\MyLTt\\TF", "choiceTFt"), ("\\TF\\MYLT[2]", ""),
+                     ("\\MYLT[1]\\TF", "")):
+        q = parse_tex(base.replace("PRE", pre))[0]
+        assert q.qtype == "DS" and q.correct == [True, False, False, True] and q.choice_cmd == cmd and q.stem == "Xét tính đúng sai"
+    assert parse_tex(base.replace("PRE", ""))[0].qtype == "TN"
+    # kho cũ: câu đã lưu là TN (bộ nhận dạng cũ) ⇒ reclassify đổi thành DS, giữ ID/nguồn
+    b = Bank(str(tmp_path / "k.db"))
+    q = parse_tex(base.replace("PRE", ""))[0]
+    q.raw = base.replace("PRE", "\\TF")                    # raw là khối gốc có «\TF»
+    q.stem = "Xét tính đúng sai\n\\TF"
+    q.id_code = "0H9V1-6"
+    nid = b.add(q, "nguon.tex")
+    assert b.get(nid).qtype == "TN"
+    r = b.reclassify()
+    assert r["doi"] == 1 and r["theo_loai"] == {"TN→DS": 1}
+    g = b.get(nid)
+    assert g.qtype == "DS" and g.correct == [True, False, False, True] and g.id_code == "0H9V1-6" and g.stem == "Xét tính đúng sai"

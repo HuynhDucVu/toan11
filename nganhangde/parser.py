@@ -94,6 +94,10 @@ class Question:
         return "\n".join(lines)
 
 
+_MYLT = r"(?:\\MYLT|\\MyLT)[A-Za-z]*(?:\[[^\]]*\])?"
+_LEGACY_TF = re.compile(r"(?:((?:" + _MYLT + r"\s*)+))?\\TF\b\s*(?:((?:" + _MYLT + r"\s*)+))?\\choice(?![A-Za-z])")
+
+
 def parse_block(env: str, body: str) -> Question:
     first_line, _, rest = body.partition("\n")
     tags = TAG_RE.findall(first_line)
@@ -115,6 +119,11 @@ def parse_block(env: str, body: str) -> Question:
             solution = args[0].strip("\n")
             content = content[:p] + content[end:]
 
+    # Cách viết CŨ của câu Đúng/Sai: «\TF\choice{…}{…}{…}{…}» (cả «\MYLT[t]\TF\choice», «\MyLTt\TF\choice»…; chữ t = kiểu bảng).
+    # Gói ex_test mới dùng \choiceTF / \choiceTFt, nên đổi về dạng mới để nhận đúng là câu Đúng/Sai.
+    content = _LEGACY_TF.sub(lambda m: "\\choiceTFt" if re.search(r"t", (m.group(1) or "") + (m.group(2) or "")
+                                                                  .replace("\\MYLT", "").replace("\\MyLT", "")) else "\\choiceTF",
+                             content, count=1)
     # dạng môi trường \begin{choiceTF}[t] {..}{..}{..}{..} \end{choiceTF} (cũng choice, choiceTFt) → dạng lệnh \choiceTF…
     content = re.sub(r"\\begin\{(choiceTFt|choiceTF|choice)\}", r"\\\1", content)
     content = re.sub(r"\\end\{(choiceTFt|choiceTF|choice)\}", "", content)

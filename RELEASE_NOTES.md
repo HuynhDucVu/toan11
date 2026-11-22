@@ -11,6 +11,11 @@ Với bản một file:
 
 Kho câu hỏi `nganhang.db` nằm cạnh file exe. Cập nhật từ bản cũ: chỉ cần thay file exe, kho giữ nguyên.
 
+## Có gì mới ở bản 0.17.35 – Nhận dạng câu Đúng/Sai viết kiểu cũ, ex_test v3.1 kèm sẵn
+- **Câu Đúng/Sai viết `\TF\choice{…}{…}{…}{…}`** (cả `\MYLT[t]\TF\choice`, `\MyLTt\TF\choice`…; chữ `t` = kiểu bảng) nay được nhận là **Đúng/Sai** và đổi sang dạng chuẩn của ex_test mới (`\choiceTF` / `\choiceTFt`). Trong kho thử 153.000 câu: trước đây 0 câu, nay **3.764 câu Đúng/Sai**.
+- **Nhận dạng lại kho**: lần mở đầu sau khi nâng cấp phần mềm hỏi có nhận dạng lại loại câu hỏi trong kho không (cũng có ở Công cụ → «Nhận dạng lại loại câu hỏi trong kho»). ID, nguồn, lời giải giữ nguyên.
+- Kèm sẵn **ex_test v3.1 (21/10/2024)** trong `TEMPLATE\GOI LENH` (biên dịch dùng bản này, file xuất ra được chép kèm) và **Map_ID_Moi.tex** (hợp nhất 4 mức độ) trong `Map ID (DPS)` – chọn ở Giải nghĩa ID (Ctrl+M) → chọn nhanh.
+
 ## Có gì mới ở bản 0.17.34 – Xoá tạm và lịch sử để cập nhật sạch
 - Tab **⬆ Cập nhật** có nút **🧹 Xoá tạm và lịch sử cập nhật**: xoá bản tải dở, file `.bat` cập nhật cũ, thư mục tạm của phần mềm, thư mục giải nén cũ `_MEI…` (bỏ qua thư mục đang dùng), thư mục `TEMP`, và lịch sử «Bỏ qua bản này» / lần kiểm tra; tuỳ chọn xoá luôn `NganHangDe_cu.exe`. Kho, cài đặt và file đã xuất không bị xoá. Phần mềm cũng tự dọn tạm trước mỗi lần tải bản mới.
 

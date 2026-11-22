@@ -25,6 +25,8 @@ from .workers import BuildWorker
 from .bank_actions import BankActionsMixin
 from .layout import LayoutMixin
 
+PARSER_VERSION = "2"        # tăng khi bộ nhận dạng câu hỏi đổi cách phân loại ⇒ hỏi nhận dạng lại kho một lần
+
 
 class MainWindow(LayoutMixin, BankActionsMixin, QMainWindow):
     def __init__(self, db_path: str | None = None):
@@ -83,6 +85,7 @@ class MainWindow(LayoutMixin, BankActionsMixin, QMainWindow):
         m = mb.addMenu("Công &cụ")
         self._act(m, "Soát lỗi file .tex…", self.check_file)
         self._act(m, "Giải nghĩa ID (Map ID)…", self.edit_idmap, "Ctrl+M")
+        self._act(m, "Nhận dạng lại loại câu hỏi trong kho (Đúng/Sai viết \\TF\\choice…)", lambda: self.reclassify_bank(True))
         self._act(m, "Dọn kho: lọc câu trùng (giữ 1 câu) và câu sai…", self.cleanup_bank)
         self._act(m, "Tìm câu gần trùng trong kho…", self.near_dups)
         m.addSeparator()
@@ -357,6 +360,14 @@ class MainWindow(LayoutMixin, BankActionsMixin, QMainWindow):
         self.refresh()
         QMessageBox.information(self, "Ngân hàng mẫu", f"Đã thêm {r['de_mau']} câu đề mẫu và {r['doi_so']} câu đổi số "
                                 f"(bỏ {r['trung']} câu trùng). Thử tạo đề ở tab «Trộn đề».")
+
+    def maybe_reclassify(self):
+        """Lần đầu sau khi nâng cấp bộ nhận dạng: đề nghị nhận dạng lại loại câu hỏi trong kho."""
+        if os.environ.get("NHD_NO_WELCOME") or not self.bank or self.bank.count() == 0:
+            return
+        if str(self.settings.value("bank/parser_ver", "")) != PARSER_VERSION:
+            self.reclassify_bank(False)
+            self.settings.setValue("bank/parser_ver", PARSER_VERSION)
 
     def welcome_if_empty(self):
         """Kho trống: hướng dẫn 3 cách có dữ liệu (chỉ hiện khi mở phần mềm)."""
@@ -732,6 +743,39 @@ class MainWindow(LayoutMixin, BankActionsMixin, QMainWindow):
         with open(out, "w", encoding="utf-8") as f:
             f.write(text + "\n")
         QMessageBox.information(self, "Mathpix", f"Đã ghi {out}\n\n{text[:600]}")
+
+    def reclassify_bank(self, ask: bool = False):
+        """Đọc lại loại câu hỏi (Đúng/Sai…) bằng bộ nhận dạng mới. ask=True: do người dùng bấm menu (không hỏi lại)."""
+        if not self.bank or self.bank.count() == 0:
+            return
+        if not ask and QMessageBox.question(
+                self, "Nhận dạng lại kho",
+                "Phần mềm vừa nâng cấp cách nhận dạng câu Đúng/Sai (cả cách viết cũ «\\TF\\choice»).\n"
+                "Nhận dạng lại loại câu hỏi trong kho bây giờ? (Vài chục giây với kho lớn; ID, nguồn, lời giải giữ nguyên.)") \
+                != QMessageBox.StandardButton.Yes:
+            return
+        from PySide6.QtWidgets import QProgressDialog
+        from .workers import TaskWorker
+        bank = self.bank
+        w = TaskWorker(lambda progress, should_stop: bank.reclassify(progress, should_stop), with_progress=True)
+        dlg = QProgressDialog("Đang nhận dạng lại loại câu hỏi…", "Dừng", 0, 0, self)
+        dlg.setWindowModality(Qt.WindowModality.WindowModal)
+        dlg.setMinimumDuration(0)
+        w.progress.connect(lambda i, n: (dlg.setMaximum(n), dlg.setValue(i)))
+        dlg.canceled.connect(w.requestInterruption)
+        w.finished.connect(dlg.close)
+        w.start()
+        dlg.exec()
+        w.wait()
+        if w.error:
+            QMessageBox.warning(self, "Nhận dạng lại", w.error)
+            return
+        r = w.result
+        self.settings.setValue("bank/parser_ver", PARSER_VERSION)
+        self.build_tree()
+        self.refresh()
+        detail = "\n".join(f"  {k}: {v:,} câu" for k, v in sorted(r["theo_loai"].items())) or "  (không có câu nào đổi loại)"
+        QMessageBox.information(self, "Nhận dạng lại kho", f"Đã xét {r['xet']:,} câu, đổi loại {r['doi']:,} câu:\n{detail}")
 
     def cleanup_bank(self):
         from .dialogs.cleanup import CleanupDialog

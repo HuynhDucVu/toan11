@@ -15,6 +15,7 @@ def _app_home(tmp_path_factory):
     """Thư mục phần mềm (config.ini, du_lieu…) của mọi kiểm thử nằm trong thư mục tạm, không ghi vào mã nguồn."""
     os.environ["NHD_HOME"] = str(tmp_path_factory.mktemp("nhd_home"))
     os.environ["NHD_NO_WELCOME"] = "1"
+    os.environ["NHD_NO_BUNDLED_PKG"] = "1"          # kiểm thử không chép ex_test thật (máy chạy kiểm thử thiếu các gói phụ thuộc)
     yield
 
 
