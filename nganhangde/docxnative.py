@@ -138,6 +138,48 @@ def omml(node) -> str:
     return _ch(node)
 
 
+# ---------------------------------------------------------------- ký hiệu trong văn bản thường
+# Ký hiệu toán gõ thẳng (Unicode) hoặc chèn bằng Insert → Symbol (font Symbol, mã F0xx): đổi thành lệnh LaTeX trong $…$.
+_UNI_SYM = {"≤": r"\le", "≥": r"\ge", "≠": r"\ne", "∞": r"\infty", "×": r"\times", "÷": r"\div", "→": r"\to",
+            "←": r"\leftarrow", "⇒": r"\Rightarrow", "⇔": r"\Leftrightarrow", "±": r"\pm", "∈": r"\in",
+            "∉": r"\notin", "∩": r"\cap", "∪": r"\cup", "⊂": r"\subset", "°": r"^\circ",
+            "α": r"\alpha", "β": r"\beta", "γ": r"\gamma", "δ": r"\delta", "ε": r"\varepsilon", "θ": r"\theta",
+            "λ": r"\lambda", "μ": r"\mu", "π": r"\pi", "ρ": r"\rho", "σ": r"\sigma", "φ": r"\varphi", "ω": r"\omega",
+            "Δ": r"\Delta", "Ω": r"\Omega", "Σ": r"\Sigma", "Π": r"\Pi", "Θ": r"\Theta", "Λ": r"\Lambda"}
+# mã trong font Symbol (Adobe Symbol encoding) → Unicode, chỉ lấy các ký hiệu hay dùng trong đề Toán
+_SYMBOL_FONT = {0xA3: "≤", 0xB3: "≥", 0xB9: "≠", 0xA5: "∞", 0xB4: "×", 0xB8: "÷", 0xAE: "→", 0xAC: "←",
+                0xB1: "±", 0xB0: "°", 0xCE: "∈", 0xCF: "∉", 0xC7: "∩", 0xC8: "∪", 0xCC: "⊂", 0xDE: "⇒", 0xDB: "⇔",
+                0x61: "α", 0x62: "β", 0x67: "γ", 0x64: "δ", 0x65: "ε", 0x71: "θ", 0x6C: "λ", 0x6D: "μ",
+                0x70: "π", 0x72: "ρ", 0x73: "σ", 0x66: "φ", 0x77: "ω", 0x44: "Δ", 0x57: "Ω", 0x53: "Σ",
+                0x50: "Π", 0x51: "Θ", 0x4C: "Λ"}
+_PCT = re.compile(r"%(?!\[)")          # % (trừ «%[ID]» – chú thích ID của ex_test) là ký tự comment của LaTeX
+
+
+def _tex_plain(txt: str) -> str:
+    """Văn bản thường → an toàn cho LaTeX: escape % & #, ký hiệu toán → $\\lệnh$."""
+    txt = _PCT.sub(r"\\%", txt).replace("&", r"\&").replace("#", r"\#")
+    out = []
+    for ch in txt:
+        cmd = _UNI_SYM.get(ch)
+        out.append(f"${cmd}$" if cmd else ch)
+    return "".join(out)
+
+
+def _sym_char(x) -> str:
+    """Phần tử w:sym (ký hiệu chèn từ font) → ký tự Unicode; rỗng nếu không nhận ra."""
+    font = x.attrib.get(f"{W}font", "")
+    code = x.attrib.get(f"{W}char", "")
+    try:
+        v = int(code, 16)
+    except ValueError:
+        return ""
+    if v >= 0xF000:
+        v -= 0xF000
+    if "Symbol" in font:
+        return _SYMBOL_FONT.get(v, "")
+    return chr(v) if 0x20 <= v < 0xF000 else ""
+
+
 # ---------------------------------------------------------------- đoạn văn
 def _marked(r) -> bool:
     rpr = r.find(f"{W}rPr")
@@ -332,8 +374,10 @@ def _parts(ctx: _Ctx, elem, out: list[str]):
                 out.append(mt)
                 continue
             txt = "".join((x.text or "") if x.tag == f"{W}t" else "\t" if x.tag == f"{W}tab" else
-                          " " if x.tag in (f"{W}br", f"{W}cr") else "" for x in c.iter()
-                          if x.tag in (f"{W}t", f"{W}tab", f"{W}br", f"{W}cr"))
+                          " " if x.tag in (f"{W}br", f"{W}cr") else _sym_char(x) if x.tag == f"{W}sym" else ""
+                          for x in c.iter() if x.tag in (f"{W}t", f"{W}tab", f"{W}br", f"{W}cr", f"{W}sym"))
+            if txt and not c.find(f".//{W}drawing") is not None:
+                txt = _tex_plain(txt)
             if c.find(f".//{W}drawing") is not None or c.find(f".//{W}pict") is not None:
                 im = _image(ctx, c)
                 if im:
@@ -342,12 +386,11 @@ def _parts(ctx: _Ctx, elem, out: list[str]):
                 continue
             for a, b in ctx.opts.replacements:
                 txt = txt.replace(a, b)
-            if ctx.opts.chem:
-                va = _style(c)
-                if va == "subscript":
-                    txt = "$_{" + txt + "}$"
-                elif va == "superscript":
-                    txt = "$^{" + txt + "}$"
+            va = _style(c)                       # chỉ số trên/dưới (x², H₂O): luôn chuyển thành ^{…}/_{…}
+            if va == "subscript" and txt.strip():
+                txt = "$_{" + txt.strip() + "}$" + (" " if txt.endswith(" ") else "")
+            elif va == "superscript" and txt.strip():
+                txt = "$^{" + txt.strip() + "}$" + (" " if txt.endswith(" ") else "")
             if _marked(c) and txt.strip() and not getattr(ctx, "skip_mark", False):
                 m = re.match(r"^(\s*[A-Da-d]\s*[.)])(.*)$", txt, re.S) if not "".join(out).strip() else None
                 if m:                                        # nhãn phương án gạch chân/tô màu = đáp án đúng
@@ -391,6 +434,9 @@ def _para(ctx, p) -> str:
         text = f"\\underline{{{lab[0]}}}" if opt_marked else lab[0]
         s = text + " " + s
     s = re.sub(r"\\underline\{([^{}]*)\}\\underline\{([^{}]*)\}", r"\\underline{\1\2}", s)   # gộp các đoạn liền nhau
+    for k in ("^", "_"):                         # «$^{1}$$^{0}$» (hai run liền nhau) → «$^{10}$»
+        pat = "\\$" + k + "\\{([^{}]*)\\}\\$\\$" + k + "\\{([^{}]*)\\}\\$"
+        s = re.sub(pat, lambda m: "$" + k + "{" + m.group(1) + m.group(2) + "}$", s)
     s = s.replace("\u00a0", " ").strip()
     s = re.sub(r"\\\[(.+?)\\\]", lambda m: "$$" + m.group(1).strip() + "$$", s, flags=re.S)      # \[ … \] (Toggle TeX)
     s = re.sub(r"\\\((.+?)\\\)", lambda m: "$" + m.group(1).strip() + "$", s, flags=re.S)       # \( … \)
@@ -405,7 +451,7 @@ def _table(ctx, tbl, keep_table: bool = True) -> str:
         for tc in tr.findall(f"{W}tc"):
             txt = " ".join(x for x in (_para(ctx, p) for p in tc.findall(f".//{W}p")) if x).strip()
             raw.append(txt)
-            cells.append(txt.replace("&", r"\&"))
+            cells.append(txt)                    # & đã được escape trong _tex_plain
         rows.append(cells)
     if not rows:
         return ""

@@ -1,3 +1,10 @@
+## 0.17.45 – Chuyển Word → LaTeX: sửa lỗi mất nội dung
+
+- Chỉ số trên/dưới gõ bằng định dạng Word (x², m₃) nay thành `$^{2}$`, `$_{3}$` (trước đây thành `x2`, `m3`).
+- Ký hiệu chèn bằng Insert → Symbol (≤, ≥, ≠, ∞, α, π…) không còn bị mất; ký hiệu Unicode gõ thẳng cũng đổi thành lệnh LaTeX trong `$…$`.
+- Dấu `%` trong văn bản (ví dụ «50%») được escape `\%`: trước đây làm LaTeX bỏ mất phần sau của dòng. `&` và `#` cũng được escape ngoài bảng.
+- Thêm 4 test chuyển đổi Word (tests/test_word_conv.py).
+
 ## 0.17.44 – Thanh tab chính chia 2 hàng
 
 - Các tab chính không còn tràn ngang: hàng trên gồm Trộn đề, Biểu diễn nghiệm, Soạn thảo, Thông tin, Cập nhật; hàng dưới gồm Câu hỏi, Ma trận, Tiện ích, Vẽ hình, Đồ thị, BBT & Xét dấu. Chọn tab ở hàng nào cũng chuyển trang; hàng không chứa trang đang mở được làm nhạt.
