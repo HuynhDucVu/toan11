@@ -182,6 +182,100 @@ TOPICS = [
 <li>Nếu chuyển công thức chưa đúng, mở file kết quả, sửa tay, rồi nhập lại.</li>
 </ul>"""),
 
+    ("Chuyển đổi", "Tổng quan: chuyển đổi nằm ở đâu", """
+<table border=1 cellspacing=0 cellpadding=4>
+<tr><th>Cần làm gì</th><th>Vào đâu</th></tr>
+<tr><td>Word/PDF → câu trong kho</td><td>Tệp → <b>Nhập file Word (.docx)…</b></td></tr>
+<tr><td>Word/PDF → file LaTeX</td><td>Tệp → <b>Chuyển Word/PDF → LaTeX</b></td></tr>
+<tr><td>Đề gõ thường → ex_test</td><td>Công cụ → Tiện ích → <b>Xuất &amp; chuyển đổi</b> → Chuyển đổi → <b>Đề LaTeX thường → ex_test</b></td></tr>
+<tr><td>Word ↔ LaTeX (trong tab)</td><td>Công cụ → Tiện ích → Xuất &amp; chuyển đổi → Chuyển đổi</td></tr>
+<tr><td>Kho MyLT → kho này</td><td>Tệp → <b>Nhập ngân hàng MyLT…</b></td></tr>
+<tr><td>Câu đã chọn → Word / Moodle / HTML</td><td>Tệp → <b>Xuất câu ra Word / Moodle / bài làm online…</b></td></tr>
+<tr><td>Đề → Quizizz, Forms, Blogger…</td><td>Công cụ → Tiện ích → Xuất &amp; chuyển đổi → Đề online</td></tr>
+<tr><td>Ảnh công thức → LaTeX</td><td>Công cụ → <b>Ảnh → LaTeX bằng Mathpix…</b></td></tr>
+</table>"""),
+
+    ("Chuyển đổi", "Word/PDF → LaTeX", """
+<ol>
+<li>Tệp → <b>Chuyển Word/PDF → LaTeX…</b>. Chọn một hoặc nhiều file .docx hoặc .pdf (thư mục mở sẵn là <code>DATA\\WORD2EXTEST</code>).</li>
+<li>Trong hộp thoại <b>Tuỳ chọn chuyển Word/PDF sang TeX</b>, chọn cách xử lý công thức và đầu ra, rồi bấm OK.</li>
+<li>Phần mềm chuyển từng file, hiện bảng kết quả: file nào lỗi, cảnh báo nào cần xem.</li>
+<li>File .tex kết quả nằm trong <code>DATA\\WORD2EXTEST</code> (hoặc <code>DATA\\PDF2TEX</code> với PDF).</li>
+</ol>
+<p><b>Lưu ý:</b> chuyển công thức không thể chính xác 100%. Mở file kết quả, kiểm tra công thức và đáp án, sửa tay trước khi dùng. Nếu lỗi lặp lại, gửi file nhật ký <code>LOG\\nhat_ky.txt</code> cho người hỗ trợ.</p>"""),
+
+    ("Chuyển đổi", "Nhập file Word vào kho", """
+<ol>
+<li>Tệp → <b>Nhập file Word (.docx)…</b>, chọn file .docx hoặc .pdf.</li>
+<li>Nhập <b>nhãn nguồn</b> (tên đề, ví dụ «Đề HK1 2026»). Nhãn này gắn vào mọi câu để sau này lọc lại được. Có thể để trống.</li>
+<li>Phần mềm nhận dạng câu, nhập vào kho đang mở và báo: số câu nhận được, số câu thêm vào, số câu cần xem lại.</li>
+<li>Mở tab <b>Rà soát</b> để kiểm tra các câu cần xem lại trước khi trộn đề.</li>
+</ol>"""),
+
+    ("Chuyển đổi", "Đề LaTeX thường → ex_test", """
+<ol>
+<li>Công cụ → Tiện ích → <b>Xuất &amp; chuyển đổi</b> → nhóm <b>Chuyển đổi</b> → <b>Đề LaTeX thường → ex_test</b>.</li>
+<li>Chọn file .tex đề gõ thường (có «Câu 1.», «A.», «B.», «C.», «D.»). Đáp án gạch chân hoặc dòng «Đáp án» được nhận ra.</li>
+<li>Bấm để chuyển: phần mềm tạo file cùng thư mục, tên <code>&lt;tên&gt;_ex_test.tex</code>, và báo số câu.</li>
+</ol>
+<p>Sau khi chuyển, mở file kiểm tra đáp án đúng; câu nào đáp án không nhận ra thì sửa tay.</p>"""),
+
+    ("Chuyển đổi", "Word ↔ LaTeX trong tab Chuyển đổi", """
+<ul>
+<li><b>Word → LaTeX</b>: giống mục «Word/PDF → LaTeX» ở trên, chạy từ tab Chuyển đổi.</li>
+<li><b>LaTeX → Word</b>: chọn file .tex (đề ex_test), phần mềm xuất file .docx cùng tên ngay cạnh file gốc.
+Cần <b>pandoc</b>. Nếu chưa có, phần mềm hỏi có tải không; hoặc bấm Công cụ → <b>Tải pandoc</b>.</li>
+</ul>"""),
+
+    ("Chuyển đổi", "Nhập ngân hàng MyLT", """
+<ol>
+<li>Tệp → <b>Nhập ngân hàng MyLT (Bank.mylt / Bank.rar)…</b>, chọn file kho của MyLT (thường nằm trong <code>MyLT\\DATA\\BANK</code>).</li>
+<li>Phần mềm đọc kho MyLT có mật khẩu mặc định và hiện thanh tiến trình: «Bước 1/2 đọc…», «Bước 2/2 nhập…».</li>
+<li>Câu được nhập vào kho đang mở. Không nhập được thì dùng <b>Tệp → Tìm kho MyLT trên máy…</b> để tìm file.</li>
+</ol>
+<p>Kho lớn có thể mất vài phút. Đừng tắt phần mềm khi đang chạy; chờ thanh tiến trình xong.</p>"""),
+
+    ("Chuyển đổi", "Xuất câu ra Word, Moodle, HTML", """
+<ol>
+<li>Chọn các câu trong bảng (hoặc để nguyên để xuất mọi câu đang hiện).</li>
+<li>Tệp → <b>Xuất câu ra Word / Moodle / bài làm online…</b>.</li>
+<li>Chọn định dạng: <b>Word (.docx)</b> có đánh dấu đáp án và lời giải; <b>Moodle XML</b>; <b>Bài làm online (HTML)</b> để học sinh làm trên máy.</li>
+<li>Đặt tên file và lưu.</li>
+</ol>"""),
+
+    ("Chuyển đổi", "Đề online: Moodle, Aiken, Quizizz, Forms, Blogger", """
+<p>Công cụ → Tiện ích → Xuất &amp; chuyển đổi → nhóm <b>Đề online</b>. Chọn các câu (hoặc các file) trước khi bấm:</p>
+<ul>
+<li><b>Moodle XML</b>: nhập vào ngân hàng câu hỏi Moodle/LMS.</li>
+<li><b>Aiken (Moodle/LMS)</b>: file văn bản .txt theo chuẩn Aiken. Câu không đúng định dạng được báo để bỏ qua.</li>
+<li><b>Quizizz (Excel)</b>: file .xlsx. Trong Quizizz chọn Tạo → Nhập từ bảng tính.</li>
+<li><b>Microsoft Forms (Word)</b>: file .docx để nhập vào Microsoft Forms.</li>
+<li><b>Google Forms (Apps Script)</b>: file .gs. Dán vào Apps Script của Google Form để tạo bài kiểm tra.</li>
+<li><b>Google Forms dạng ảnh</b>: mỗi câu thành ảnh (công thức hiện đúng) kèm file .gs. Cần LaTeX trên máy.</li>
+<li><b>Blogger (HTML)</b>: dán vào bài viết Blogger ở chế độ HTML.</li>
+<li><b>Bài làm online (HTML)</b>: mỗi mã đề một file HTML. Học sinh mở trên máy tính hoặc điện thoại, nộp là có điểm. Công thức dùng MathJax, cần mạng khi mở.</li>
+</ul>
+<p>Để cấu hình màu và nơi nhận kết quả Google Form: nút <b>⚙ Màu &amp; Google Form nhận kết quả…</b>.</p>"""),
+
+    ("Chuyển đổi", "Phiếu trả lời", """
+<ul>
+<li><b>Phiếu trắng (in)</b>: phiếu trả lời trống để in.</li>
+<li><b>Phiếu tô sẵn theo đề .tex</b>: chọn file đề, phần mềm đọc đáp án và tô sẵn trên phiếu.</li>
+<li><b>Phiếu tô theo chuỗi đáp án</b>: nhập chuỗi đáp án, ví dụ <code>0101|I:ABCD|II:1010|III:0,5</code>, rồi tạo phiếu.</li>
+</ul>"""),
+
+    ("Chuyển đổi", "Hình TikZ: ra PNG hoặc tách file", """
+<ul>
+<li><b>Hoá ảnh hình TikZ (PNG)</b>: chọn file .tex chứa hình, phần mềm biên dịch từng hình ra ảnh PNG và hỏi thư mục lưu. Cần LaTeX trên máy.</li>
+<li><b>Trích hình TikZ ra file</b>: tách các khối hình TikZ thành file .tex riêng, không cần LaTeX.</li>
+</ul>"""),
+
+    ("Chuyển đổi", "Quyển chuyên đề và trình chiếu", """
+<ul>
+<li><b>Xuất quyển chuyên đề (.tex)</b>: ghép các câu đã chọn thành một file quyển chuyên đề. <b>Xuất và biên dịch PDF</b> làm thêm bước biên dịch (cần LaTeX).</li>
+<li><b>Trình chiếu HTML</b>: mỗi câu một trang, mở trong trình duyệt để chữa đề trên máy chiếu. Có bút vẽ.</li>
+</ul>"""),
+
     ("Cài đặt", "Cài đặt biên dịch PDF, gói LaTeX và AI", """
 <ul>
 <li><b>Cài đặt biên dịch PDF…</b> (Công cụ): chỉ đường dẫn tới pdflatex/xelatex nếu máy không tự tìm thấy (TeX Live hoặc MiKTeX).</li>

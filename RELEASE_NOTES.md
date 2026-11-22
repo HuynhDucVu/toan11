@@ -1,3 +1,7 @@
+## 0.17.43 – HDSD: nhóm «Chuyển đổi»
+
+- Thêm 11 mục hướng dẫn cho các chức năng chuyển đổi: tổng quan (chức năng nằm ở menu nào), Word/PDF → LaTeX, nhập Word vào kho, đề gõ thường → ex_test, Word ↔ LaTeX, nhập kho MyLT, xuất câu ra Word/Moodle/HTML, đề online (Moodle, Aiken, Quizizz, Forms, Blogger, bài làm online), phiếu trả lời, hình TikZ ra PNG/tách file, quyển chuyên đề và trình chiếu.
+
 ## 0.17.42 – Cửa sổ HDSD (hướng dẫn sử dụng)
 
 - Thêm cửa sổ **HDSD** (Trợ giúp → HDSD, phím F1): danh mục bên trái theo nhóm chức năng, nội dung ngắn gọn bên phải, tên nút và tên tab khớp giao diện.

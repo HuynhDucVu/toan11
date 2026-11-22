@@ -740,6 +740,10 @@ def test_hdsd_window(win, app, monkeypatch):
                  "Tạo đề tương tự", "Tuỳ chọn đề", "Dọn kho", "Trục số, miền nghiệm, đường tròn lượng giác"):
         assert need in titles, need
     assert all(len(h) > 80 for _g, _t, h in hdsd_text.TOPICS)
+    conv = [t for g, t, _h in hdsd_text.TOPICS if g == "Chuyển đổi"]
+    for need in ("Word/PDF → LaTeX", "Nhập ngân hàng MyLT", "Đề online: Moodle, Aiken, Quizizz, Forms, Blogger",
+                 "Hình TikZ: ra PNG hoặc tách file"):
+        assert need in conv, need
     monkeypatch.setattr(HdsdDialog, "exec", lambda self: 0)
     dlg = HdsdDialog(win, "Tạo đề tự chọn")
     assert dlg.nav.currentItem().text() == "Tạo đề tự chọn"
