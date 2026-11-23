@@ -75,6 +75,23 @@ class ReviewPanel(QWidget):
         split.setSizes([420, 260])
         lay.addWidget(split, 1)
 
+        g = QGroupBox("Kiểm tra nâng cao")
+        gv = QHBoxLayout(g)
+        for text, fn, tip in (
+                ("🤖 AI giải & kiểm tra đáp án", self.ai_check,
+                 "AI giải lại các câu đã đánh dấu (hoặc mọi câu đang hiện) và so đáp án với đáp án \\True. Lệch đáp án ⇒ lỗi «AI: đáp án khác». Không tự đổi đáp án."),
+                ("Bổ sung lời giải thiếu bằng AI", self.apply_ai_solutions,
+                 "Ghi lời giải do AI viết cho các câu CHƯA có lời giải (bấm «AI giải & kiểm tra» trước). Đáp án không đổi."),
+                ("Xoá câu trùng lặp (giữ 1 câu)", self.dedupe,
+                 "Nhóm các câu giống hệt nhau, chỉ giữ 1 câu mỗi nhóm (ưu tiên câu có lời giải và ID đầy đủ)."),
+                ("Đánh dấu phương án trùng", self.check_dup_choices,
+                 "Đánh dấu các câu có hai phương án giống nhau (vd A và C cùng là 3).")):
+            b = QPushButton(text)
+            b.setToolTip(tip)
+            b.clicked.connect(fn)
+            gv.addWidget(b)
+        lay.addWidget(g)
+
         g = QGroupBox("Sửa tự động")
         gv = QVBoxLayout(g)
         fx = QHBoxLayout()
@@ -117,6 +134,124 @@ class ReviewPanel(QWidget):
         self.b_del.clicked.connect(self.delete_checked)
         row.addWidget(self.b_del)
         lay.addLayout(row)
+
+    # ---------------------------------------------------------------- kiểm tra nâng cao
+    def _progress_worker(self, fn, title, n):
+        from PySide6.QtWidgets import QProgressDialog
+        from ..workers import TaskWorker
+        import time
+        from PySide6.QtWidgets import QApplication
+        w = TaskWorker(fn, with_progress=True)
+        dlg = QProgressDialog(title, "Dừng", 0, max(n, 1), self)
+        dlg.setWindowModality(Qt.WindowModality.WindowModal)
+        dlg.setMinimumDuration(0)
+        w.progress.connect(lambda i, _n: dlg.setValue(i))
+        dlg.canceled.connect(w.requestInterruption)
+        w.start()
+        # vòng lặp sự kiện thay cho dlg.exec(): tác vụ xong trước khi hộp thoại mở thì không bị treo
+        while not w.isFinished():
+            QApplication.processEvents()
+            time.sleep(0.02)
+        dlg.close()
+        w.wait()
+        return w
+
+    def ai_check(self):
+        """AI giải lại từng câu (đã đánh dấu, hoặc mọi câu đang hiện nếu chưa đánh dấu) và so đáp án."""
+        from ..dialogs.ai_settings import ensure_client
+        from ... import aitasks
+        items = self.checked() or list(self.items)
+        if not items:
+            QMessageBox.information(self, "AI kiểm tra", "Chưa có câu nào. Bấm RÀ SOÁT trước.")
+            return
+        if QMessageBox.question(self, "AI kiểm tra", f"AI sẽ giải lại {len(items)} câu (mất khoảng vài giây mỗi câu, "
+                                "tốn lượt gọi AI). Tiếp tục?") != QMessageBox.StandardButton.Yes:
+            return
+        client = ensure_client(self.win)
+        if client is None:
+            return
+
+        def job(progress, should_stop):
+            out = []
+            for k, it in enumerate(items):
+                if should_stop():
+                    break
+                progress(k, len(items))
+                out.append((it, aitasks.make_solution(client, it["q"], overwrite=False)))
+            return out
+        w = self._progress_worker(job, "AI đang giải lại các câu…", len(items))
+        if w.error:
+            QMessageBox.warning(self, "AI kiểm tra", w.error)
+            return
+        n_lech = n_thieu = 0
+        for it, prop in (w.result or []):
+            it["ai"] = prop
+            new = [i for i in prop.issues if i.code in ("ai_dap_an", "ai_ghi_chu")]
+            if any(i.code == "ai_dap_an" for i in new):
+                n_lech += 1
+            if not it["q"].solution.strip() and prop.question.solution.strip():
+                n_thieu += 1
+            codes = {i.code for i in it["issues"]}
+            it["issues"] = it["issues"] + [i for i in new if i.code not in codes]
+            it["level"] = rv.worst(it["issues"]) or it["level"]
+        self.items.sort(key=lambda it: it["level"] != rv.LOI)
+        self.fill()
+        QMessageBox.information(self, "AI kiểm tra", f"Đã kiểm tra {len(w.result or [])} câu.\n"
+                                f"• Đáp án AI khác đáp án đang đánh dấu: {n_lech} câu (đã thêm lỗi «AI: đáp án khác», "
+                                "kiểm tra tay trước khi sửa).\n"
+                                f"• Câu chưa có lời giải, AI đã viết được: {n_thieu} câu (bấm «Bổ sung lời giải thiếu bằng AI»).")
+
+    def apply_ai_solutions(self):
+        items = [it for it in self.items if it.get("ai") and not it["q"].solution.strip()
+                 and it["ai"].question.solution.strip()]
+        if not items:
+            QMessageBox.information(self, "Bổ sung lời giải", "Chưa có câu thiếu lời giải nào do AI viết. "
+                                    "Bấm «AI giải & kiểm tra đáp án» trước.")
+            return
+        self.commit([(it, it["ai"].question) for it in items], [], "Bổ sung lời giải thiếu bằng AI")
+
+    def dedupe(self):
+        """Xoá câu trùng giống hệt: kho → quét cả kho; file → giữ câu đầu tiên mỗi nhóm trùng."""
+        if self.cb_src.currentData() == "bank":
+            from ... import cleanup
+            res = cleanup.scan(self.win.bank, find_wrong=False, find_exact=True, find_near=False)
+            ids = sorted(res.dup_exact)
+            if not ids:
+                QMessageBox.information(self, "Câu trùng", "Không có câu trùng giống hệt trong kho.")
+                return
+            if QMessageBox.question(self, "Câu trùng", f"Có {len(ids)} câu trùng lặp. Giữ 1 câu mỗi nhóm và xoá "
+                                    f"{len(ids)} câu còn lại?\n(Khôi phục được ở Câu hỏi → Khôi phục câu đã xoá.)") \
+                    != QMessageBox.StandardButton.Yes:
+                return
+            cleanup.apply(self.win.bank, ids)
+            self.win.build_tree()
+            self.win.refresh()
+            self.run()
+            QMessageBox.information(self, "Câu trùng", f"Đã xoá {len(ids)} câu trùng.")
+            return
+        p = self.e_file.text().strip()
+        if not p or not os.path.exists(p):
+            QMessageBox.information(self, "Câu trùng", "Chọn file .tex trước.")
+            return
+        seen, removes = {}, []
+        for q in parse_file(p):
+            if q.fingerprint in seen:
+                removes.append({"q": q})
+            else:
+                seen[q.fingerprint] = q
+        if not removes:
+            QMessageBox.information(self, "Câu trùng", "File không có câu trùng giống hệt.")
+            return
+        self.commit([], removes, "Xoá câu trùng lặp")
+
+    def check_dup_choices(self):
+        n = 0
+        for r, it in enumerate(self.items):
+            on = any(i.code == "pa_trung" for i in it["issues"])
+            n += on
+            self.t.item(r, 0).setCheckState(Qt.CheckState.Checked if on else Qt.CheckState.Unchecked)
+        QMessageBox.information(self, "Phương án trùng", f"Đã đánh dấu {n} câu có phương án giống nhau."
+                                if n else "Không có câu nào có phương án giống nhau trong danh sách hiện tại.")
 
     def pick_file(self):
         p, _ = QFileDialog.getOpenFileName(self, "Chọn file .tex", self.win.settings.value("last_dir", ""),

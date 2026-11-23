@@ -790,3 +790,37 @@ def test_import_type_counts_and_fast_unaccent(win, app, tmp_path):
     assert sum(res["by_type"].values()) == res["them"] > 0
     assert "TN" in res["by_type"]
     assert fmt({"TN": 1, "KQ": 2}).startswith("TN: 1 · ĐS: 0 · TLN: 2 · TL: 0")
+
+
+def test_review_advanced_checks(win, app, tmp_path, monkeypatch):
+    """Rà soát nâng cao: AI giải & so đáp án, bổ sung lời giải thiếu, xoá câu trùng (file), phương án trùng."""
+    from PySide6.QtWidgets import QMessageBox
+    from nganhangde.ui.dialogs import ai_settings
+    monkeypatch.setattr(QMessageBox, "question", staticmethod(lambda *a, **k: QMessageBox.StandardButton.Yes))
+    monkeypatch.setattr(QMessageBox, "information", staticmethod(lambda *a, **k: None))
+    monkeypatch.setattr(QMessageBox, "warning", staticmethod(lambda *a, **k: None))
+    from PySide6.QtWidgets import QFileDialog
+    out_path = str(tmp_path / "de_dasoat.tex")
+    monkeypatch.setattr(QFileDialog, "getSaveFileName", staticmethod(lambda *a, **k: (out_path, "")))
+
+    class FakeClient:
+        def generate_json(self, prompt, schema=None):
+            return {"dap_an": "A", "loi_giai": "Giải: đáp án là A.", "ghi_chu": ""}
+    monkeypatch.setattr(ai_settings, "ensure_client", lambda w: FakeClient())
+    # file có câu trùng + câu không có lời giải
+    t = open(SAMPLE, encoding="utf-8").read()
+    f = tmp_path / "de.tex"
+    f.write_text(t + "\n" + t, encoding="utf-8")
+    rp = win.review_panel
+    rp.cb_src.setCurrentIndex(rp.cb_src.findData("file"))
+    rp.e_file.setText(str(f))
+    rp.run()
+    n_before = len(parse_file(str(f)))
+    rp.ai_check()
+    assert all("ai" in it for it in rp.items) and rp.items
+    rp.dedupe()
+    left = parse_file(out_path)                        # file gốc giữ nguyên, kết quả ghi ra file mới
+    assert len(left) < n_before and len({q.fingerprint for q in left}) == len(left)   # còn đúng 1 câu mỗi nhóm
+    assert len(parse_file(str(f))) == n_before          # file gốc không bị sửa
+    rp.run()
+    rp.check_dup_choices()

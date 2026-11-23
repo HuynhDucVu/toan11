@@ -1,3 +1,11 @@
+## 0.17.47 – Rà soát: AI kiểm tra đáp án, bổ sung lời giải, xoá câu trùng
+
+- Nhóm mới **Kiểm tra nâng cao** ở tab Rà soát:
+  - **AI giải & kiểm tra đáp án**: AI giải lại câu đã đánh dấu (hoặc mọi câu đang hiện). Đáp án AI khác đáp án đánh dấu ⇒ lỗi «AI: đáp án khác» để kiểm tra tay. Không tự đổi đáp án.
+  - **Bổ sung lời giải thiếu bằng AI**: ghi lời giải AI viết cho câu chưa có lời giải, sau khi xác nhận.
+  - **Xoá câu trùng lặp (giữ 1 câu)**: kho → quét giống hệt cả kho; file .tex → giữ câu đầu mỗi nhóm, ghi ra file mới.
+  - **Đánh dấu phương án trùng**: chọn các câu có hai phương án giống nhau.
+
 ## 0.17.46 – Nhập ngân hàng nhanh hơn, báo số câu theo loại
 
 - Tốc độ nhập: chuẩn hoá tìm kiếm (bỏ dấu tiếng Việt) được đệm và thoát sớm với chuỗi ASCII, nhanh hơn khoảng 1,7 lần khi nhập (đo trên dữ liệu thử, chưa đo trên kho MyLT thật).
