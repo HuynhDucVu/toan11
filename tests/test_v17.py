@@ -549,7 +549,8 @@ def test_package_folder_copied_next_to_exports(tmp_path):
     v.sections = {"TN": [Question("TN", "x", list("abcd"), [True, False, False, False])], "DS": [], "KQ": [], "TL": []}
     out1 = tmp_path / "o1"
     export_versions([v], str(out1), options=ExportOptions(answers_xlsx=False, tltn2025=False))
-    assert not (out1 / "ex_test.sty").exists()              # thư mục gói lệnh trống: không chép gì (không chép gói rút gọn)
+    bundled = os.path.join(os.path.dirname(packages.__file__), "data", "ex_test.sty")
+    assert (out1 / "ex_test.sty").read_bytes() == open(bundled, "rb").read()   # luôn có ex_test.sty đầy đủ cạnh đề
     fake = tmp_path / "ex_test.sty"
     fake.write_text("% ex_test moi nhat\n\\ProvidesPackage{ex_test}\n", encoding="utf-8")
     packages.install_package(str(fake))

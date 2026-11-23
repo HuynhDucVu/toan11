@@ -7,12 +7,15 @@ from __future__ import annotations
 import os
 import tempfile
 
-from PySide6.QtCore import Qt, QUrl
-from PySide6.QtGui import QDesktopServices
+from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (QApplication, QCheckBox, QComboBox, QDoubleSpinBox, QFormLayout, QLabel, QLineEdit,
     QPlainTextEdit, QPushButton, QSpinBox, QTextBrowser, QWidget)
 
-STANDALONE = ("\\documentclass[tikz,border=4pt]{standalone}\n\\usepackage{amsmath,amssymb,tkz-tab}\n"
+STANDALONE = ("\\documentclass[tikz,border=4pt]{standalone}\n"
+              "\\usepackage{iftex}\n"
+              "\\ifPDFTeX\\usepackage[utf8]{vietnam}\\else\\usepackage{fontspec}\\fi\n"
+              "\\usepackage{amsmath,amssymb,tkz-tab,tkz-euclide,pgfplots}\n"
+              "\\pgfplotsset{compat=1.18}\n"
               "\\begin{document}\n%s\n\\end{document}\n")
 
 
@@ -43,7 +46,6 @@ class DrawStudioMixin:
             self._msg(str(e), False)
             return
         self._msg("Đã tạo mã trục số – bấm «Xem trước PDF» để xem.")
-        self.preview_pdf(auto=True)
 
     # ---------------------------------------------------------------- miền nghiệm
     def _region_tab(self):
@@ -96,7 +98,6 @@ class DrawStudioMixin:
         else:
             self.region_info.setHtml("<i>Miền nghiệm không có đỉnh nào (rỗng hoặc không bị chặn).</i>")
         self._msg("Đã tạo mã miền nghiệm (phần tô xám là phần bị gạch bỏ).")
-        self.preview_pdf(auto=True)
 
     # ---------------------------------------------------------------- hình khối
     def _solid_tab(self):
@@ -154,10 +155,9 @@ class DrawStudioMixin:
             QApplication.restoreOverrideCursor()
         if r.ok and r.pdf:
             if self.show_preview(r.pdf):
-                self._msg("Đã biên dịch hình – xem ở khung bên phải.")
-            elif not auto:
-                QDesktopServices.openUrl(QUrl.fromLocalFile(r.pdf))
-                self._msg("Đã biên dịch hình.")
+                self._msg("Đã biên dịch hình – xem trong cửa sổ PDF.")
+            else:
+                self._msg("Đã biên dịch hình nhưng không mở được PDF.", False)
         else:
             self._msg(r.summary(), False)
 
@@ -237,7 +237,6 @@ class DrawMoreMixin:
             return
         self.l_trig.setText(f"{len(pts)} điểm: " + ", ".join(f"${dm.angle_latex(t)}$" for t in pts))
         self._msg("Đã tạo mã đường tròn lượng giác.")
-        self.preview_pdf(auto=True)
 
     # ---------------------------------------------------------------- đồ thị: phần bổ sung
     def _graph_extras(self, f):

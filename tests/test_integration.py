@@ -24,7 +24,7 @@ def test_pdfbuild(bank, tmp_path):
         r = pb.compile_tex(f, eng)
         assert r.ok and r.pdf and os.path.getsize(r.pdf) > 10000, r.errors
         assert not os.path.exists(f.replace(".tex", ".aux"))          # đã dọn file phụ
-    assert not os.path.exists(str(tmp_path / "o" / "ex_test.sty"))   # gói rút gọn chỉ chép tạm
+    assert os.path.exists(str(tmp_path / "o" / "ex_test.sty"))       # ex_test.sty đầy đủ được chép cạnh đề
     # lỗi được đọc thành câu dễ hiểu, có số dòng
     bad = tmp_path / "loi.tex"
     bad.write_text("\\documentclass{article}\n\\begin{document}\nA\n\\lenhsai{x}\n$x^2\n\\end{document}\n",

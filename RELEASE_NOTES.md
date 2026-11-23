@@ -1,3 +1,9 @@
+## 0.17.48 – Một cửa sổ xem PDF; biên dịch tiếng Việt không lỗi
+
+- Xem PDF chỉ mở **một cửa sổ** trong phần mềm (mở lại thì cửa sổ cũ đóng). Không còn mở trình PDF ngoài và không còn khung xem trước riêng ở trang Vẽ hình.
+- Mẫu hình (Trục số, Miền nghiệm, Đồ thị, Biểu đồ…) có gói tiếng Việt cho cả pdflatex (vietnam) lẫn xelatex/lualatex (fontspec). Lỗi «inputenc: ký tự ế chưa được hỗ trợ» đã hết.
+- Mọi lần xuất đề đều chép kèm **ex_test.sty** đầy đủ cạnh file .tex, nên biên dịch đề không báo thiếu gói.
+
 ## 0.17.47 – Rà soát: AI kiểm tra đáp án, bổ sung lời giải, xoá câu trùng
 
 - Nhóm mới **Kiểm tra nâng cao** ở tab Rà soát:

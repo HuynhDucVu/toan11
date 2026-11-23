@@ -75,3 +75,20 @@ class PdfPreviewDialog(QDialog):
         from PySide6.QtCore import QUrl
         from PySide6.QtGui import QDesktopServices
         QDesktopServices.openUrl(QUrl.fromLocalFile(self.path))
+
+
+_OPEN = {"dlg": None}
+
+
+def show_pdf(parent, path: str):
+    """Mở file PDF trong MỘT cửa sổ xem duy nhất trong phần mềm: cửa sổ cũ (nếu còn) được đóng trước."""
+    old = _OPEN.get("dlg")
+    if old is not None:
+        try:
+            old.close()
+        except RuntimeError:          # cửa sổ đã bị huỷ
+            pass
+    dlg = PdfPreviewDialog(parent, path)
+    _OPEN["dlg"] = dlg
+    dlg.show()
+    return dlg

@@ -3,8 +3,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from PySide6.QtCore import QUrl, Qt
-from PySide6.QtGui import QDesktopServices
+from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (QApplication, QDialog, QDialogButtonBox, QHBoxLayout, QLabel, QMessageBox,
     QPushButton, QVBoxLayout)
 from ...parser import parse_tex, validate
@@ -65,7 +64,8 @@ class EditDialog(QDialog):
         finally:
             QApplication.restoreOverrideCursor()
         if r.pdf:
-            QDesktopServices.openUrl(QUrl.fromLocalFile(r.pdf))
+            from .pdf_preview import show_pdf
+            show_pdf(self, r.pdf)
         if not r.ok:
             PdfResultDialog(self, [r]).exec()
 

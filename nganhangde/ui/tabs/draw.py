@@ -4,10 +4,9 @@ from __future__ import annotations
 import re
 from typing import TYPE_CHECKING
 
-from PySide6.QtCore import Qt, QUrl
-from PySide6.QtGui import QBrush, QColor, QFont, QPainter, QPainterPath, QPen, QPixmap
+from PySide6.QtGui import QBrush, QColor, QFont, QPainter, QPainterPath, QPen
 from PySide6.QtWidgets import (QApplication, QCheckBox, QComboBox, QFileDialog, QFormLayout, QGroupBox,
-    QHBoxLayout, QLabel, QLineEdit, QPlainTextEdit, QPushButton, QScrollArea, QSpinBox, QTabWidget, QTextBrowser, QVBoxLayout,
+    QHBoxLayout, QLabel, QLineEdit, QPlainTextEdit, QPushButton, QSpinBox, QTabWidget, QTextBrowser, QVBoxLayout,
     QWidget)
 from ..common import latex_editor
 from .draw_studio import DrawMoreMixin, DrawStudioMixin
@@ -145,70 +144,16 @@ class DrawPanel(DrawMoreMixin, DrawStudioMixin, QWidget):
         lay.addWidget(g)
 
     def _with_preview(self, page):
-        """Trang nhập liệu + khung xem trước ngay bên phải (như bảng biến thiên): xem hình mà không rời trang tạo mã."""
-        if hasattr(self, "bbt_view") and page.findChild(QTextBrowser) is self.bbt_view:
-            page.preview = self.bbt_view                       # trang đã có khung xem trước riêng
-            return page
-        w = QWidget()
-        h = QHBoxLayout(w)
-        h.setContentsMargins(0, 0, 0, 0)
-        h.addWidget(page, 3)
-        right = QWidget()
-        rv = QVBoxLayout(right)
-        rv.setContentsMargins(0, 0, 0, 0)
-        zoom = QComboBox()
-        for t, z in (("Vừa khung", 0), ("50%", 0.5), ("100%", 1.0), ("150%", 1.5), ("200%", 2.0)):
-            zoom.addItem(t, z)
-        zoom.setToolTip("Cỡ hình xem trước (chỉ đổi cách hiển thị, không ảnh hưởng mã TikZ)")
-        zr = QHBoxLayout()
-        zr.addWidget(QLabel("Cỡ hình"))
-        zr.addWidget(zoom)
-        zr.addStretch()
-        rv.addLayout(zr)
-        sc = QScrollArea()
-        sc.setWidgetResizable(True)
-        lab = QLabel("<i>Xem trước hình sẽ hiện ở đây sau khi tạo mã (cần LaTeX trên máy).</i>")
-        lab.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignHCenter)
-        lab.setWordWrap(True)
-        sc.setWidget(lab)
-        rv.addWidget(sc, 1)
-        h.addWidget(right, 3)
-        lab.zoom_box = zoom
-        lab.last_img = None
-        zoom.currentIndexChanged.connect(lambda _i, lab=lab: self._apply_zoom(lab))
-        w.preview = lab
-        return w
-
-    def _apply_zoom(self, lab):
-        """Hiện lại hình xem trước theo cỡ đang chọn (Vừa khung = vừa chiều rộng khung)."""
-        img = getattr(lab, "last_img", None)
-        if img is None or img.isNull():
-            return
-        z = lab.zoom_box.currentData()
-        if z:
-            lab.setPixmap(QPixmap.fromImage(img.scaledToWidth(int(img.width() * z), Qt.TransformationMode.SmoothTransformation)))
-        else:
-            avail = max(200, lab.parentWidget().width() - 24) if lab.parentWidget() else img.width()
-            lab.setPixmap(QPixmap.fromImage(img.scaledToWidth(min(avail, img.width()), Qt.TransformationMode.SmoothTransformation)))
+        """Trang nhập liệu giữ nguyên: PDF xem trước mở ở một cửa sổ duy nhất (không có khung riêng bên cạnh)."""
+        return page
 
     def show_preview(self, pdf_path: str) -> bool:
-        """Vẽ trang 1 của PDF vào khung xem trước của trang đang mở. False nếu không vẽ được (thiếu pypdfium2…)."""
-        pv = getattr(self.sub.currentWidget(), "preview", None)
-        if pv is None:
-            return False
+        """Mở PDF ở cửa sổ xem duy nhất của phần mềm. False nếu file không mở được."""
+        from ..dialogs.pdf_preview import show_pdf
         try:
-            from ...pdfrender import render_file
-            img = render_file(pdf_path, 0, 1.8)
+            show_pdf(self, pdf_path)
         except Exception:  # noqa: BLE001
             return False
-        if img is None:
-            return False
-        if isinstance(pv, QTextBrowser):
-            pv.document().addResource(2, QUrl("preview.png"), img)      # 2 = QTextDocument.ImageResource
-            pv.setHtml('<p><b>Xem trước</b></p><img src="preview.png">')
-        else:
-            pv.last_img = img
-            self._apply_zoom(pv)
         return True
 
     def _msg(self, text, ok=True):

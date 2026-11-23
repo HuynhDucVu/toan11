@@ -991,7 +991,8 @@ class MainWindow(LayoutMixin, BankActionsMixin, QMainWindow):
         QApplication.processEvents()
         dlg.close()
         if len(results) == 1 and results[0].ok and open_single and o["open"]:
-            QDesktopServices.openUrl(QUrl.fromLocalFile(results[0].pdf))
+            from .dialogs.pdf_preview import show_pdf
+            show_pdf(self, results[0].pdf)
         else:
             PdfResultDialog(self, results).exec()
         return results
@@ -1013,7 +1014,8 @@ class MainWindow(LayoutMixin, BankActionsMixin, QMainWindow):
         finally:
             QApplication.restoreOverrideCursor()
         if r.pdf:
-            QDesktopServices.openUrl(QUrl.fromLocalFile(r.pdf))
+            from .dialogs.pdf_preview import show_pdf
+            show_pdf(self, r.pdf)
         if not r.ok:
             PdfResultDialog(self, [r]).exec()
 

@@ -43,13 +43,22 @@ def copy_packages(dest_dir: str) -> list[str]:
     """Chép các gói trong thư mục gói lệnh cạnh file xuất ra. Không làm gì nếu thư mục gói lệnh trống
     (không bao giờ chép gói rút gọn – tránh che mất ex_test thật cài trên máy)."""
     out = []
+    os.makedirs(dest_dir, exist_ok=True)
+    # ex_test.sty đi kèm phần mềm luôn được chép cạnh đề (biên dịch không lỗi «ex_test.sty not found»)
+    bundled = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "ex_test.sty")
+    dst_ex = os.path.join(dest_dir, "ex_test.sty")
+    if os.path.isfile(bundled) and not os.path.isfile(dst_ex):
+        try:
+            shutil.copyfile(bundled, dst_ex)
+            out.append(dst_ex)
+        except OSError:
+            pass
     try:
         names = list_packages()
     except OSError:
         return out
     if not names:
         return out
-    os.makedirs(dest_dir, exist_ok=True)
     src_dir = package_dir()
     for n in names:
         dst = os.path.join(dest_dir, n)

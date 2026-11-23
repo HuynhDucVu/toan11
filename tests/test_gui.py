@@ -690,32 +690,20 @@ def test_phieu_key_only(tmp_path):
     assert all("trang" not in os.path.basename(f) for f in fs) and any("phieu_khoa_0101" in f for f in fs)
 
 
-def test_draw_preview_inside_page(win, app):
+def test_draw_preview_single_window(win, app, monkeypatch):
+    """Xem PDF: một cửa sổ duy nhất; mở lại thì cửa sổ cũ được đóng (không có hai cửa sổ cùng lúc)."""
     from nganhangde.appdirs import PHIEU_PDF
+    from nganhangde.ui.dialogs import pdf_preview
     sp = win.sol_panel
-    for i in range(sp.sub.count()):                                   # trục số, đường tròn LG, miền nghiệm đều có khung xem trước
-        assert getattr(sp.sub.widget(i), "preview", None) is not None
-    sp.sub.setCurrentIndex(0)
-    sp.numline()                                                      # không có LaTeX cũng không lỗi
     pdf = os.path.join(ROOT, "nganhangde", "data", PHIEU_PDF)
+    d1 = pdf_preview.show_pdf(sp, pdf)
+    d2 = pdf_preview.show_pdf(sp, pdf)
+    assert d1 is not d2
+    assert pdf_preview._OPEN["dlg"] is d2
+    d2.close()
     assert sp.show_preview(pdf)
-    pm = sp.sub.currentWidget().preview.pixmap()
-    assert pm is not None and not pm.isNull()
-    win.bbt_panel.sub.setCurrentIndex(0)
-    assert win.bbt_panel.show_preview(pdf)                           # bảng biến thiên: vẽ vào khung HTML có sẵn
+    assert pdf_preview._OPEN["dlg"] is not None
 
-
-def test_draw_preview_zoom(win, app):
-    sp = win.sol_panel
-    sp.sub.setCurrentIndex(0)
-    pdf = os.path.join(ROOT, "nganhangde", "data", "Phieu_TLTN_THPT_QG_2025_1_mat.pdf")
-    assert sp.show_preview(pdf)
-    lab = sp.sub.currentWidget().preview
-    w0 = lab.pixmap().width()
-    lab.zoom_box.setCurrentIndex(lab.zoom_box.findData(0.5))
-    assert lab.pixmap().width() < w0
-    lab.zoom_box.setCurrentIndex(lab.zoom_box.findData(2.0))
-    assert lab.pixmap().width() > w0
 
 
 def test_draw_preview_without_latex(win, app, monkeypatch):
@@ -824,3 +812,15 @@ def test_review_advanced_checks(win, app, tmp_path, monkeypatch):
     assert len(parse_file(str(f))) == n_before          # file gốc không bị sửa
     rp.run()
     rp.check_dup_choices()
+
+
+def test_export_has_extest_and_standalone_vietnamese(tmp_path):
+    """Đề xuất luôn có ex_test.sty cạnh file .tex; mẫu hình có gói tiếng Việt cho pdflatex và xelatex/lualatex."""
+    import random
+    from nganhangde.exporter import ExportOptions, export_versions
+    from nganhangde.generator import MixOptions, mix_versions, sections_from_questions
+    from nganhangde.ui.tabs.draw_studio import STANDALONE
+    vs = mix_versions(sections_from_questions(parse_file(SAMPLE)), ["101"], random.Random(1), MixOptions())
+    export_versions(vs, str(tmp_path / "out"), options=ExportOptions())
+    assert os.path.isfile(str(tmp_path / "out" / "ex_test.sty"))
+    assert "iftex" in STANDALONE and "vietnam" in STANDALONE and "fontspec" in STANDALONE
