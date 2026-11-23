@@ -770,3 +770,23 @@ def test_main_tabs_two_rows(win, app):
     assert bars[0].property("active") is True and bars[1].property("active") is False
     assert bars[0].currentIndex() == 0
     assert "Trộn đề" in mt.tabText(0)
+
+
+def test_import_type_counts_and_fast_unaccent(win, app, tmp_path):
+    """Sau mỗi lệnh nhập có số câu theo loại (TN, ĐS, TLN, TL); unaccent nhanh và đúng."""
+    from nganhangde.typecount import fmt, count_types
+    from nganhangde.textnorm import unaccent
+    from nganhangde.mylt_import import import_rows
+    from nganhangde.db import Bank
+    import unicodedata
+    s = "Phương trình ậ ồ Đ đ ₂ ß"
+    exp = "".join(c for c in unicodedata.normalize("NFD", s.replace("đ", "d").replace("Đ", "D")) if unicodedata.category(c) != "Mn")
+    assert unaccent(s) == exp and unaccent("abc") == "abc"
+    qs = parse_file(SAMPLE)
+    assert "TN:" in fmt(count_types(qs)) and "ĐS:" in fmt({}) and "TLN:" in fmt({"KQ": 2})
+    b = Bank(str(tmp_path / "k.db"))
+    rows = [{"NoiDung": q.raw, "IDCauHoi": "", "TuLuan": "0", "SoLan": "0"} for q in qs]
+    res = import_rows(b, rows, source="t")
+    assert sum(res["by_type"].values()) == res["them"] > 0
+    assert "TN" in res["by_type"]
+    assert fmt({"TN": 1, "KQ": 2}).startswith("TN: 1 · ĐS: 0 · TLN: 2 · TL: 0")

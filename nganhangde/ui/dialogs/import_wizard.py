@@ -108,7 +108,9 @@ class ImportWizard(QDialog):
         r = iw.commit(self.entries, self.win.bank)
         self.win.build_tree()
         self.win.refresh()
-        QMessageBox.information(self, "Nhập", f"Đã thêm {r['added']} câu, bỏ qua {r['skipped']}, trùng {r['dup']}.")
+        from ...typecount import bank_counts, fmt
+        QMessageBox.information(self, "Nhập", f"Đã thêm {r['added']} câu, bỏ qua {r['skipped']}, trùng {r['dup']}.\n\n"
+                                f"ĐÃ NHẬP VÀO KHO: {fmt(r['by_type'])}\nKho hiện có: {fmt(bank_counts(self.win.bank))}")
         self.accept()
 
     def export(self):

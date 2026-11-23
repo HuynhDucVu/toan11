@@ -8,10 +8,17 @@ import re
 import unicodedata
 
 
+_BASE: dict[int, str] = {}          # mã ký tự → chữ gốc không dấu (đệm: mỗi ký tự chỉ tính một lần)
+
+
 def unaccent(s: str) -> str:
+    if s.isascii():                 # phần lớn đề toán là ASCII: không cần làm gì
+        return s
     s = s.replace("đ", "d").replace("Đ", "D")
-    s = unicodedata.normalize("NFD", s)
-    return "".join(c for c in s if unicodedata.category(c) != "Mn")
+    for c in set(s):
+        if ord(c) > 127 and ord(c) not in _BASE:
+            _BASE[ord(c)] = "".join(x for x in unicodedata.normalize("NFD", c) if unicodedata.category(x) != "Mn")
+    return s.translate(_BASE)
 
 
 def search_text(*parts: str) -> str:

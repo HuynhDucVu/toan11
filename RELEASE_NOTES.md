@@ -1,3 +1,9 @@
+## 0.17.46 – Nhập ngân hàng nhanh hơn, báo số câu theo loại
+
+- Tốc độ nhập: chuẩn hoá tìm kiếm (bỏ dấu tiếng Việt) được đệm và thoát sớm với chuỗi ASCII, nhanh hơn khoảng 1,7 lần khi nhập (đo trên dữ liệu thử, chưa đo trên kho MyLT thật).
+- Sau mỗi lệnh nhập (Nhập ngân hàng MyLT, Nhập file .tex, Nhập file Word, Nhập câu hỏi 3 bước) hiện **ĐÃ NHẬP VÀO KHO** và **Kho hiện có**, theo các loại TN · ĐS · TLN · TL.
+- Khi không đọc được kho MyLT do thiếu driver Access, thông báo hướng dẫn cài «Microsoft Access Database Engine» (miễn phí). Không cần cài Microsoft Access (Office).
+
 ## 0.17.45 – Chuyển Word → LaTeX: sửa lỗi mất nội dung
 
 - Chỉ số trên/dưới gõ bằng định dạng Word (x², m₃) nay thành `$^{2}$`, `$_{3}$` (trước đây thành `x2`, `m3`).

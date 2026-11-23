@@ -530,7 +530,8 @@ def sync_if_linked(bank, settings) -> dict | None:
 def import_rows(bank, rows, source: str = "Bank.mylt", progress=None, should_stop=None) -> dict:
     """Thêm các câu vào kho (bộ lặp hay danh sách). Ghi theo lô 2000 dòng cho nhanh. Trả về
     {'them', 'trung', 'loi', 'tong'}; progress(số_dòng_đã_xử_lý, 0) gọi mỗi lô; câu lỗi ghi lí do (tối đa 200)."""
-    res = {"them": 0, "trung": 0, "loi": [], "tong": 0}
+    from collections import Counter
+    res = {"them": 0, "trung": 0, "loi": [], "tong": 0, "by_type": Counter()}
     n_err = 0
 
     def err(msg):
@@ -574,6 +575,7 @@ def import_rows(bank, rows, source: str = "Bank.mylt", progress=None, should_sto
                 res["trung"] += 1
                 continue
             res["them"] += 1
+            res["by_type"][q.qtype] += 1
             if used:
                 bank.con.execute("UPDATE questions SET used_count=? WHERE id=?", (used, new_id))
     bank.con.commit()

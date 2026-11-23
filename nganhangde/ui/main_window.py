@@ -332,7 +332,12 @@ class MainWindow(LayoutMixin, BankActionsMixin, QMainWindow):
         dlg.exec()
         w.wait()
         if w.error:
-            box = QMessageBox(QMessageBox.Icon.Warning, "Nhập ngân hàng MyLT", w.error, parent=self)
+            hint = ""
+            if "OLEDB" in w.error or "ACE" in w.error or "Jet" in w.error:
+                hint = ("\n\nMáy chưa có driver đọc Access. Không cần cài Microsoft Access (Office): cài miễn phí "
+                        "«Microsoft Access Database Engine» (bản 64-bit, tải từ trang Microsoft) rồi nhập lại – "
+                        "nhanh hơn nhiều so với đường đọc dự phòng.")
+            box = QMessageBox(QMessageBox.Icon.Warning, "Nhập ngân hàng MyLT", w.error + hint, parent=self)
             if not path.lower().endswith((".rar", ".zip", ".7z")):
                 box.setDetailedText(diagnose(path))
             box.exec()
@@ -343,8 +348,11 @@ class MainWindow(LayoutMixin, BankActionsMixin, QMainWindow):
             self.settings.setValue("mylt/link_mtime", str(os.path.getmtime(path)))
         self.build_tree()
         self.refresh()
+        from ..typecount import bank_counts, fmt
         msg = (f"Kho MyLT có {r['tong']} câu: đã thêm {r['them']} câu, bỏ {r['trung']} câu trùng"
                + (f", {len(r['loi'])} câu lỗi:\n" + "\n".join(r["loi"][:15]) if r["loi"] else "") + ".")
+        msg += f"\n\nĐÃ NHẬP VÀO KHO: {fmt(r.get('by_type', {}))}"
+        msg += f"\nKho hiện có: {fmt(bank_counts(self.bank))}"
         msg += "\n\nPhần mềm đã nhớ kho này: lần sau mở phần mềm sẽ tự thêm các câu mới (nếu file Bank.mylt thay đổi)."
         if r["tong"] == 0:
             msg += ("\n\nKho này đang TRỐNG (kho mẫu đi kèm bản cài MyLT). Kho thật nằm ở máy đang dùng MyLT, thường là "
@@ -880,18 +888,23 @@ class MainWindow(LayoutMixin, BankActionsMixin, QMainWindow):
         if not paths:
             return
         self.settings.setValue("last_dir", os.path.dirname(paths[0]))
-        lines, warn_total = [], 0
+        from collections import Counter
+        from ..typecount import bank_counts, fmt
+        lines, warn_total, added_t = [], 0, Counter()
         for p in paths:
             try:
                 qs = parse_file(p)
             except Exception as e:  # noqa: BLE001
                 lines.append(f"✘ {os.path.basename(p)}: lỗi đọc file – {e}")
                 continue
-            added = sum(1 for q in qs if self.bank.add(q, p))
+            kept = [q for q in qs if self.bank.add(q, p)]
+            added_t.update(q.qtype for q in kept)
             warn_total += sum(1 for q in qs if validate(q))
-            lines.append(f"✔ {os.path.basename(p)}: {len(qs)} câu, thêm {added}, trùng {len(qs) - added}")
+            lines.append(f"✔ {os.path.basename(p)}: {len(qs)} câu, thêm {len(kept)}, trùng {len(qs) - len(kept)}")
         if warn_total:
             lines.append(f"\n{warn_total} câu có cảnh báo (tô đỏ ở cột Loại, xem chi tiết khi chọn câu).")
+        lines.append(f"\nĐÃ NHẬP VÀO KHO: {fmt(added_t)}")
+        lines.append(f"Kho hiện có: {fmt(bank_counts(self.bank))}")
         self.build_tree()
         self.refresh()
         QMessageBox.information(self, "Nhập dữ liệu", "\n".join(lines))

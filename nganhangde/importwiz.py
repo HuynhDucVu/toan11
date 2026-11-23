@@ -84,15 +84,18 @@ def ai_resolve(client, entries: list[Entry], only_flagged: bool = True, *, progr
 
 
 def commit(entries: list[Entry], bank) -> dict:
+    from collections import Counter
     added = skipped = dup = 0
+    by_type = Counter()
     for e in entries:
         if e.skip:
             skipped += 1
         elif bank.add(e.q, e.source):
             added += 1
+            by_type[e.q.qtype] += 1
         else:
             dup += 1
-    return {"added": added, "skipped": skipped, "dup": dup}
+    return {"added": added, "skipped": skipped, "dup": dup, "by_type": by_type}
 
 
 def export_fixed(entries: list[Entry], path: str) -> int:

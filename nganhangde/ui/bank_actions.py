@@ -145,7 +145,9 @@ class BankActionsMixin:
         if not ok:
             return
         res = run_word_to_tex(self, paths, w2t, tag.strip())
-        lines = []
+        from collections import Counter
+        from ..typecount import bank_counts, fmt
+        lines, added_t = [], Counter()
         for it in res:
             name = os.path.basename(it["src"])
             if it["error"]:
@@ -153,12 +155,16 @@ class BankActionsMixin:
                 continue
             lines.extend(f"⚠ {name}: {n}" for n in it["notes"])
             qs = parse_tex(it["tex"]) if it["tex"] else []
-            added = sum(1 for q in qs if self.bank.add(q, it["src"]))
+            kept = [q for q in qs if self.bank.add(q, it["src"])]
+            added = len(kept)
+            added_t.update(q.qtype for q in kept)
             bad = sum(1 for q in qs if rv.worst(rv.review_question(q)) == rv.LOI)
             lines.append(f"{'✔' if qs else '✘'} {name}: nhận dạng {len(qs)} câu, thêm {added} câu vào kho, "
                          f"{bad} câu cần xem lại (chưa rõ đáp án…)." + (f" Bản LaTeX: {it['out']}" if it["out"] else ""))
         self.build_tree()
         self.refresh()
+        lines.append(f"\nĐÃ NHẬP VÀO KHO: {fmt(added_t)}")
+        lines.append(f"Kho hiện có: {fmt(bank_counts(self.bank))}")
         QMessageBox.information(self, "Nhập từ Word", "\n".join(lines) + "\n\nNên mở tab «Rà soát» để kiểm tra lại.")
 
     def export_other(self):
