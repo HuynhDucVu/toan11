@@ -39,6 +39,7 @@ LAYOUT = {
     "auto": ("DATA/AUTO", "", "Câu đổi số / câu sinh tự động"),
     "ma_tran": ("DATA/MA TRAN DE", "", "Ma trận đề (.json, .xlsx)"),
     "tuong_tu": ("DATA/TUONG TU", "", "Đề tương tự"),
+    "bai_giang": ("DATA/BAI GIANG", "", "Bài giảng video Manim: code, main, video (mỗi nguồn một thư mục)"),
     "word2extest": ("DATA/WORD2EXTEST", "", "File Word và kết quả chuyển Word → TeX"),
     "extest2word": ("DATA/EXTEST2WORD", "", "Kết quả chuyển TeX → Word"),
     "pdf2tex": ("DATA/PDF2TEX", "", "File PDF và kết quả chuyển PDF → TeX"),

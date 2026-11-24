@@ -824,3 +824,16 @@ def test_export_has_extest_and_standalone_vietnamese(tmp_path):
     export_versions(vs, str(tmp_path / "out"), options=ExportOptions())
     assert os.path.isfile(str(tmp_path / "out" / "ex_test.sty"))
     assert "iftex" in STANDALONE and "vietnam" in STANDALONE and "fontspec" in STANDALONE
+
+
+def test_manim_dialog_steps_guarded(win, app):
+    """Hộp thoại Bài giảng Manim dựng được; các bước chưa đủ dữ liệu báo đúng, không lỗi."""
+    from nganhangde.ui.dialogs.manim_lecture import ManimLectureDialog
+    d = ManimLectureDialog(win)
+    d.step2()
+    assert "Chưa có bản thiết kế" in d.log.toPlainText()
+    d.step5()
+    assert "Chưa có video" in d.log.toPlainText()
+    d.step6()
+    assert "Chưa có video" in d.log.toPlainText()
+    assert d.cb_q.count() == 3

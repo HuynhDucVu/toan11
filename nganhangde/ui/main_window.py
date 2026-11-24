@@ -98,6 +98,7 @@ class MainWindow(LayoutMixin, BankActionsMixin, QMainWindow):
         self._act(m, "Tải pandoc (để xuất file Word)…", self.download_pandoc)
         self._act(m, "Giao diện (màu, cỡ chữ) & Mathpix…", self.appearance)
         self._act(m, "Ảnh → LaTeX bằng Mathpix…", self.mathpix_image)
+        self._act(m, "Bài giảng Manim (video) từ file…", self.manim_lecture)
         self._act(m, "Thống kê ngân hàng", self.show_stats)
         m = mb.addMenu("Trợ &giúp")
         self._act(m, "HDSD – hướng dẫn sử dụng từng chức năng", self.show_hdsd, "F1")
@@ -1034,6 +1035,10 @@ class MainWindow(LayoutMixin, BankActionsMixin, QMainWindow):
 
     def open_generator(self):
         self.show_panel(self.gen_panel)
+
+    def manim_lecture(self):
+        from .dialogs.manim_lecture import ManimLectureDialog
+        ManimLectureDialog(self).exec()
 
     def show_hdsd(self, topic=None):
         from .dialogs.hdsd import show_hdsd

@@ -1,3 +1,9 @@
+## 0.17.52 – Bài giảng video Manim từ file
+
+- Menu Công cụ → **Bài giảng Manim (video) từ file…** gồm 6 bước theo thứ tự: ① AI thiết kế bài giảng từ file (.tex/.docx/.txt); ② xuất code (bai_giang.py); ③ xuất main (main.py, chọn chất lượng); ④ biên dịch video bằng manim; ⑤ mở video; ⑥ báo dung lượng từng cảnh và tổng, kèm ước tính cho cả đề.
+- Kết quả nằm trong DATA\BAI GIANG\<tên nguồn>\.
+- Cần cài trên máy: manim (pip install manim), LaTeX (MiKTeX/TeX Live) và ffmpeg. Không có trong bản cài đặt .exe.
+
 ## 0.17.51 – Sắp xếp thư mục theo sơ đồ chuẩn
 
 - Moodle XML xuất vào DATA\MFORMS (cùng nhóm đề online); không còn thư mục DATA\MOODLE XML.

@@ -112,3 +112,26 @@ def test_word_dialog_wires_verify_and_ai(monkeypatch):
     assert len(qs) == 1 and "Lời giải do AI viết." in qs[0].solution
     assert any("viết lại lời giải 1/1" in n for n in notes)
     assert any("đáp án khác" in n for n in notes)                      # AI ra B, đáp án đánh dấu là A
+
+
+def test_manim_lecture_code_main_and_size(tmp_path):
+    """Bài giảng Manim: sinh code hợp lệ, main.py, đo dung lượng; biên dịch thật chỉ khi máy có manim."""
+    import ast
+    import shutil
+    from nganhangde import manim_lecture as ml
+
+    class FakeClient:
+        def generate_json(self, prompt, schema=None):
+            return {"title": "Hàm số", "scenes": [{"title": "Định nghĩa", "blocks": [
+                {"kind": "text", "content": "Hàm số bậc hai"}, {"kind": "math", "content": r"y=ax^2+bx+c"},
+                {"kind": "step", "content": "Với a khác 0"}]}]}
+    design = ml.design_lecture(FakeClient(), "nội dung")
+    assert design["scenes"][0]["title"] == "Định nghĩa"
+    p = ml.write_project(design, str(tmp_path / "bg"), "-ql")
+    ast.parse(open(p["code"], encoding="utf-8").read())                    # mã Python hợp lệ
+    assert "class Canh01_Dinh_nghia(Scene)" in open(p["code"], encoding="utf-8").read()
+    assert "SCENES = ['Canh01_Dinh_nghia']" in open(p["main"], encoding="utf-8").read()
+    assert ml.size_report([])["total"] == 0
+    if shutil.which("manim") is None and ml.manim_command() is None:
+        ok, vids, msg = ml.render(str(tmp_path / "bg"), p["scenes"], "-ql")
+        assert not ok and "pip install manim" in msg                       # không có manim: báo cách cài
