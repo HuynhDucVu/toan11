@@ -26,7 +26,8 @@ if TYPE_CHECKING:
 ENGINES = (("direct", "Đọc trực tiếp"), ("convert", "Dùng Convert Equations"), ("toggle", "Dùng Toggle TeX"),
            ("mathpix", "Dùng Mathpix API"), ("gemini", "Dùng Gemini"))
 CHECKS = (("images", "Chuyển hình", True), ("tables", "Chuyển bảng", True), ("ds", "Chuyển câu ĐS", True),
-          ("theory", "Chuyên đề", False), ("chem", "Môn Hoá", False))
+          ("theory", "Chuyên đề", False), ("chem", "Môn Hoá", False),
+          ("ai_review", "AI rà soát đáp án & viết lại lời giải theo mẫu LaTeX", False))
 
 HELP_MATHPIX = ("Mathpix API (đọc công thức từ ảnh/PDF):\n1. Vào https://accounts.mathpix.com → đăng ký → mục API → "
                 "tạo app.\n2. Chép «app_id» vào ô ID và «app_key» vào ô Key, bấm «Lưu».\n3. Chọn «Dùng Mathpix API», OK.\n"
@@ -367,8 +368,59 @@ def run_word_to_tex(win, paths: list[str], dlg: Word2TexDialog, tag: str = "") -
         except OSError as e:
             item["error"] = f"Không ghi được {out}: {e}"
             continue
+        if dlg.boxes["ai_review"].isChecked() and tex.strip():
+            tex, ai_notes = ai_polish_tex(win, tex)            # bước 2: AI rà soát + viết lời giải theo mẫu
+            item["notes"] += ai_notes
+            with open(out, "w", encoding="utf-8") as f:       # bước 3: ghi lại bản LaTeX chuẩn đã sửa
+                f.write(tex)
         item.update(out=out, tex=tex, n=len(parse_tex(tex)))
+        if p.lower().endswith(".docx"):
+            from ...docxnative import verify_docx_conversion
+            item["notes"] += verify_docx_conversion(p, tex)[:30]   # kiểm tra: số câu, đáp án, lời giải, $ và ngoặc
     return res
+
+
+def ai_polish_tex(win, tex: str) -> tuple[str, list[str]]:
+    """AI giải lại từng câu, viết lời giải theo mẫu LaTeX (ghi đè lời giải cũ) và so đáp án; trả về LaTeX chuẩn.
+
+    Đáp án AI khác đáp án đánh dấu ⇒ câu đó có lỗi «AI: đáp án khác», không tự đổi đáp án. Trả về (tex, ghi chú)."""
+    from PySide6.QtWidgets import QApplication, QProgressDialog
+
+    from ... import aitasks
+    from ...parser import parse_tex
+    from .ai_settings import ensure_client
+    client = ensure_client(win)
+    if client is None:
+        return tex, ["Chưa có khoá AI – bỏ qua bước AI rà soát."]
+    qs = parse_tex(tex)
+    if not qs:
+        return tex, []
+    prog = QProgressDialog("AI đang rà soát đáp án và viết lời giải…", "Dừng", 0, len(qs), win)
+    prog.setWindowTitle("AI rà soát")
+    prog.setMinimumDuration(0)
+    rewritten, lech, ids_lech = 0, 0, []
+    for i, q in enumerate(qs):
+        if prog.wasCanceled():
+            break
+        prog.setValue(i)
+        QApplication.processEvents()
+        try:
+            prop = aitasks.make_solution(client, q, overwrite=True)
+        except Exception as e:  # noqa: BLE001 – lỗi mạng/khoá AI: giữ phần đã xong, báo lại
+            prog.close()
+            return "\n\n".join(x.to_latex(True) for x in qs) + "\n", [f"AI dừng ở câu {i + 1}: {e}"]
+        if any(x.code == "ai_dap_an" for x in prop.issues):
+            lech += 1
+            ids_lech.append(str(i + 1))
+        if prop.question.solution.strip() and prop.question.solution != q.solution:
+            rewritten += 1
+        qs[i] = prop.question
+    prog.setValue(len(qs))
+    prog.close()
+    notes = [f"AI đã viết lại lời giải {rewritten}/{len(qs)} câu theo mẫu LaTeX."]
+    if lech:
+        notes.append(f"AI giải ra đáp án khác đáp án đánh dấu ở {lech} câu (câu {', '.join(ids_lech[:20])}) – kiểm tra tay.")
+    return "\n\n".join(x.to_latex(True) for x in qs) + "\n", notes
 
 
 def summary_html(res: list[dict]) -> str:

@@ -466,7 +466,7 @@ def test_word2tex_dialog_like_mylt(win, app, monkeypatch):
     assert [d.radios[k].text() for k in ("convert", "toggle", "mathpix", "gemini")] == [
         "Dùng Convert Equations", "Dùng Toggle TeX", "Dùng Mathpix API", "Dùng Gemini"]
     assert d.windowTitle() == "Tuỳ chọn chuyển Word/PDF sang TeX" and not d.cb_type.isEnabled()
-    assert {d.boxes[k].text() for k in d.boxes} == {"Chuyển hình", "Chuyển bảng", "Chuyển câu ĐS", "Chuyên đề", "Môn Hoá"}
+    assert {d.boxes[k].text() for k in d.boxes} == {"Chuyển hình", "Chuyển bảng", "Chuyển câu ĐS", "Chuyên đề", "Môn Hoá", "AI rà soát đáp án & viết lại lời giải theo mẫu LaTeX"}
     d.radios["toggle"].setChecked(True)
     d.e_mid.setText("id1")
     d.e_mkey.setText("key1")

@@ -1,3 +1,9 @@
+## 0.17.50 – Word → LaTeX: AI rà soát và xuất LaTeX chuẩn
+
+- Sửa bản 0.17.49: kiểm tra sau chuyển (đếm câu, đáp án, lời giải) chưa được gọi trong hộp thoại; nay đã gọi và hiện trong bảng tóm tắt.
+- Hộp thoại chuyển Word có tuỳ chọn mới **AI rà soát đáp án & viết lại lời giải theo mẫu LaTeX**: AI giải lại từng câu, ghi lời giải theo mẫu, báo câu AI giải ra đáp án khác (kiểm tra tay, không tự đổi đáp án), rồi ghi lại file .tex chuẩn ex_test.
+- Chuyển MathType → Equation → LaTeX: dùng tuỳ chọn «Dùng Convert Equations» (cần Windows, Word và MathType) hoặc «Đọc trực tiếp».
+
 ## 0.17.49 – Word → LaTeX: tự kiểm tra sau khi chuyển
 
 - Sau mỗi file .docx, phần mềm đếm số mốc «Câu» trong Word và so với số câu nhận được; báo câu thiếu hoặc ghép nhầm.

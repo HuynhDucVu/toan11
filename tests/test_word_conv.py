@@ -88,3 +88,27 @@ def test_verify_conversion_reports_missing_answer_and_count(tmp_path):
     warns = verify_docx_conversion(p, tex)
     assert any("chưa có lời giải" in w and "câu 1" in w for w in warns)
     assert not any("mốc «Câu»" in w for w in warns)                      # 2 mốc, 2 câu: khớp
+
+
+def test_word_dialog_wires_verify_and_ai(monkeypatch):
+    """Hộp thoại chuyển Word: có tuỳ chọn AI; ai_polish_tex viết lời giải, báo đáp án AI khác, xuất LaTeX chuẩn."""
+    import os
+    os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+    from PySide6.QtWidgets import QApplication
+    QApplication.instance() or QApplication([])
+    import nganhangde.ui.dialogs.ai_settings as ais
+    from nganhangde.ui.dialogs import word2tex as w2t
+    from nganhangde.parser import parse_tex
+    assert any(k == "ai_review" for k, _t, _d in w2t.CHECKS)
+
+    class FakeClient:
+        def generate_json(self, prompt, schema=None):
+            return {"dap_an": "B", "loi_giai": "Lời giải do AI viết.", "ghi_chu": ""}
+    monkeypatch.setattr(ais, "ensure_client", lambda win: FakeClient())
+    tex = ("\\begin{ex}%[0D2N1-1]\n\tTính 1+1.\n\t\\choice\n\t{\\True 2}\n\t{3}\n\t{4}\n\t{5}\n"
+           "\t\\loigiai{\n\t\tCũ.\n\t}\n\\end{ex}\n")
+    out, notes = w2t.ai_polish_tex(None, tex)
+    qs = parse_tex(out)
+    assert len(qs) == 1 and "Lời giải do AI viết." in qs[0].solution
+    assert any("viết lại lời giải 1/1" in n for n in notes)
+    assert any("đáp án khác" in n for n in notes)                      # AI ra B, đáp án đánh dấu là A
