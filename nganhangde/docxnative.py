@@ -544,3 +544,39 @@ def diagnose_docx(path: str, opts: DocxOptions | None = None, n_lines: int = 40)
     except Exception as e:  # noqa: BLE001
         L.append(f"Không đọc được file: {type(e).__name__}: {e}")
     return "\n".join(L) + "\n"
+
+
+_CAU_LINE = re.compile(r"^\s*(?:\\textbf\{)?\s*(?:Câu|Bài)\s*\d+\s*[.:)]", re.I)
+
+
+def verify_docx_conversion(path: str, tex: str, opts: DocxOptions | None = None) -> list[str]:
+    """Kiểm tra sau chuyển Word → LaTeX (như bước kiểm tra trước khi giao): trả về danh sách cảnh báo tiếng Việt.
+
+    * số mốc «Câu N» trong Word phải khớp số câu nhận được;
+    * mỗi câu: trắc nghiệm có đúng 1 đáp án \\True, có lời giải, số dấu $ chẵn, ngoặc { } cân bằng;
+    * công thức MathType không đọc được (đã được báo khi chuyển).
+    """
+    from .parser import parse_tex
+    warns: list[str] = []
+    try:
+        text, rep = docx_to_latex(path, opts or DocxOptions(images=False))
+    except Exception as e:  # noqa: BLE001
+        return [f"Không kiểm tra được file Word: {type(e).__name__}: {e}"]
+    if rep.mathtype_fail:
+        warns.append(f"{rep.mathtype_fail} công thức MathType không đọc được – cần sửa tay (xem file .tex)")
+    marks = sum(1 for ln in text.split("\n") if _CAU_LINE.match(ln))
+    qs = parse_tex(tex)
+    if marks and marks != len(qs):
+        warns.append(f"Word có {marks} mốc «Câu» nhưng nhận dạng được {len(qs)} câu – kiểm tra câu bị thiếu hoặc ghép nhầm")
+    for i, q in enumerate(qs, 1):
+        tag = f"câu {i}" + (f" [{q.id_code}]" if q.id_code else "")
+        if q.qtype == "TN" and sum(q.correct) != 1:
+            warns.append(f"{tag}: có {sum(q.correct)} đáp án đúng (cần 1)")
+        if not q.solution.strip():
+            warns.append(f"{tag}: chưa có lời giải")
+        blob = q.raw or ""
+        if blob.count("$") % 2:
+            warns.append(f"{tag}: số dấu $ lẻ – công thức có thể hỏng")
+        if blob.count("{") != blob.count("}"):
+            warns.append(tag + ": ngoặc nhọn không cân bằng")
+    return warns

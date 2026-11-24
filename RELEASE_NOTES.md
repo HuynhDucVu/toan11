@@ -1,3 +1,9 @@
+## 0.17.49 – Word → LaTeX: tự kiểm tra sau khi chuyển
+
+- Sau mỗi file .docx, phần mềm đếm số mốc «Câu» trong Word và so với số câu nhận được; báo câu thiếu hoặc ghép nhầm.
+- Báo từng câu: trắc nghiệm không đúng 1 đáp án, câu chưa có lời giải, số dấu $ lẻ, ngoặc nhọn không cân, công thức MathType không đọc được.
+- Kết quả hiện trong bảng tóm tắt, dưới tên file.
+
 ## 0.17.48 – Một cửa sổ xem PDF; biên dịch tiếng Việt không lỗi
 
 - Xem PDF chỉ mở **một cửa sổ** trong phần mềm (mở lại thì cửa sổ cũ đóng). Không còn mở trình PDF ngoài và không còn khung xem trước riêng ở trang Vẽ hình.

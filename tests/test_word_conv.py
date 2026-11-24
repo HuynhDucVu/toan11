@@ -72,3 +72,19 @@ def test_two_questions_with_answers(tmp_path):
     assert [q.qtype for q in qs] == ["TN", "TN"]
     assert qs[0].correct == [False, True, False, False] and qs[1].correct == [False, False, True, False]
     assert "3 \\& 4" in t
+
+
+def test_verify_conversion_reports_missing_answer_and_count(tmp_path):
+    """Kiểm tra sau chuyển: đếm mốc «Câu» khớp số câu; câu thiếu lời giải được báo."""
+    from nganhangde.docxnative import verify_docx_conversion, docx_to_ex
+    p = _make(tmp_path, [
+        [("Câu 1. ", {}), ("Tính 1+1.", {})],
+        [("A. 2", {})], [("B. 3", {"u": True})], [("C. 4", {})], [("D. 5", {})],
+        [("Câu 2. ", {}), ("Tính 2+2.", {})],
+        [("A. 3", {})], [("B. 4", {"u": True})], [("C. 5", {})], [("D. 6", {})],
+        [("Lời giải. ", {}), ("Chọn B.", {})],
+    ])
+    tex, _ = docx_to_ex(p, tag="T")
+    warns = verify_docx_conversion(p, tex)
+    assert any("chưa có lời giải" in w and "câu 1" in w for w in warns)
+    assert not any("mốc «Câu»" in w for w in warns)                      # 2 mốc, 2 câu: khớp
