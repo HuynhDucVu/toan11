@@ -837,3 +837,22 @@ def test_manim_dialog_steps_guarded(win, app):
     d.step6()
     assert "Chưa có video" in d.log.toPlainText()
     assert d.cb_q.count() == 3
+
+
+def test_manim_step1_runs_worker(win, app, tmp_path, monkeypatch):
+    """Bước ① (AI thiết kế) chạy được trong luồng nền; không lỗi tham số job."""
+    from nganhangde.ui.dialogs import ai_settings
+    from nganhangde.ui.dialogs.manim_lecture import ManimLectureDialog
+
+    class FakeClient:
+        def generate_json(self, prompt, schema=None):
+            return {"title": "Hàm số", "scenes": [{"title": "Định nghĩa", "blocks": [
+                {"kind": "text", "content": "Hàm số bậc hai"}]}]}
+    monkeypatch.setattr(ai_settings, "ensure_client", lambda w: FakeClient())
+    src = tmp_path / "nguon.tex"
+    src.write_text("Hàm số bậc hai $y=ax^2$", encoding="utf-8")
+    d = ManimLectureDialog(win, str(src))
+    d.step1()
+    text = d.log.toPlainText()
+    assert "AI lỗi" not in text and "1 cảnh" in text
+    assert d.design and d.design["scenes"][0]["title"] == "Định nghĩa"

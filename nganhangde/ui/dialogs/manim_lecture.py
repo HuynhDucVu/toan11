@@ -76,7 +76,7 @@ class ManimLectureDialog(QDialog):
             return
         src = ml.read_source(self.source)
 
-        def job(progress, should_stop):
+        def job():                      # TaskWorker không truyền progress/should_stop khi with_progress=False
             return ml.design_lecture(client, src)
         w = TaskWorker(job)
         self.say("Đang để AI thiết kế bài giảng…")

@@ -1,3 +1,7 @@
+## 0.17.54 – Sửa lỗi bước ① Bài giảng Manim
+
+- Sửa lỗi «job() missing 2 required positional arguments» khi AI thiết kế bài giảng.
+
 ## 0.17.53 – Bài giảng Manim: kiểm tra đủ công cụ trước khi biên dịch
 
 - Bước ④ kiểm tra trước: manim, LaTeX, dvisvgm, ffmpeg. Thiếu gì thì báo đúng cái đó kèm cách cài.
