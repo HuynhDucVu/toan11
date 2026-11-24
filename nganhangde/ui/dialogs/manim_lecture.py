@@ -115,6 +115,10 @@ class ManimLectureDialog(QDialog):
             if not self.info:
                 return
         self.step3()
+        miss = ml.missing_tools()
+        if miss:
+            self.say("<span style='color:#c00000'>Còn thiếu để biên dịch:<br>• " + "<br>• ".join(miss) + "</span>")
+            return
         self.say("Đang biên dịch – có thể lâu với bài dài…")
         from PySide6.QtWidgets import QApplication
         ok, videos, msg = ml.render(self.out, self.info["scenes"], self.cb_q.currentData())

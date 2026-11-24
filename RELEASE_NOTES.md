@@ -1,3 +1,8 @@
+## 0.17.53 – Bài giảng Manim: kiểm tra đủ công cụ trước khi biên dịch
+
+- Bước ④ kiểm tra trước: manim, LaTeX, dvisvgm, ffmpeg. Thiếu gì thì báo đúng cái đó kèm cách cài.
+- Tìm manim cả khi lệnh «manim» không có trong PATH (dùng python -m manim).
+
 ## 0.17.52 – Bài giảng video Manim từ file
 
 - Menu Công cụ → **Bài giảng Manim (video) từ file…** gồm 6 bước theo thứ tự: ① AI thiết kế bài giảng từ file (.tex/.docx/.txt); ② xuất code (bai_giang.py); ③ xuất main (main.py, chọn chất lượng); ④ biên dịch video bằng manim; ⑤ mở video; ⑥ báo dung lượng từng cảnh và tổng, kèm ước tính cho cả đề.

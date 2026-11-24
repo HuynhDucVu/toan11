@@ -149,12 +149,26 @@ def manim_command() -> list[str] | None:
     return None
 
 
+def missing_tools() -> list[str]:
+    """Các thành phần còn thiếu để biên dịch video, kèm cách cài (rỗng = đủ)."""
+    out = []
+    if manim_command() is None:
+        out.append("manim: mở cửa sổ lệnh và chạy «pip install manim» (Python đang dùng phải là Python đã cài manim)")
+    if shutil.which("latex") is None:
+        out.append("LaTeX: cài MiKTeX (https://miktex.org/download) hoặc TeX Live; cần để vẽ công thức")
+    if shutil.which("dvisvgm") is None:
+        out.append("dvisvgm: đi kèm MiKTeX/TeX Live; kiểm tra thư mục cài có dvisvgm.exe")
+    if shutil.which("ffmpeg") is None:
+        out.append("ffmpeg: tải từ https://ffmpeg.org/download.html rồi thêm thư mục bin vào PATH")
+    return out
+
+
 def render(out_dir: str, scenes: list[str], quality: str = "-qm", timeout: int = 3600) -> tuple[bool, list[str], str]:
     """Biên dịch từng cảnh. Trả về (thành công, danh sách file .mp4, thông báo)."""
     cmd = manim_command()
-    if cmd is None:
-        return False, [], ("Chưa cài manim. Mở cửa sổ lệnh và chạy: pip install manim  "
-                           "(cần thêm LaTeX – MiKTeX/TeX Live – và ffmpeg).")
+    miss = missing_tools()
+    if miss:
+        return False, [], "Còn thiếu:\n• " + "\n• ".join(miss)
     run = subprocess.run(cmd + [quality, CODE_FILE, *scenes], cwd=out_dir, capture_output=True, text=True, timeout=timeout)
     if run.returncode != 0:
         tail = (run.stderr or run.stdout or "").strip().splitlines()[-6:]
