@@ -407,11 +407,15 @@ def test_layout_like_mylt(tmp_path, monkeypatch):
     from nganhangde import appdirs
     root = str(tmp_path / "app")
     appdirs.ensure_layout(root)
-    for sub in ("DATA/BANK", "DATA/DE", "DATA/AUTO", "DATA/MA TRAN DE", "DATA/WORD2EXTEST", "DATA/EXTEST2WORD", "DATA/PDF2TEX",
-                "DATA/MOODLE XML", "DATA/MFORMS", "DATA/TUONG TU", "DATA/LOC ID", "DATA/LOC TIKZ", "DATA/IMG",
-                "TEMPLATE", "Map ID (DPS)", "TEMP", "LOG"):
+    for sub in ("DATA/BANK", "DATA/DE", "DATA/DE/ans", "DATA/DE/build", "DATA/AUTO", "DATA/MA TRAN DE",
+                "DATA/WORD2EXTEST", "DATA/WORD2EXTEST/data", "DATA/WORD2EXTEST/hinh", "DATA/WORD2EXTEST/out",
+                "DATA/EXTEST2WORD", "DATA/PDF2TEX", "DATA/MFORMS", "DATA/PDF QUIZ", "DATA/TUONG TU", "DATA/LOC ID",
+                "DATA/LOC TIKZ", "DATA/IMG", "TEMPLATE", "Map ID (DPS)", "TEMP", "TEMP/ans", "TEMP/build", "LOG"):
         assert (tmp_path / "app").joinpath(*sub.split("/")).is_dir(), sub
+    assert not (tmp_path / "app" / "DATA" / "MOODLE XML").exists()           # Moodle nằm trong MFORMS
     assert (tmp_path / "app" / "TEMPLATE" / "de_thi.tex").exists()
+    assert (tmp_path / "app" / "TEMPLATE" / "Header.tex").exists()
+    assert (tmp_path / "app" / "TEMPLATE" / "nhd_extest.sty").exists()
     assert appdirs.folder("de_xuat", root).endswith("DE")
     # bản cũ: thư mục cũ còn thì dùng tiếp
     old = tmp_path / "cu"
@@ -729,7 +733,7 @@ def test_header_mylt_template_exports(tmp_path):
     from nganhangde.parser import Question
     root = str(tmp_path / "app")
     appdirs.ensure_layout(root)
-    tpl = tmp_path / "app" / "TEMPLATE" / "Header_MyLT.tex"
+    tpl = tmp_path / "app" / "TEMPLATE" / "Header.tex"
     assert tpl.exists()
     v = ExamVersion("101")
     v.sections = {"TN": [Question("TN", "Tính $1+1$.", list("abcd"), [False, True, False, False])], "DS": [], "KQ": [], "TL": []}

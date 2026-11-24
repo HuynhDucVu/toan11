@@ -196,7 +196,7 @@ class MyltOptionsPanel(QWidget):
         b_h = QPushButton("?")
         b_h.setFixedWidth(26)
         b_h.clicked.connect(lambda: QMessageBox.information(
-            self, "File header", "File header = file mẫu đề .tex trong thư mục TEMPLATE (vd Header_MyLT.tex, de_thi.tex). "
+            self, "File header", "File header = file mẫu đề .tex trong thư mục TEMPLATE (vd Header.tex, de_thi.tex). "
                                  "Chép thêm file vào TEMPLATE là có thêm lựa chọn."))
         tl.addWidget(QLabel("Tên trường"), 0, 0)
         tl.addWidget(self.e_truong, 0, 1, 1, 2)

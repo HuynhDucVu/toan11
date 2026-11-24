@@ -39,8 +39,12 @@ DIGIT_ROWS_Y = [_pt(v) for v in (122.2, 143.6, 164.5, 185.9, 207.4, 228.2, 249.6
 def template_path() -> str:
     """File phiếu gốc: DATA\\Phiếu TLTN THPT QG 2025 (1 mặt).pdf trong thư mục phần mềm, không có thì bản đi kèm."""
     from .appdirs import PHIEU_PDF, PKG, home
-    cand = os.path.join(home(), "DATA", PHIEU_PDF.replace("_", " "))
-    return cand if os.path.isfile(cand) else os.path.join(PKG, "data", PHIEU_PDF)
+    from .appdirs import folder
+    for cand in (os.path.join(folder("pdf_quiz"), PHIEU_PDF.replace("_", " ")),
+                 os.path.join(home(), "DATA", PHIEU_PDF.replace("_", " "))):      # bố cục mới, rồi bố cục cũ
+        if os.path.isfile(cand):
+            return cand
+    return os.path.join(PKG, "data", PHIEU_PDF)
 
 
 def marks_for(version, *, sbd: str = "") -> tuple[list[tuple[float, float]], list[str]]:

@@ -42,9 +42,9 @@ LAYOUT = {
     "word2extest": ("DATA/WORD2EXTEST", "", "File Word và kết quả chuyển Word → TeX"),
     "extest2word": ("DATA/EXTEST2WORD", "", "Kết quả chuyển TeX → Word"),
     "pdf2tex": ("DATA/PDF2TEX", "", "File PDF và kết quả chuyển PDF → TeX"),
-    "moodle": ("DATA/MOODLE XML", "", "File Moodle XML"),
-    "mforms": ("DATA/MFORMS", "", "Google Forms / Blogger"),
-    "pdf_quiz": ("DATA/PDF QUIZ", "", "Bài trắc nghiệm PDF (gói exerquiz)"),
+    "moodle": ("DATA/MFORMS", "", "Đề online: Moodle XML, Google Forms/GAS, Quizizz, Aiken, Blogger"),
+    "mforms": ("DATA/MFORMS", "", "Đề online: Google Forms/GAS, Moodle XML, Quizizz, Aiken"),
+    "pdf_quiz": ("DATA/PDF QUIZ", "", "Phiếu TLTN 2025 và PDF đề trắc nghiệm"),
     "loc_id": ("DATA/LOC ID", "", "Câu lọc theo ID"),
     "loc_tikz": ("DATA/LOC TIKZ", "", "Hình TikZ tách từ đề"),
     "anh": ("DATA/IMG", "anh", "Ảnh PNG xuất từ hình TikZ / câu hỏi"),
@@ -126,12 +126,16 @@ def ensure_layout(root: str | None = None) -> str:
                         "Cách chép nhanh: menu Công cụ → «Cài gói ex_test / gói lệnh LaTeX…».\n")
         except OSError:
             pass
+    # thư mục con theo sơ đồ chuẩn (DE/ans, DE/build, TEMP/ans, TEMP/build, WORD2EXTEST/data|hinh|out)
+    for sub in ("DATA/DE/ans", "DATA/DE/build", "TEMP/ans", "TEMP/build",
+                "DATA/WORD2EXTEST/data", "DATA/WORD2EXTEST/hinh", "DATA/WORD2EXTEST/out"):
+        os.makedirs(os.path.join(root, *sub.split("/")), exist_ok=True)
     copies = [(os.path.join(PKG, "templates", "de_thi.tex"), os.path.join(folder("mau_de", root), "de_thi.tex")),
-              (os.path.join(PKG, "templates", "nhd_extest.sty"), os.path.join(folder("mau_de", root), "ex_test_rut_gon.sty")),
-              (os.path.join(PKG, "templates", "Header_MyLT.tex"), os.path.join(folder("mau_de", root), "Header_MyLT.tex")),
+              (os.path.join(PKG, "templates", "nhd_extest.sty"), os.path.join(folder("mau_de", root), "nhd_extest.sty")),
+              (os.path.join(PKG, "templates", "Header_MyLT.tex"), os.path.join(folder("mau_de", root), "Header.tex")),
               (os.path.join(PKG, "data", "map_id_toan_6_12.tex"), os.path.join(folder("map_id", root), "Map_ID_Toan_6_12.tex")),
               (os.path.join(PKG, "data", "Map_ID_Moi.tex"), os.path.join(folder("map_id", root), "Map_ID_Moi.tex")),
-              (os.path.join(PKG, "data", PHIEU_PDF), os.path.join(root, "DATA", PHIEU_PDF.replace("_", " ")))]
+              (os.path.join(PKG, "data", PHIEU_PDF), os.path.join(folder("pdf_quiz", root), PHIEU_PDF.replace("_", " ")))]
     if not os.environ.get("NHD_NO_BUNDLED_PKG"):
         # gói ex_test mới nhất (v3.1, 21/10/2024 – Trần Anh Tuấn, Dương Phước Sang) vào thư mục gói lệnh: biên dịch dùng bản này,
         # file xuất ra được chép kèm. (Thư mục gói lệnh đã có ex_test.sty của người dùng thì giữ nguyên.)

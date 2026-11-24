@@ -1,3 +1,11 @@
+## 0.17.51 – Sắp xếp thư mục theo sơ đồ chuẩn
+
+- Moodle XML xuất vào DATA\MFORMS (cùng nhóm đề online); không còn thư mục DATA\MOODLE XML.
+- Phiếu TLTN 2025 nằm trong DATA\PDF QUIZ; phần mềm vẫn tìm được phiếu ở vị trí cũ.
+- Tạo sẵn các thư mục con: DATA\DE\ans, DATA\DE\build, TEMP\ans, TEMP\build, DATA\WORD2EXTEST\data, hinh, out.
+- Mẫu trong TEMPLATE đổi tên thành Header.tex và nhd_extest.sty (máy đang dùng tên cũ vẫn giữ file cũ).
+- Không đổi: tên kho nganhang.db và thư mục Map ID (DPS) (để không làm mất kho và Map ID đang dùng).
+
 ## 0.17.50 – Word → LaTeX: AI rà soát và xuất LaTeX chuẩn
 
 - Sửa bản 0.17.49: kiểm tra sau chuyển (đếm câu, đáp án, lời giải) chưa được gọi trong hộp thoại; nay đã gọi và hiện trong bảng tóm tắt.
