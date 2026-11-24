@@ -1,0 +1,41 @@
+\documentclass[12pt,a4paper]{article}
+\usepackage{amsmath,amssymb,grffile,makecell,fancyhdr,enumerate,tasks,mathrsfs,graphicx}
+\usepackage{tikz,tikz-3dplot,tkz-tab,pgfplots}
+\usepackage[top=1.5cm, bottom=1.5cm, left=2cm, right=1.5cm]{geometry}
+\usepackage[hidelinks,unicode]{hyperref}
+\usepackage[utf8]{vietnam}
+\IfFileExists{ex_test.sty}{%
+  \usepackage[<<MODE>>]{ex_test}%
+}{%
+  \usepackage[<<MODE>>]{nhd_extest}%
+}
+\usetikzlibrary{shapes.geometric,shadings,calc,patterns,arrows,intersections,angles,backgrounds,quotes}
+\pgfplotsset{compat=newest}
+\newcommand{\hoac}[1]{\left[\begin{aligned}#1\end{aligned}\right.}
+\newcommand{\heva}[1]{\left\{\begin{aligned}#1\end{aligned}\right.}
+\newcommand{\hetde}{\centerline{\rule[0.5ex]{2cm}{1pt} HẾT \rule[0.5ex]{2cm}{1pt}}}
+\newcommand{\tentruong}{Trường THPT}
+\newcommand{\tengv}{Tổ Toán}
+\newcommand{\tenkythi}{<<TEN_DE>>}
+\newcommand{\tenmonthi}{Môn: Toán}
+\newcommand{\thoigian}{90}
+\newcommand{\tieudea}[2]{\noindent\textbf{PHẦN #1.} Thí sinh trả lời từ câu 1 đến câu #2. Mỗi câu hỏi thí sinh chỉ chọn một phương án.}
+\newcommand{\tieudeb}[2]{\noindent\textbf{PHẦN #1.} Thí sinh trả lời từ câu 1 đến câu #2. Mỗi ý \textbf{a), b), c), d)} ở mỗi câu hỏi, thí sinh chọn \textbf{đúng} hoặc \textbf{sai}.}
+\newcommand{\tieudec}[2]{\noindent\textbf{PHẦN #1.} Thí sinh trả lời từ câu 1 đến câu #2.}
+\newcommand{\tieuded}[1]{\noindent\textbf{PHẦN #1. PHẦN TỰ LUẬN}}
+\pagestyle{fancy}
+\fancyhf{}
+\renewcommand{\headrulewidth}{0pt}
+\rfoot{Trang \thepage\ $-$ Mã đề <<MA_DE>>}
+\begin{document}
+\begin{center}
+  {\Large\bfseries \tenkythi}\\[4pt]
+  \textbf{MÃ ĐỀ: <<MA_DE>>}
+\end{center}
+\hrule\vspace{6pt}
+
+<<NOI_DUNG>>
+
+\vspace{10pt}
+\hetde
+\end{document}

@@ -1,0 +1,63 @@
+\NeedsTeXFormat{LaTeX2e}
+\ProvidesPackage{nhd_extest}[2026/11/20 Fallback ex_test v3.3.4 compatible style for toan11]
+\RequirePackage{amsmath,amssymb,xcolor,enumitem,ifthen}
+
+\newif\ifnhd@showsol
+\nhd@showsolfalse
+\newif\ifnhd@solcolor
+\nhd@solcolorfalse
+
+\DeclareOption{dethi}{\nhd@showsolfalse}
+\DeclareOption{loigiai}{\nhd@showsoltrue}
+\DeclareOption{solcolor}{\nhd@showsoltrue\nhd@solcolortrue}
+\ProcessOptions\relax
+
+\newcounter{nhdex}
+\newenvironment{ex}{%
+  \refstepcounter{nhdex}%
+  \par\medskip\noindent\textbf{Câu \thenhdex.}\ %
+}{\par\medskip}
+
+\newenvironment{bt}{%
+  \refstepcounter{nhdex}%
+  \par\medskip\noindent\textbf{Bài \thenhdex.}\ %
+}{\par\medskip}
+
+\newcommand{\True}{\ifnhd@solcolor\color{red}\bfseries\fi}
+\newcommand{\choice}[5][]{%
+  \par\noindent
+  \begin{enumerate}[label=\textbf{\Alph*.},leftmargin=*,nosep]
+    \item #2
+    \item #3
+    \item #4
+    \item #5
+  \end{enumerate}%
+}
+\newcommand{\choiceTF}[5][]{%
+  \par\noindent
+  \begin{enumerate}[label=\textbf{\alph*)},leftmargin=*,nosep]
+    \item #2
+    \item #3
+    \item #4
+    \item #5
+  \end{enumerate}%
+}
+\newcommand{\choiceTFt}[5][]{\choiceTF[#1]{#2}{#3}{#4}{#5}}
+\newcommand{\shortans}[2][]{%
+  \par\noindent\textbf{Đáp số:} \ifnhd@showsol #2\else \underline{\hspace{2.5cm}}\fi\par%
+}
+\newcommand{\dapso}[2][]{\shortans[#1]{#2}}
+\newcommand{\loigiai}[1]{%
+  \ifnhd@showsol
+    \par\smallskip\noindent\textit{\textbf{Lời giải.}} #1\par
+  \fi
+}
+\newenvironment{itemchoice}{%
+  \begin{enumerate}[label=\textbf{\alph*)},leftmargin=*,nosep]%
+}{\end{enumerate}}
+\newcommand{\itemch}{\item}
+\newenvironment{listEX}[1][1]{%
+  \begin{enumerate}[label=\textbf{\alph*)},leftmargin=*,nosep]%
+}{\end{enumerate}}
+\providecommand{\MYLT}[1][]{}
+\providecommand{\immini}[3][]{#2\par #3}

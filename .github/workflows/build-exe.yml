@@ -1,0 +1,91 @@
+# Tự đóng gói NganHangDe.exe trên máy Windows của GitHub và đăng lên trang Releases.
+#
+# Chạy khi:
+#   * đẩy code lên nhánh main hoặc nhánh phát triển (chỉ khi mã nguồn thay đổi);
+#   * đẩy tag dạng v1.0.0;
+#   * bấm tay: tab Actions → "Build exe" → Run workflow.
+#
+# Số phiên bản lấy từ __version__ trong nganhangde/__init__.py.
+# Muốn ra bản mới: tăng số phiên bản rồi đẩy code; bản cùng số sẽ được cập nhật file exe.
+name: Build exe
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+      - claude/exam-bank-management-software-5btv51
+    tags: ["v*"]
+    paths:
+      - "nganhangde/**"
+      - "run_gui.py"
+      - "requirements*.txt"
+      - "RELEASE_NOTES.md"
+      - "packaging/**"
+      - "tests/**"
+      - ".github/workflows/build-exe.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Cài thư viện
+        run: python -m pip install -r requirements-dev.txt
+      - name: Kiểm thử
+        run: python -m pytest -q
+      - name: Đóng gói
+        run: >
+          pyinstaller --noconfirm --clean --onefile --windowed
+          --name NganHangDe
+          --icon nganhangde/assets/app.ico
+          --add-data "nganhangde/templates:nganhangde/templates"
+          --add-data "nganhangde/assets:nganhangde/assets"
+          --add-data "nganhangde/data:nganhangde/data"
+          --exclude-module PySide6.QtQml --exclude-module PySide6.QtQuick --exclude-module PySide6.QtWebEngineCore
+          --exclude-module tkinter
+          run_gui.py
+      - name: Kiểm tra file exe
+        run: |
+          $p = Start-Process dist/NganHangDe.exe -ArgumentList "--selftest" -Wait -PassThru -NoNewWindow
+          if ($p.ExitCode -ne 0) { exit 1 }
+      - name: Đọc số phiên bản
+        id: ver
+        shell: bash
+        run: echo "version=$(python -c 'import nganhangde; print(nganhangde.__version__)')" >> "$GITHUB_OUTPUT"
+      # Bản phụ (không bắt buộc – lỗi ở đây không chặn bản exe chính):
+      #   NganHangDe_ThuMuc.zip  – bản thư mục (--onedir): mở nhanh hơn, ít bị phần mềm diệt virus nghi nhầm;
+      #   NganHangDe_CaiDat.exe  – bộ cài Inno Setup từ bản thư mục (cài cho riêng người dùng, có lối tắt).
+      - name: Đóng gói bản thư mục
+        continue-on-error: true
+        run: |
+          pyinstaller --noconfirm --onedir --windowed --name NganHangDe --icon nganhangde/assets/app.ico --distpath dist --workpath build_dir --add-data "nganhangde/templates:nganhangde/templates" --add-data "nganhangde/assets:nganhangde/assets" --add-data "nganhangde/data:nganhangde/data" --exclude-module PySide6.QtQml --exclude-module PySide6.QtQuick --exclude-module PySide6.QtWebEngineCore --exclude-module tkinter run_gui.py
+          Compress-Archive -Path dist/NganHangDe -DestinationPath dist/NganHangDe_ThuMuc.zip -Force
+      - name: Dựng bộ cài đặt
+        continue-on-error: true
+        run: |
+          $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+          if (-not (Test-Path $iscc)) { choco install innosetup -y --no-progress; $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" }
+          & $iscc "/DAppVersion=${{ steps.ver.outputs.version }}" packaging/installer.iss
+      - uses: actions/upload-artifact@v4
+        with:
+          name: NganHangDe-${{ steps.ver.outputs.version }}-windows
+          path: dist/NganHangDe.exe
+      - name: Đăng lên trang Releases
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ steps.ver.outputs.version }}
+          target_commitish: ${{ github.sha }}
+          name: Ngân hàng đề thi ${{ steps.ver.outputs.version }}
+          make_latest: true
+          files: |
+            dist/NganHangDe.exe
+            dist/NganHangDe_ThuMuc.zip
+            dist/NganHangDe_CaiDat.exe
+          body_path: RELEASE_NOTES.md
